@@ -266,7 +266,11 @@ You MUST:
 2. Add more specific details, examples, or structure
 3. Consider additional aspects the previous refinement didn't address
 4. Assume the input prompt is already good but can be made even better
-5. NEVER just rewrite the existing format with minor changes` : '';
+5. Elaborate on key points with more detailed or specific instructions
+6. Add relevant constraints, requirements, or context that weren't in the previous refinement
+7. NEVER just rewrite the existing format with minor changes
+8. Make SUBSTANTIAL improvements that noticeably enhance the prompt quality
+9. DO NOT return the same prompt text - your refinement MUST be different and better` : '';
 
   const systemPrompt = baseSystemPrompt + refinementAddition;
 
