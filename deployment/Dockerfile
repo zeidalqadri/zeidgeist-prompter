@@ -5,14 +5,14 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY frontend-new/package*.json ./frontend-new/
+COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
 # Install dependencies at root level
 RUN npm ci
 
 # Copy application code
-COPY frontend-new/ ./frontend-new/
+COPY frontend/ ./frontend/
 COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 # Skip copying .env file as it might not exist in the build context
@@ -21,10 +21,10 @@ COPY scripts/ ./scripts/
 ENV BASE_PATH=/prompter
 
 # Install Next.js if not already in node_modules
-RUN cd frontend-new && npm install next
+RUN cd frontend && npm install next
 
 # Build the Next.js frontend
-WORKDIR /app/frontend-new
+WORKDIR /app/frontend
 RUN npm run build
 
 # Now create the production image
@@ -47,9 +47,9 @@ COPY backend/ ./backend/
 
 # Copy the Next.js static files and public directory
 # We're not using the standalone server anymore, just the static files
-COPY --from=builder /app/frontend-new/.next/static/ ./frontend-new/.next/static/
-COPY --from=builder /app/frontend-new/.next/server/ ./frontend-new/.next/server/
-COPY --from=builder /app/frontend-new/public/ ./frontend-new/public/
+COPY --from=builder /app/frontend/.next/static/ ./frontend/.next/static/
+COPY --from=builder /app/frontend/.next/server/ ./frontend/.next/server/
+COPY --from=builder /app/frontend/public/ ./frontend/public/
 
 # Create temp directory for fallback HTML
 RUN mkdir -p ./temp
@@ -90,5 +90,5 @@ ENV NODE_ENV=production
 # Expose the port the app will run on
 EXPOSE 8080
 
-# Start the backend API server (which will serve static files)
-CMD ["node", "backend/src/api.js"]
+# Run deployment checks and then start the application
+CMD ["sh", "-c", "node backend/src/deploy-check.js || node backend/src/api.js"]

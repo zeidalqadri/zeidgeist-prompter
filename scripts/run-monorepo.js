@@ -94,10 +94,9 @@ async function startServices() {
     };
     
     // Start the frontend development server
-    const frontendProcess = spawn('npm', ['run', 'dev'], {
-      stdio: 'inherit',
-      cwd: path.join(process.cwd(), 'frontend-new'),
-      env: combinedEnv
+    const frontendProc = spawn('npm', ['run', 'dev'], {
+      stdio: 'pipe',
+      cwd: path.join(process.cwd(), 'frontend'),
     });
 
     console.log('Frontend process started');
@@ -125,7 +124,7 @@ async function startServices() {
       // Function to handle script termination
       const cleanup = () => {
         console.log('Shutting down services...');
-        frontendProcess.kill();
+        frontendProc.kill();
         backendProcess.kill();
       };
 

@@ -5,11 +5,11 @@
   "private": true,
   "workspaces": [
     "backend",
-    "frontend-new"
+    "frontend"
   ],
   "scripts": {
     "dev": "node scripts/run-monorepo.js",
-    "frontend:dev": "cd frontend-new && npm run dev",
+    "frontend:dev": "cd frontend && npm run dev",
     "backend:dev": "cd backend && npm run dev",
     "build": "npm run build --workspaces",
     "start": "npm run start --workspaces"

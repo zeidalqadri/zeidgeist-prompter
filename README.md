@@ -5,7 +5,7 @@ A self-optimizing prompt enhancement system.
 ## Project Structure
 
 - **backend/**: API server and prompt enhancement engine
-- **frontend-new/**: Next.js web application
+- **frontend/**: Next.js web application
 - **scripts/**: Utility scripts for development and deployment
 - **deployment/**: Deployment configuration files
 - **docs/**: Documentation files

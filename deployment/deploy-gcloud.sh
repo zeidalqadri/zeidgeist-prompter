@@ -7,8 +7,8 @@ SERVICE_NAME="zeidgeist-prompter"
 REGION="asia-southeast1"
 
 # Verify Next.js app directory exists
-if [ ! -d "zeidgeist-prompter" ]; then
-  echo "Error: zeidgeist-prompter directory not found. Make sure the Next.js app is in the correct location."
+if [ ! -d "frontend" ]; then
+  echo "Error: frontend directory not found. Make sure the Next.js app is in the correct location."
   exit 1
 fi
 

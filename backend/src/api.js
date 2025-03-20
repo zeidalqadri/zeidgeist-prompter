@@ -155,102 +155,24 @@ app.get(`${apiBasePath}/status`, (req, res) => {
   }
 });
 
-// In production, serve static Next.js files directly
-if (process.env.NODE_ENV === 'production') {
-  console.log(`Running in production mode with base path: ${basePath || '/'}`);
-  
-  // First, check if static files exist in the expected locations
-  const nextStaticPath = path.join(__dirname, '../../frontend-new/.next/static');
-  const publicPath = path.join(__dirname, '../../frontend-new/public');
-  const indexHtmlPath = path.join(__dirname, '../../frontend-new/.next/server/app/index.html');
-  
-  if (fs.existsSync(nextStaticPath)) {
-    console.log(`Found Next.js static files at ${nextStaticPath}`);
-  } else {
-    console.error(`ERROR: Next.js static files not found at ${nextStaticPath}`);
+// Frontend serving
+// =============================================================
+app.use(`${basePath}/static`, express.static(path.join(__dirname, '../../frontend/.next/static')));
+app.use(`${basePath}/public`, express.static(path.join(__dirname, '../../frontend/public')));
+const nextStaticPath = path.join(__dirname, '../../frontend/.next/static');
+const publicPath = path.join(__dirname, '../../frontend/public');
+const indexHtmlPath = path.join(__dirname, '../../frontend/.next/server/app/index.html');
+
+// Serve the frontend for all other routes
+app.use('*', (req, res) => {
+  try {
+    const staticPath = path.join(__dirname, '../../frontend');
+    // ... existing code ...
+  } catch (error) {
+    console.error('Error serving frontend:', error);
+    res.status(500).json({ error: 'Error serving frontend' });
   }
-  
-  if (fs.existsSync(publicPath)) {
-    console.log(`Found public files at ${publicPath}`);
-  } else {
-    console.error(`ERROR: Public files not found at ${publicPath}`);
-  }
-  
-  // Serve the static files
-  app.use(`${basePath}/_next/static`, express.static(nextStaticPath));
-  app.use(basePath, express.static(publicPath));
-  
-  // Create a simple HTML file if the Next.js app isn't available
-  if (!fs.existsSync(indexHtmlPath)) {
-    console.log('Creating a simple index.html as fallback');
-    const tempDir = path.join(__dirname, '../../temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    
-    const fallbackHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Zeidgeist Prompter</title>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; }
-        h1 { color: #333; }
-        .message { background: #f5f5f5; padding: 1rem; border-radius: 4px; }
-      </style>
-    </head>
-    <body>
-      <h1>Zeidgeist Prompter</h1>
-      <div class="message">
-        <p>The Next.js frontend is not available. Please check the server logs.</p>
-        <p>You can still access the API at <a href="${apiBasePath}/status">${apiBasePath}/status</a></p>
-      </div>
-    </body>
-    </html>
-    `;
-    
-    fs.writeFileSync(path.join(tempDir, 'index.html'), fallbackHtml);
-    app.use(basePath, express.static(tempDir));
-  }
-  
-  // Serve the Next.js app for base path (exactly /prompter/)
-  app.get(`${basePath}`, (req, res) => {
-    console.log(`Serving Next.js app for base path: ${basePath}`);
-    if (fs.existsSync(indexHtmlPath)) {
-      res.sendFile(indexHtmlPath);
-    } else {
-      res.sendFile(path.join(__dirname, '../../temp/index.html'));
-    }
-  });
-  
-  // Serve the Next.js app for all other routes under base path
-  app.get(`${basePath}/*`, (req, res, next) => {
-    // Check if this is an API request - we've already defined API routes, so let Express continue routing
-    if (req.path.startsWith(`${basePath}/api/`)) {
-      console.log(`API request detected: ${req.path} - letting Express API routes handle it`);
-      return next();
-    }
-    
-    console.log(`Serving Next.js app for path: ${req.path}`);
-    if (fs.existsSync(indexHtmlPath)) {
-      res.sendFile(indexHtmlPath);
-    } else {
-      res.sendFile(path.join(__dirname, '../../temp/index.html'));
-    }
-  });
-  
-  // Root path redirect to base path
-  app.get('/', (req, res) => {
-    res.redirect(basePath);
-  });
-} else {
-  // In development, serve static files directly
-  const staticPath = path.join(__dirname, '../../frontend-new');
-  console.log(`Using base path: ${basePath || '/'} for serving static files from ${staticPath}`);
-  app.use(express.static(staticPath));
-}
+});
 
 // API endpoints
 
