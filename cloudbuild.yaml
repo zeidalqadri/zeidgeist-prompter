@@ -1,0 +1,46 @@
+steps:
+# Build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build', 
+    '-t', 'gcr.io/zeidgeistdotcom/zeidgeist-prompter:latest', 
+    '-f', 'deployment/Dockerfile', 
+    '--build-arg', 'DEEPSEEK_API_KEY=${_DEEPSEEK_API_KEY}',
+    '--build-arg', 'MISTRAL_API_KEY=${_MISTRAL_API_KEY}',
+    '--build-arg', 'CLAUDE_API_KEY=${_CLAUDE_API_KEY}',
+    '--build-arg', 'GEMINI_API_KEY=${_GEMINI_API_KEY}',
+    '--build-arg', 'MONGODB_URI=mongodb+srv://zeidalqadri:password123@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster',
+    '.'
+  ]
+
+# Push the container image to Container Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/zeidgeistdotcom/zeidgeist-prompter:latest']
+
+# Deploy container image to Cloud Run
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'zeidgeist-prompter'
+  - '--image'
+  - 'gcr.io/zeidgeistdotcom/zeidgeist-prompter:latest'
+  - '--region'
+  - 'asia-southeast1'
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated'
+  - '--memory'
+  - '1Gi'
+  - '--cpu'
+  - '1'
+  - '--min-instances'
+  - '1'
+  - '--set-env-vars'
+  - 'USE_EXTERNAL_APIS=true,MONGODB_URI=mongodb+srv://zeidalqadri:password123@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster,DEEPSEEK_API_KEY=${_DEEPSEEK_API_KEY},MISTRAL_API_KEY=${_MISTRAL_API_KEY},CLAUDE_API_KEY=${_CLAUDE_API_KEY},GEMINI_API_KEY=${_GEMINI_API_KEY}'
+
+images:
+- 'gcr.io/zeidgeistdotcom/zeidgeist-prompter:latest'
+
+timeout: 1800s 

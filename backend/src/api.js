@@ -1,0 +1,790 @@
+/**
+ * Prompt Enhancer API
+ * 
+ * This module provides API endpoints for the prompt enhancement system.
+ */
+
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const { enhancePrompt: ruleBasedEnhance, enhancePromptBatch, learnFromFeedback } = require('./prompt-enhancer');
+const { enhancePrompt: llmEnhance, getAvailableLLMs } = require('./llm-enhancer');
+const { trainFromFile } = require('./training/batchTrainer');
+const patternLearner = require('./learning/patternLearner');
+const ruleWeightLearner = require('./learning/ruleWeightLearner');
+const net = require('net');
+const { initDatabase, getDb, getUserIdentifier } = require('./db');
+
+// Create Express app
+const app = express();
+const DEFAULT_PORT = process.env.PORT || 8081;
+const NEXT_PORT = process.env.NEXT_PORT || 3000;
+const basePath = process.env.BASE_PATH || '';
+
+// Function to check if a port is in use
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+      .once('error', () => {
+        // Port is in use
+        resolve(true);
+      })
+      .once('listening', () => {
+        // Port is free, close the server
+        server.close();
+        resolve(false);
+      })
+      .listen(port);
+  });
+}
+
+// Function to find an available port
+async function findAvailablePort(startPort) {
+  let port = startPort;
+  const MAX_PORT = startPort + 100; // Try up to 100 ports after the start port
+  
+  while (port < MAX_PORT) {
+    const inUse = await isPortInUse(port);
+    if (!inUse) {
+      return port;
+    }
+    port++;
+  }
+  
+  throw new Error(`Could not find an available port in range ${startPort}-${MAX_PORT}`);
+}
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Set up base path for production environment
+const apiBasePath = basePath ? `${basePath}/api` : '/api';
+
+// Define all your API endpoints first
+
+// API health check
+app.get(`${apiBasePath}/health`, (req, res) => {
+  console.log('API health check endpoint called');
+  res.status(200).json({ status: 'ok', version: '0.1.0', basePath });
+});
+
+// API status endpoint
+app.get(`${apiBasePath}/status`, (req, res) => {
+  console.log('API status endpoint called');
+  try {
+    const externalApisEnabled = process.env.USE_EXTERNAL_APIS === 'true';
+    const availableLLMs = externalApisEnabled ? getAvailableLLMs() : [];
+    
+    return res.json({
+      success: true,
+      externalApisEnabled,
+      availableLLMs,
+      deepseekConfigured: !!process.env.DEEPSEEK_API_KEY,
+      mistralConfigured: !!process.env.MISTRAL_API_KEY,
+      claudeConfigured: !!process.env.CLAUDE_API_KEY,
+      geminiConfigured: !!process.env.GEMINI_API_KEY,
+    });
+  } catch (error) {
+    console.error('Error getting API status:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// In production, serve static Next.js files directly
+if (process.env.NODE_ENV === 'production') {
+  console.log(`Running in production mode with base path: ${basePath || '/'}`);
+  
+  // First, check if static files exist in the expected locations
+  const nextStaticPath = path.join(__dirname, '../../frontend-new/.next/static');
+  const publicPath = path.join(__dirname, '../../frontend-new/public');
+  const indexHtmlPath = path.join(__dirname, '../../frontend-new/.next/server/app/index.html');
+  
+  if (fs.existsSync(nextStaticPath)) {
+    console.log(`Found Next.js static files at ${nextStaticPath}`);
+  } else {
+    console.error(`ERROR: Next.js static files not found at ${nextStaticPath}`);
+  }
+  
+  if (fs.existsSync(publicPath)) {
+    console.log(`Found public files at ${publicPath}`);
+  } else {
+    console.error(`ERROR: Public files not found at ${publicPath}`);
+  }
+  
+  // Serve the static files
+  app.use(`${basePath}/_next/static`, express.static(nextStaticPath));
+  app.use(basePath, express.static(publicPath));
+  
+  // Create a simple HTML file if the Next.js app isn't available
+  if (!fs.existsSync(indexHtmlPath)) {
+    console.log('Creating a simple index.html as fallback');
+    const tempDir = path.join(__dirname, '../../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const fallbackHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Zeidgeist Prompter</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; }
+        h1 { color: #333; }
+        .message { background: #f5f5f5; padding: 1rem; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <h1>Zeidgeist Prompter</h1>
+      <div class="message">
+        <p>The Next.js frontend is not available. Please check the server logs.</p>
+        <p>You can still access the API at <a href="${apiBasePath}/status">${apiBasePath}/status</a></p>
+      </div>
+    </body>
+    </html>
+    `;
+    
+    fs.writeFileSync(path.join(tempDir, 'index.html'), fallbackHtml);
+    app.use(basePath, express.static(tempDir));
+  }
+  
+  // Serve the Next.js app for base path (exactly /prompter/)
+  app.get(`${basePath}`, (req, res) => {
+    console.log(`Serving Next.js app for base path: ${basePath}`);
+    if (fs.existsSync(indexHtmlPath)) {
+      res.sendFile(indexHtmlPath);
+    } else {
+      res.sendFile(path.join(__dirname, '../../temp/index.html'));
+    }
+  });
+  
+  // Serve the Next.js app for all other routes under base path
+  app.get(`${basePath}/*`, (req, res, next) => {
+    // Check if this is an API request - we've already defined API routes, so let Express continue routing
+    if (req.path.startsWith(`${basePath}/api/`)) {
+      console.log(`API request detected: ${req.path} - letting Express API routes handle it`);
+      return next();
+    }
+    
+    console.log(`Serving Next.js app for path: ${req.path}`);
+    if (fs.existsSync(indexHtmlPath)) {
+      res.sendFile(indexHtmlPath);
+    } else {
+      res.sendFile(path.join(__dirname, '../../temp/index.html'));
+    }
+  });
+  
+  // Root path redirect to base path
+  app.get('/', (req, res) => {
+    res.redirect(basePath);
+  });
+} else {
+  // In development, serve static files directly
+  const staticPath = path.join(__dirname, '../../frontend-new');
+  console.log(`Using base path: ${basePath || '/'} for serving static files from ${staticPath}`);
+  app.use(express.static(staticPath));
+}
+
+// API endpoints
+
+/**
+ * Enhance a single prompt
+ * POST /api/enhance
+ * Request body: { prompt: string, context?: string }
+ * Response: { enhancedPrompt: string, wasEnhanced: boolean, enhancements: Array, metadata: Object }
+ */
+app.post(`${apiBasePath}/enhance`, async (req, res) => {
+  try {
+    const { prompt, context } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    
+    const result = await ruleBasedEnhance(prompt, context || '');
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error enhancing prompt:', error);
+    res.status(500).json({ 
+      error: 'Error enhancing prompt',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Engineer endpoint - this maps to the enhance functionality for the Next.js frontend
+ * POST /api/engineer
+ * Request body: { prompt: string, context?: string, isRefinement?: boolean, isExpansion?: boolean, isChunk?: boolean, ... }
+ * Response: { result: string, metadata: Object }
+ */
+app.post(`${apiBasePath}/engineer`, async (req, res) => {
+  try {
+    const { prompt, context, isRefinement, isExpansion, repeatCount, isChunk, chunkIndex, totalChunks } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    
+    // Log request for debugging
+    console.log(`Processing engineer request - ${prompt.length} chars`, {
+      isRefinement, 
+      isExpansion, 
+      isChunk: isChunk ? `${chunkIndex+1}/${totalChunks}` : false
+    });
+    
+    // First try to use LLM enhancement
+    let result;
+    let enhancementMethod = 'llm';
+    try {
+      result = await llmEnhance(prompt, context || '', isRefinement);
+      
+      // Log which LLM was used (if any)
+      if (result.metadata && result.metadata.source) {
+        console.log(`Enhanced prompt using ${result.metadata.source} LLM`);
+      }
+      
+      // If the LLM enhancement wasn't successful or didn't make changes, fall back to rule-based
+      if (!result.wasEnhanced || !result.metadata.success) {
+        console.log('LLM enhancement failed or made no changes, falling back to rule-based enhancement');
+        result = await ruleBasedEnhance(prompt, context || '');
+        enhancementMethod = 'rule-based';
+      }
+    } catch (error) {
+      // If LLM enhancement failed, fall back to rule-based
+      console.error('Error using LLM enhancement, falling back to rule-based:', error.message);
+      result = await ruleBasedEnhance(prompt, context || '');
+      enhancementMethod = 'rule-based';
+    }
+    
+    // Format the response to match what the frontend expects
+    let enhancedContent = result.enhancedPrompt;
+    
+    // Ensure proper line breaks and formatting
+    if (typeof enhancedContent === 'string') {
+      // Preserve paragraph breaks
+      enhancedContent = enhancedContent.replace(/\n{3,}/g, '\n\n');
+      
+      // Ensure sentences have proper spacing
+      enhancedContent = enhancedContent.replace(/\.([A-Z])/g, '. $1');
+      
+      // Make sure bulleted lists have proper spacing
+      enhancedContent = enhancedContent.replace(/\n-\s*/g, '\n- ');
+    }
+    
+    const response = {
+      result: enhancedContent,
+      metadata: {
+        source: result.metadata?.source || "backend-default",
+        model: result.metadata?.model || "internal",
+        processingTime: result.metadata?.processingTime || 0,
+        success: true,
+        enhancements: result.metadata?.enhancementTypes || [],
+        method: enhancementMethod
+      }
+    };
+    
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error in engineer endpoint:', error);
+    res.status(200).json({ 
+      result: "I couldn't process that. Please try again.",
+      error: error.message,
+      metadata: {
+        source: "error",
+        processingTime: 0,
+        success: false
+      }
+    });
+  }
+});
+
+/**
+ * Enhance multiple prompts in a batch
+ * POST /api/enhance/batch
+ * Request body: { prompts: string[] }
+ * Response: { results: Array<EnhancementResult> }
+ */
+app.post(`${apiBasePath}/enhance/batch`, async (req, res) => {
+  try {
+    const { prompts } = req.body;
+    
+    if (!prompts || !Array.isArray(prompts)) {
+      return res.status(400).json({ error: 'Prompts array is required' });
+    }
+    
+    const results = await enhancePromptBatch(prompts);
+    res.status(200).json({ results });
+  } catch (error) {
+    console.error('Error enhancing prompts batch:', error);
+    res.status(500).json({ 
+      error: 'Error enhancing prompts batch',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Submit feedback for an enhancement
+ * POST /api/feedback
+ * Request body: { originalPrompt: string, enhancedPrompt: string, wasSuccessful: boolean, feedback?: string }
+ * Response: { success: boolean }
+ */
+app.post(`${apiBasePath}/feedback`, async (req, res) => {
+  try {
+    const { originalPrompt, enhancedPrompt, wasSuccessful, feedback } = req.body;
+    
+    if (!originalPrompt || !enhancedPrompt || wasSuccessful === undefined) {
+      return res.status(400).json({ error: 'originalPrompt, enhancedPrompt, and wasSuccessful are required' });
+    }
+    
+    await learnFromFeedback(originalPrompt, enhancedPrompt, wasSuccessful, feedback);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    res.status(500).json({ 
+      error: 'Error submitting feedback',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Add training endpoint
+ * POST /api/train
+ * Request body: { filePath: string }
+ * Response: { success: boolean, message: string }
+ */
+app.post(`${apiBasePath}/train`, (req, res) => {
+  const { filePath } = req.body;
+  
+  if (!filePath) {
+    return res.status(400).json({ error: 'Missing filePath parameter' });
+  }
+  
+  const examplesProcessed = trainFromFile(filePath);
+  
+  return res.json({
+    success: true,
+    message: `Trained with ${examplesProcessed} examples`,
+  });
+});
+
+/**
+ * Add an endpoint to train from direct examples
+ * POST /api/train/example
+ * Request body: { original: string, enhanced: string, rating: number, ruleTypes?: string[] }
+ * Response: { success: boolean, message: string }
+ */
+app.post(`${apiBasePath}/train/example`, (req, res) => {
+  const { original, enhanced, rating, ruleTypes } = req.body;
+  
+  if (!original || !enhanced || !rating) {
+    return res.status(400).json({ 
+      error: 'Missing required parameters (original, enhanced, rating)' 
+    });
+  }
+  
+  // Learn from this example
+  patternLearner.learnFromExample(original, enhanced, rating > 3);
+  
+  // Update rule weights
+  if (ruleTypes && Array.isArray(ruleTypes)) {
+    for (const ruleType of ruleTypes) {
+      ruleWeightLearner.updateWeight(ruleType, rating);
+    }
+  }
+  
+  return res.json({
+    success: true,
+    message: 'Successfully learned from example'
+  });
+});
+
+/**
+ * Get current weights endpoint (useful for debugging)
+ * GET /api/weights
+ * Response: { success: boolean, weights?: Object, message?: string }
+ */
+app.get(`${apiBasePath}/weights`, (req, res) => {
+  // Return the current state of weights
+  const weightsPath = path.join(__dirname, './data/rule_weights.json');
+  try {
+    const weights = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
+    return res.json({ success: true, weights });
+  } catch (error) {
+    return res.json({ 
+      success: false, 
+      message: 'No weights file found yet, using defaults'
+    });
+  }
+});
+
+/**
+ * Engineer history endpoint - stores and retrieves prompt history
+ * GET /api/engineer/history - Get history
+ * POST /api/engineer/history - Store history item
+ */
+app.get(`${apiBasePath}/engineer/history`, async (req, res) => {
+  try {
+    // Get user identifier from request
+    const userId = getUserIdentifier(req);
+    
+    // Get database connection
+    const db = await getDb();
+    
+    // If MongoDB is available, use it
+    if (db) {
+      try {
+        // Query database for user's history
+        const historyItems = await db.collection('history')
+          .find({ userId })
+          .sort({ timestamp: -1 })
+          .limit(100)
+          .toArray();
+        
+        // Return history items
+        return res.status(200).json({ items: historyItems || [] });
+      } catch (dbError) {
+        console.error('Error retrieving history from MongoDB:', dbError);
+        // Fall back to file-based storage on error
+      }
+    }
+    
+    // Fallback to file-based storage
+    console.log('Using file-based storage for history retrieval');
+    
+    // Path to history file
+    const historyPath = path.join(__dirname, './data/prompt_history.json');
+    
+    // Check if history file exists
+    if (!fs.existsSync(historyPath)) {
+      // Return empty array if no history
+      return res.status(200).json({ items: [] });
+    }
+    
+    // Read history file
+    const historyData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+    
+    // Filter history for this user only
+    const userHistory = (historyData.items || []).filter(item => item.userId === userId);
+    
+    // Return history items
+    return res.status(200).json({ items: userHistory || [] });
+  } catch (error) {
+    console.error('Error retrieving history:', error);
+    return res.status(200).json({ items: [], error: error.message });
+  }
+});
+
+app.post(`${apiBasePath}/engineer/history`, async (req, res) => {
+  try {
+    const historyItem = req.body;
+    
+    // Validate history item
+    if (!historyItem.original || !historyItem.refined) {
+      return res.status(400).json({ error: 'Invalid history item' });
+    }
+    
+    // Get user identifier from request
+    const userId = getUserIdentifier(req);
+    
+    // Add user ID and timestamp to history item
+    historyItem.userId = userId;
+    historyItem.timestamp = historyItem.timestamp || new Date().toISOString();
+    
+    // Get database connection
+    const db = await getDb();
+    
+    // If MongoDB is available, use it
+    if (db) {
+      try {
+        // Insert history item into database
+        await db.collection('history').insertOne(historyItem);
+        console.log('Saved history item to MongoDB');
+        
+        // Return success
+        return res.status(200).json({ success: true });
+      } catch (dbError) {
+        console.error('Error storing history item to MongoDB:', dbError);
+        // Fall back to file-based storage on error
+      }
+    }
+    
+    // Fallback to file-based storage
+    console.log('Using file-based storage for history');
+    
+    // Path to history file
+    const historyPath = path.join(__dirname, './data/prompt_history.json');
+    
+    // Create directory if it doesn't exist
+    const dataDir = path.join(__dirname, './data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Initialize history data
+    let historyData = { items: [] };
+    
+    // Read existing history if it exists
+    if (fs.existsSync(historyPath)) {
+      try {
+        historyData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+      } catch (readError) {
+        console.error('Error reading history file, creating new one:', readError);
+      }
+    }
+    
+    // Ensure items array exists
+    if (!historyData.items) {
+      historyData.items = [];
+    }
+    
+    // Add new item to history
+    historyData.items.unshift(historyItem);
+    
+    // Limit history size to 100 items
+    if (historyData.items.length > 100) {
+      historyData.items = historyData.items.slice(0, 100);
+    }
+    
+    // Write history data to file
+    fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2));
+    console.log('Saved history item to file storage');
+    
+    // Return success
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error storing history item:', error);
+    return res.status(200).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Engineer feedback endpoint - handles feedback on prompt refinements
+ * POST /api/engineer/feedback - Submit feedback
+ */
+app.post(`${apiBasePath}/engineer/feedback`, async (req, res) => {
+  try {
+    const { originalPrompt, enhancedPrompt, wasSuccessful, feedback } = req.body;
+    
+    if (!originalPrompt || !enhancedPrompt) {
+      return res.status(400).json({ error: 'originalPrompt and enhancedPrompt are required' });
+    }
+    
+    console.log(`Received feedback: ${wasSuccessful ? 'positive' : 'negative'}`, {
+      originalLength: originalPrompt.length,
+      enhancedLength: enhancedPrompt.length,
+      hasFeedback: !!feedback
+    });
+    
+    // Store feedback in a file
+    const feedbackPath = path.join(__dirname, './data/user_feedback.json');
+    
+    // Create directory if it doesn't exist
+    const dataDir = path.join(__dirname, './data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Initialize feedback data
+    let feedbackData = { items: [] };
+    
+    // Read existing feedback if it exists
+    if (fs.existsSync(feedbackPath)) {
+      try {
+        feedbackData = JSON.parse(fs.readFileSync(feedbackPath, 'utf8'));
+      } catch (readError) {
+        console.error('Error reading feedback file, creating new one:', readError);
+      }
+    }
+    
+    // Ensure items array exists
+    if (!feedbackData.items) {
+      feedbackData.items = [];
+    }
+    
+    // Add new feedback item
+    feedbackData.items.push({
+      originalPrompt,
+      enhancedPrompt,
+      wasSuccessful,
+      feedback,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Write feedback data to file
+    fs.writeFileSync(feedbackPath, JSON.stringify(feedbackData, null, 2));
+    
+    // Also try to learn from this feedback if possible
+    try {
+      await learnFromFeedback(originalPrompt, enhancedPrompt, wasSuccessful, feedback);
+    } catch (learnError) {
+      console.error('Error learning from feedback:', learnError);
+      // Continue anyway - feedback is still stored
+    }
+    
+    // Return success
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error storing feedback:', error);
+    return res.status(200).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Engineer export endpoint - exports prompt history in various formats
+ * GET /api/engineer/export - Export history
+ */
+app.get(`${apiBasePath}/engineer/export`, async (req, res) => {
+  try {
+    // Get requested format
+    const format = req.query.format || 'json';
+    
+    // Get user identifier from request
+    const userId = getUserIdentifier(req);
+    
+    // Get database connection
+    const db = await getDb();
+    
+    // Query database for user's history
+    const historyItems = await db.collection('history')
+      .find({ userId })
+      .sort({ timestamp: -1 })
+      .toArray();
+    
+    if (format === 'csv') {
+      // Set response headers for CSV
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="prompt-history.csv"');
+      
+      // Write CSV header
+      res.write('Timestamp,Original,Refined,Context\n');
+      
+      // Process each history item
+      if (historyItems && historyItems.length > 0) {
+        historyItems.forEach(item => {
+          // Sanitize fields for CSV (escape commas and quotes)
+          const sanitize = (text) => {
+            if (!text) return '';
+            const sanitized = text.replace(/"/g, '""');
+            return `"${sanitized}"`;
+          };
+          
+          const timestamp = item.timestamp || new Date().toISOString();
+          const original = sanitize(item.original);
+          const refined = sanitize(item.refined);
+          const context = sanitize(item.context);
+          
+          // Write CSV row
+          res.write(`${timestamp},${original},${refined},${context}\n`);
+        });
+      }
+      
+      // End response
+      return res.end();
+    } else {
+      // Default to JSON format
+      return res.status(200).json({ items: historyItems });
+    }
+  } catch (error) {
+    console.error('Error exporting history:', error);
+    return res.status(500).json({ error: 'Error exporting history', message: error.message });
+  }
+});
+
+/**
+ * Start the server with automatic port discovery
+ */
+async function startServer() {
+  try {
+    // Initialize the database connection
+    console.log('Initializing database connection...');
+    try {
+      await initDatabase();
+      console.log('Database initialization complete');
+    } catch (dbError) {
+      console.error('Database initialization failed, continuing with file-based storage:', dbError);
+    }
+    
+    // Log LLM API status
+    const externalApisEnabled = process.env.USE_EXTERNAL_APIS === 'true';
+    const availableLLMs = externalApisEnabled ? getAvailableLLMs() : [];
+    
+    console.log('🌟 LLM API status:');
+    console.log(`- External APIs enabled: ${externalApisEnabled ? 'YES' : 'NO'}`);
+    if (externalApisEnabled) {
+      console.log(`- Available LLMs: ${availableLLMs.length > 0 ? availableLLMs.join(', ') : 'NONE'}`);
+      
+      console.log('- API key status:');
+      console.log(`  • DeepSeek: ${process.env.DEEPSEEK_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+      console.log(`  • Mistral: ${process.env.MISTRAL_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+      console.log(`  • Claude: ${process.env.CLAUDE_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+      console.log(`  • Gemini: ${process.env.GEMINI_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
+    }
+    
+    // We won't start the Next.js standalone server anymore
+    // The Express app will handle serving the static files
+    
+    // Try the default port first
+    const inUse = await isPortInUse(DEFAULT_PORT);
+    
+    if (inUse) {
+      console.log(`Default port ${DEFAULT_PORT} is already in use, finding an available port...`);
+      const availablePort = await findAvailablePort(DEFAULT_PORT + 1);
+      
+      app.listen(availablePort, () => {
+        console.log(`⚠️ Default port ${DEFAULT_PORT} was in use!`);
+        console.log(`✅ API server running on port ${availablePort}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
+        }
+        console.log(`🌐 Base path: ${basePath || '/'}`);
+        
+        // Save the port to a file for other processes to know which port was used
+        try {
+          fs.writeFileSync(path.join(__dirname, '../.port'), availablePort.toString());
+          console.log(`💾 Port information saved to .port file`);
+        } catch (err) {
+          console.warn('Failed to save port information:', err);
+        }
+      });
+    } else {
+      // Use the default port
+      app.listen(DEFAULT_PORT, () => {
+        console.log(`✅ API server running on port ${DEFAULT_PORT}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
+        }
+        console.log(`🌐 Base path: ${basePath || '/'}`);
+        
+        // Save the port to a file for other processes to know which port was used
+        try {
+          fs.writeFileSync(path.join(__dirname, '../.port'), DEFAULT_PORT.toString());
+          console.log(`💾 Port information saved to .port file`);
+        } catch (err) {
+          console.warn('Failed to save port information:', err);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error starting server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
+
+module.exports = {
+  app,
+  startServer
+}; 

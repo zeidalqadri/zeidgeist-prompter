@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Enhancer with Learning</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-section, .output-section, .feedback-section, .examples-section {
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .results {
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .meta {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        .feedback-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .feedback-buttons button.positive {
+            background: #2ecc71;
+        }
+        .feedback-buttons button.negative {
+            background: #e74c3c;
+        }
+        .feedback-buttons button.positive:hover {
+            background: #27ae60;
+        }
+        .feedback-buttons button.negative:hover {
+            background: #c0392b;
+        }
+        .example-button {
+            background: #95a5a6;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .example-button:hover {
+            background: #7f8c8d;
+        }
+        .loading {
+            display: none;
+            color: #3498db;
+            margin-top: 10px;
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+        hr {
+            border: 0;
+            height: 1px;
+            background: #ddd;
+            margin: 30px 0;
+        }
+        .status {
+            padding: 10px;
+            background: #f1f1f1;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prompt Enhancer with Learning</h1>
+    
+    <div class="container">
+        <div class="input-section">
+            <h2>Input Prompt</h2>
+            <textarea id="original-prompt" placeholder="Enter your prompt here... (e.g., 'website for dentist cum researcher')"></textarea>
+            <button id="enhance-button">Enhance Prompt</button>
+            <div id="loading-enhance" class="loading">Enhancing prompt...</div>
+            <div id="error-enhance" class="error"></div>
+        </div>
+        
+        <div class="output-section">
+            <h2>Enhanced Prompt</h2>
+            <div id="enhanced-prompt" class="results">The enhanced prompt will appear here...</div>
+            <div id="meta-info" class="meta"></div>
+        </div>
+        
+        <div class="feedback-section">
+            <h2>Provide Feedback</h2>
+            <p>Was this enhancement helpful?</p>
+            <div class="feedback-buttons">
+                <button id="feedback-positive" class="positive">👍 Yes, it's better</button>
+                <button id="feedback-negative" class="negative">👎 No, it's not helpful</button>
+            </div>
+            <div id="loading-feedback" class="loading">Submitting feedback...</div>
+            <div id="feedback-result" class="status"></div>
+        </div>
+        
+        <hr>
+        
+        <div class="examples-section">
+            <h2>Try These Examples</h2>
+            <button class="example-button" data-prompt="website for orthodontist cum associate professor">Orthodontist & Professor</button>
+            <button class="example-button" data-prompt="website for lawyer cum fitness trainer">Lawyer & Fitness Trainer</button>
+            <button class="example-button" data-prompt="website for pizza place in downtown">Pizza Restaurant</button>
+            <button class="example-button" data-prompt="website for psychology professor at Harvard">Psychology Professor</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if the API is working
+            fetch('/api/health')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('API health check:', data);
+                })
+                .catch(error => {
+                    console.error('API health check failed:', error);
+                });
+            
+            // Elements
+            const originalPromptElem = document.getElementById('original-prompt');
+            const enhanceButton = document.getElementById('enhance-button');
+            const enhancedPromptElem = document.getElementById('enhanced-prompt');
+            const metaInfoElem = document.getElementById('meta-info');
+            const loadingEnhanceElem = document.getElementById('loading-enhance');
+            const errorEnhanceElem = document.getElementById('error-enhance');
+            const feedbackPositiveButton = document.getElementById('feedback-positive');
+            const feedbackNegativeButton = document.getElementById('feedback-negative');
+            const loadingFeedbackElem = document.getElementById('loading-feedback');
+            const feedbackResultElem = document.getElementById('feedback-result');
+            
+            // Current prompt and enhancement for feedback
+            let currentOriginalPrompt = '';
+            let currentEnhancedPrompt = '';
+            
+            // Enhance prompt function
+            function enhancePrompt() {
+                const prompt = originalPromptElem.value.trim();
+                if (!prompt) {
+                    errorEnhanceElem.textContent = 'Please enter a prompt';
+                    return;
+                }
+                
+                currentOriginalPrompt = prompt;
+                errorEnhanceElem.textContent = '';
+                loadingEnhanceElem.style.display = 'block';
+                enhancedPromptElem.textContent = 'Enhancing...';
+                metaInfoElem.textContent = '';
+                
+                fetch('/api/enhance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingEnhanceElem.style.display = 'none';
+                    if (data.error) {
+                        errorEnhanceElem.textContent = data.error;
+                        enhancedPromptElem.textContent = 'Error occurred';
+                        return;
+                    }
+                    
+                    currentEnhancedPrompt = data.enhancedPrompt;
+                    enhancedPromptElem.textContent = data.enhancedPrompt;
+                    
+                    // Display metadata
+                    let metaInfo = '';
+                    if (data.wasEnhanced) {
+                        metaInfo += `Confidence: ${(data.metadata.confidenceScore * 100).toFixed(1)}%\n`;
+                        if (data.metadata.rulesApplied && data.metadata.rulesApplied.length > 0) {
+                            metaInfo += `Rules applied: ${data.metadata.rulesApplied.join(', ')}\n`;
+                        }
+                        if (data.metadata.processingTime) {
+                            metaInfo += `Processing time: ${data.metadata.processingTime}ms`;
+                        }
+                    } else {
+                        metaInfo = 'No enhancements were applied.';
+                    }
+                    metaInfoElem.textContent = metaInfo;
+                })
+                .catch(error => {
+                    loadingEnhanceElem.style.display = 'none';
+                    errorEnhanceElem.textContent = 'An error occurred: ' + error.message;
+                    console.error('Error:', error);
+                });
+            }
+            
+            // Submit feedback function
+            function submitFeedback(wasSuccessful) {
+                if (!currentOriginalPrompt || !currentEnhancedPrompt) {
+                    feedbackResultElem.textContent = 'Please enhance a prompt first';
+                    return;
+                }
+                
+                loadingFeedbackElem.style.display = 'block';
+                feedbackResultElem.textContent = '';
+                
+                fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        originalPrompt: currentOriginalPrompt,
+                        enhancedPrompt: currentEnhancedPrompt,
+                        wasSuccessful,
+                        feedback: wasSuccessful ? 'User liked the enhancement' : 'User did not like the enhancement'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingFeedbackElem.style.display = 'none';
+                    if (data.success) {
+                        feedbackResultElem.textContent = 'Thank you for your feedback! The system will learn from it.';
+                    } else {
+                        feedbackResultElem.textContent = 'Error submitting feedback: ' + (data.error || 'Unknown error');
+                    }
+                })
+                .catch(error => {
+                    loadingFeedbackElem.style.display = 'none';
+                    feedbackResultElem.textContent = 'An error occurred: ' + error.message;
+                    console.error('Error:', error);
+                });
+            }
+            
+            // Event listeners
+            enhanceButton.addEventListener('click', enhancePrompt);
+            originalPromptElem.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    enhancePrompt();
+                }
+            });
+            
+            feedbackPositiveButton.addEventListener('click', function() {
+                submitFeedback(true);
+            });
+            
+            feedbackNegativeButton.addEventListener('click', function() {
+                submitFeedback(false);
+            });
+            
+            // Example buttons
+            document.querySelectorAll('.example-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const prompt = this.getAttribute('data-prompt');
+                    originalPromptElem.value = prompt;
+                    enhancePrompt();
+                });
+            });
+        });
+    </script>
+</body>
+</html> 

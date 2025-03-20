@@ -1,0 +1,215 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Prompt Enhancement Training Data",
+  "description": "Schema for entries in the prompt enhancement training dataset",
+  "type": "object",
+  "required": ["id", "raw_prompt", "enhanced_prompt", "domain", "enhancement_types"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the training example"
+    },
+    "raw_prompt": {
+      "type": "string",
+      "description": "The original unenhanced prompt"
+    },
+    "enhanced_prompt": {
+      "type": "string",
+      "description": "The enhanced version of the prompt"
+    },
+    "domain": {
+      "type": "string",
+      "description": "The domain or subject area of the prompt",
+      "enum": [
+        "web_development",
+        "data_science",
+        "academic_writing",
+        "business",
+        "creative",
+        "technical_documentation",
+        "education",
+        "healthcare",
+        "legal",
+        "general"
+      ]
+    },
+    "enhancement_types": {
+      "type": "array",
+      "description": "Types of enhancements applied to the prompt",
+      "items": {
+        "type": "string",
+        "enum": [
+          "structure.organization.sequencing",
+          "structure.organization.hierarchical",
+          "structure.organization.relational",
+          "structure.organization.logical_flow",
+          "structure.formatting.visual_separation",
+          "structure.formatting.priority_highlighting",
+          "structure.formatting.consistency",
+          "structure.formatting.information_density",
+          "content.specificity.detail_addition",
+          "content.specificity.quantification",
+          "content.specificity.constraint_definition",
+          "content.specificity.example_inclusion",
+          "content.completeness.gap_identification",
+          "content.completeness.scope_expansion",
+          "content.completeness.context_addition",
+          "content.completeness.edge_case_coverage",
+          "content.language.clarity_improvement",
+          "content.language.technical_accuracy",
+          "content.language.professional_title_handling",
+          "content.language.tone_adjustment",
+          "context.domain_knowledge.industry_standards",
+          "context.domain_knowledge.technical_requirements",
+          "context.domain_knowledge.field_terminology",
+          "context.domain_knowledge.best_practices",
+          "context.user_intent.goal_clarification",
+          "context.user_intent.purpose_articulation",
+          "context.user_intent.audience_specification",
+          "context.user_intent.success_criteria",
+          "request.action_clarification.verb_precision",
+          "request.action_clarification.agency_definition",
+          "request.action_clarification.outcome_specification",
+          "request.action_clarification.process_detailing",
+          "request.output_specification.format_definition",
+          "request.output_specification.length_guidance",
+          "request.output_specification.style_requirements",
+          "request.output_specification.delivery_instructions",
+          "special_case.professional_environment.title_correction",
+          "special_case.professional_environment.institutional_context",
+          "special_case.professional_environment.credential_handling",
+          "special_case.professional_environment.position_clarification",
+          "special_case.technical_requests.tool_specification",
+          "special_case.technical_requests.version_control",
+          "special_case.technical_requests.compatibility_requirements",
+          "special_case.technical_requests.performance_criteria",
+          "special_case.creative_requests.creative_framing",
+          "special_case.creative_requests.inspiration_sources",
+          "special_case.creative_requests.style_guidance",
+          "special_case.creative_requests.originality_criteria"
+        ]
+      }
+    },
+    "source": {
+      "type": "string",
+      "description": "Source of the example (manual, extracted, generated)",
+      "enum": ["manual", "extracted", "synthetic", "feedback"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the example",
+      "properties": {
+        "complexity": {
+          "type": "string",
+          "enum": ["simple", "moderate", "complex"]
+        },
+        "application_method": {
+          "type": "string",
+          "enum": ["rule_based", "ml_based", "hybrid"]
+        },
+        "universality": {
+          "type": "string",
+          "enum": ["domain_specific", "general_purpose"]
+        },
+        "required_context": {
+          "type": "string",
+          "enum": ["self_contained", "requires_external_knowledge"]
+        },
+        "implementation_priority": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Confidence score for the enhancement (0-1)",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "effectiveness_rating": {
+          "type": "number",
+          "description": "User-provided rating of enhancement effectiveness (1-5)",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this example was created"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this example was last updated"
+        }
+      }
+    },
+    "enhancements": {
+      "type": "array",
+      "description": "Detailed list of specific enhancements applied",
+      "items": {
+        "type": "object",
+        "required": ["type", "original", "enhanced"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The specific type of enhancement"
+          },
+          "original": {
+            "type": "string",
+            "description": "The original text or aspect that was enhanced"
+          },
+          "enhanced": {
+            "type": "string",
+            "description": "The enhanced version"
+          },
+          "position": {
+            "type": "object",
+            "description": "Position information for the enhancement",
+            "properties": {
+              "start": {
+                "type": "integer",
+                "description": "Start position in the original prompt"
+              },
+              "end": {
+                "type": "integer",
+                "description": "End position in the original prompt"
+              }
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Explanation for why this enhancement was applied"
+          }
+        }
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "description": "User feedback on the enhancement",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "ID of the user providing feedback"
+          },
+          "rating": {
+            "type": "integer",
+            "description": "Rating score (1-5)",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "description": "User's comment on the enhancement"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the feedback was provided"
+          }
+        }
+      }
+    }
+  }
+} 

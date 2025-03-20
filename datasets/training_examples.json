@@ -1,0 +1,207 @@
+[
+  {
+    "id": "ex001",
+    "raw_prompt": "website for orthodontist cum associate professor",
+    "enhanced_prompt": "website for orthodontist who is also an associate professor, including professional credentials, academic publications, clinical services offered, patient testimonials, appointment scheduling, and university affiliation information",
+    "domain": "healthcare",
+    "enhancement_types": [
+      "content.language.professional_title_handling",
+      "content.specificity.detail_addition",
+      "content.completeness.scope_expansion",
+      "special_case.professional_environment.title_correction"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.85,
+      "effectiveness_rating": 4.5,
+      "created_at": "2023-10-15T12:00:00Z",
+      "updated_at": "2023-10-15T12:00:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "special_case.professional_environment.title_correction",
+        "original": "orthodontist cum associate professor",
+        "enhanced": "orthodontist who is also an associate professor",
+        "rationale": "Replaced Latin 'cum' conjunction with more professional and clear phrasing"
+      },
+      {
+        "type": "content.completeness.scope_expansion",
+        "original": "website for orthodontist who is also an associate professor",
+        "enhanced": "website for orthodontist who is also an associate professor, including professional credentials, academic publications, clinical services offered, patient testimonials, appointment scheduling, and university affiliation information",
+        "rationale": "Added comprehensive website sections relevant to both professional roles"
+      }
+    ],
+    "ruleTypes": ["professionalTitle", "cumReplacer"]
+  },
+  {
+    "id": "ex002",
+    "raw_prompt": "website for kfc kl gateway",
+    "enhanced_prompt": "website for KFC KL Gateway restaurant with menu items, nutritional information, store hours, location map, online ordering system, promotional deals, and contact information",
+    "domain": "business",
+    "enhancement_types": [
+      "content.specificity.detail_addition",
+      "content.completeness.scope_expansion",
+      "context.domain_knowledge.industry_standards"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.88,
+      "effectiveness_rating": 4.2,
+      "created_at": "2023-10-15T12:05:00Z",
+      "updated_at": "2023-10-15T12:05:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "content.specificity.detail_addition",
+        "original": "website for kfc kl gateway",
+        "enhanced": "website for KFC KL Gateway restaurant with menu items, nutritional information, store hours, location map, online ordering system, promotional deals, and contact information",
+        "rationale": "Added restaurant-specific website components and fixed capitalization"
+      }
+    ],
+    "ruleTypes": ["restaurant", "domainSpecific"]
+  },
+  {
+    "id": "ex003",
+    "raw_prompt": "website for university professor",
+    "enhanced_prompt": "website for university professor featuring academic background, research interests, publications list, courses taught, office hours, curriculum vitae, research lab information, student resources, and contact details",
+    "domain": "education",
+    "enhancement_types": [
+      "content.specificity.detail_addition",
+      "content.completeness.scope_expansion",
+      "context.domain_knowledge.field_terminology"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.9,
+      "effectiveness_rating": 4.8,
+      "created_at": "2023-10-15T12:10:00Z",
+      "updated_at": "2023-10-15T12:10:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "content.specificity.detail_addition",
+        "original": "website for university professor",
+        "enhanced": "website for university professor featuring academic background, research interests, publications list, courses taught, office hours, curriculum vitae, research lab information, student resources, and contact details",
+        "rationale": "Added comprehensive academic website components appropriate for university professors"
+      }
+    ],
+    "ruleTypes": ["academic", "domainSpecific"]
+  },
+  {
+    "id": "ex004",
+    "raw_prompt": "website for yoga instructor cum nutritionist",
+    "enhanced_prompt": "website for yoga instructor who is also a nutritionist, featuring class schedules, teaching philosophy, nutrition services, wellness packages, client testimonials, certification details, blog with health tips, and online booking system",
+    "domain": "healthcare",
+    "enhancement_types": [
+      "content.language.professional_title_handling",
+      "content.specificity.detail_addition",
+      "special_case.professional_environment.title_correction"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.85,
+      "effectiveness_rating": 4.6,
+      "created_at": "2023-10-15T12:15:00Z",
+      "updated_at": "2023-10-15T12:15:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "special_case.professional_environment.title_correction",
+        "original": "yoga instructor cum nutritionist",
+        "enhanced": "yoga instructor who is also a nutritionist",
+        "rationale": "Replaced Latin 'cum' conjunction with more professional and clear phrasing"
+      },
+      {
+        "type": "content.completeness.scope_expansion",
+        "original": "website for yoga instructor who is also a nutritionist",
+        "enhanced": "website for yoga instructor who is also a nutritionist, featuring class schedules, teaching philosophy, nutrition services, wellness packages, client testimonials, certification details, blog with health tips, and online booking system",
+        "rationale": "Added comprehensive website sections relevant to both professional roles"
+      }
+    ],
+    "ruleTypes": ["professionalTitle", "cumReplacer"]
+  },
+  {
+    "id": "ex005",
+    "raw_prompt": "website for mcdonalds jubilee hills",
+    "enhanced_prompt": "website for McDonald's Jubilee Hills branch with menu options, McCafé offerings, store hours, location with directions, special promotions, delivery options, birthday party bookings, and contact information",
+    "domain": "business",
+    "enhancement_types": [
+      "content.specificity.detail_addition",
+      "content.completeness.scope_expansion",
+      "context.domain_knowledge.industry_standards"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.89,
+      "effectiveness_rating": 4.3,
+      "created_at": "2023-10-15T12:20:00Z",
+      "updated_at": "2023-10-15T12:20:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "content.specificity.detail_addition",
+        "original": "website for mcdonalds jubilee hills",
+        "enhanced": "website for McDonald's Jubilee Hills branch with menu options, McCafé offerings, store hours, location with directions, special promotions, delivery options, birthday party bookings, and contact information",
+        "rationale": "Added restaurant-specific website components and fixed capitalization"
+      }
+    ],
+    "ruleTypes": ["restaurant", "domainSpecific"]
+  },
+  {
+    "id": "ex006",
+    "raw_prompt": "website for dermatologist",
+    "enhanced_prompt": "website for dermatologist practice featuring skin treatment services, medical credentials, before/after galleries, patient testimonials, appointment scheduling, skin care products, insurance information, and educational resources about common skin conditions",
+    "domain": "healthcare",
+    "enhancement_types": [
+      "content.specificity.detail_addition",
+      "content.completeness.scope_expansion",
+      "context.domain_knowledge.industry_standards"
+    ],
+    "source": "manual",
+    "metadata": {
+      "complexity": "moderate",
+      "application_method": "rule_based",
+      "universality": "domain_specific",
+      "required_context": "self_contained",
+      "implementation_priority": "high",
+      "confidence": 0.87,
+      "effectiveness_rating": 4.5,
+      "created_at": "2023-10-15T12:25:00Z",
+      "updated_at": "2023-10-15T12:25:00Z"
+    },
+    "enhancements": [
+      {
+        "type": "content.specificity.detail_addition",
+        "original": "website for dermatologist",
+        "enhanced": "website for dermatologist practice featuring skin treatment services, medical credentials, before/after galleries, patient testimonials, appointment scheduling, skin care products, insurance information, and educational resources about common skin conditions",
+        "rationale": "Added comprehensive medical practice website components specific to dermatology"
+      }
+    ],
+    "ruleTypes": ["professional", "domainSpecific"]
+  }
+] 
