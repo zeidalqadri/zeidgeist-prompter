@@ -48,5 +48,5 @@ EXPOSE 8080
 ENV PORT=8080
 ENV NODE_ENV=production
 
-# Start the application
-CMD ["node", "backend/src/api.js"]
+# Run deployment checks and then start the application
+CMD ["sh", "-c", "node backend/src/deploy-check.js || node backend/src/api.js"]

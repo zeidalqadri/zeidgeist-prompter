@@ -16,6 +16,10 @@ const patternLearner = require('./learning/patternLearner');
 const ruleWeightLearner = require('./learning/ruleWeightLearner');
 const net = require('net');
 const { initDatabase, getDb, getUserIdentifier } = require('./db');
+const { checkEnvironmentVariables } = require('./checkEnv');
+
+// Run environment variable check at startup
+checkEnvironmentVariables();
 
 // Create Express app
 const app = express();
@@ -62,6 +66,61 @@ app.use(express.json());
 
 // Set up base path for production environment
 const apiBasePath = basePath ? `${basePath}/api` : '/api';
+
+// New diagnostic endpoints for troubleshooting LLM issues
+app.get(`${apiBasePath}/diagnose`, async (req, res) => {
+  try {
+    // Check environment variables
+    const envVars = {
+      USE_EXTERNAL_APIS: process.env.USE_EXTERNAL_APIS,
+      DEEPSEEK_API_KEY: !!process.env.DEEPSEEK_API_KEY,
+      MISTRAL_API_KEY: !!process.env.MISTRAL_API_KEY,
+      CLAUDE_API_KEY: !!process.env.CLAUDE_API_KEY,
+      GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      NODE_ENV: process.env.NODE_ENV,
+      BASE_PATH: process.env.BASE_PATH,
+    };
+    
+    // Check database connection
+    let dbStatus = 'Not initialized';
+    try {
+      const db = getDb();
+      dbStatus = db ? 'Connected' : 'Failed to connect';
+    } catch (dbError) {
+      dbStatus = `Error: ${dbError.message}`;
+    }
+    
+    // Test LLM API connectivity if enabled
+    const llmTests = {};
+    if (process.env.USE_EXTERNAL_APIS === 'true') {
+      const availableLLMs = getAvailableLLMs();
+      for (const llm of availableLLMs) {
+        try {
+          // Run a minimal test request to each LLM
+          const testResult = await testLLMConnection(llm);
+          llmTests[llm] = testResult;
+        } catch (error) {
+          llmTests[llm] = { success: false, error: error.message };
+        }
+      }
+    }
+    
+    return res.json({
+      environment: envVars,
+      database: dbStatus,
+      llmApiTests: llmTests,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to test LLM API connectivity
+async function testLLMConnection(llm) {
+  const { testLLMConnection } = require('./llm-enhancer');
+  return await testLLMConnection(llm);
+}
 
 // Define all your API endpoints first
 
@@ -244,25 +303,59 @@ app.post(`${apiBasePath}/engineer`, async (req, res) => {
     // First try to use LLM enhancement
     let result;
     let enhancementMethod = 'llm';
-    try {
-      result = await llmEnhance(prompt, context || '', isRefinement);
-      
-      // Log which LLM was used (if any)
-      if (result.metadata && result.metadata.source) {
-        console.log(`Enhanced prompt using ${result.metadata.source} LLM`);
-      }
-      
-      // If the LLM enhancement wasn't successful or didn't make changes, fall back to rule-based
-      if (!result.wasEnhanced || !result.metadata.success) {
-        console.log('LLM enhancement failed or made no changes, falling back to rule-based enhancement');
+    let llmError = null;
+    
+    // Check if external APIs are enabled
+    const externalApisEnabled = process.env.USE_EXTERNAL_APIS === 'true';
+    
+    if (!externalApisEnabled) {
+      console.log('External APIs are disabled, using rule-based enhancement');
+      result = await ruleBasedEnhance(prompt, context || '');
+      enhancementMethod = 'rule-based';
+    } else {
+      // External APIs are enabled, try LLM enhancement
+      try {
+        console.log('Attempting LLM enhancement...');
+        result = await llmEnhance(prompt, context || '', isRefinement);
+        
+        // Log which LLM was used
+        if (result.metadata && result.metadata.source) {
+          console.log(`Enhanced prompt using ${result.metadata.source} LLM`);
+          
+          // Store successful LLM enhancement in database for future learning
+          try {
+            const db = getDb();
+            if (db) {
+              await db.collection('llm_enhancements').insertOne({
+                originalPrompt: prompt,
+                enhancedPrompt: result.enhancedPrompt,
+                context: context || null,
+                source: result.metadata.source,
+                model: result.metadata.model,
+                timestamp: new Date(),
+                learned: false // Flag to indicate this hasn't been used for learning yet
+              });
+              console.log('Stored successful LLM enhancement for learning');
+            }
+          } catch (dbError) {
+            console.error('Failed to store LLM enhancement:', dbError);
+            // Continue anyway - the enhancement still worked
+          }
+        }
+        
+        // If the LLM enhancement wasn't successful or didn't make changes, fall back to rule-based
+        if (!result.wasEnhanced || (result.metadata && result.metadata.success === false)) {
+          console.log('LLM enhancement failed or made no changes, falling back to rule-based enhancement');
+          result = await ruleBasedEnhance(prompt, context || '');
+          enhancementMethod = 'rule-based';
+        }
+      } catch (error) {
+        // If LLM enhancement failed, log details and fall back to rule-based
+        console.error('Error using LLM enhancement, falling back to rule-based:', error.message);
+        llmError = error.message;
         result = await ruleBasedEnhance(prompt, context || '');
         enhancementMethod = 'rule-based';
       }
-    } catch (error) {
-      // If LLM enhancement failed, fall back to rule-based
-      console.error('Error using LLM enhancement, falling back to rule-based:', error.message);
-      result = await ruleBasedEnhance(prompt, context || '');
-      enhancementMethod = 'rule-based';
     }
     
     // Format the response to match what the frontend expects
@@ -288,7 +381,8 @@ app.post(`${apiBasePath}/engineer`, async (req, res) => {
         processingTime: result.metadata?.processingTime || 0,
         success: true,
         enhancements: result.metadata?.enhancementTypes || [],
-        method: enhancementMethod
+        method: enhancementMethod,
+        llmError: llmError
       }
     };
     
@@ -701,6 +795,104 @@ app.get(`${apiBasePath}/engineer/export`, async (req, res) => {
   }
 });
 
+// New endpoint to trigger learning pipeline manually
+app.post(`${apiBasePath}/admin/learn`, async (req, res) => {
+  try {
+    const result = await runLearningPipeline();
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Function to run the learning pipeline
+async function runLearningPipeline() {
+  console.log('Starting learning pipeline...');
+  const startTime = Date.now();
+  
+  // Get database connection
+  const db = getDb();
+  if (!db) {
+    throw new Error('Database not available');
+  }
+  
+  // Get unprocessed LLM enhancements
+  const collection = db.collection('llm_enhancements');
+  const unprocessedItems = await collection.find({ learned: false }).toArray();
+  
+  if (unprocessedItems.length === 0) {
+    return { 
+      success: true, 
+      message: 'No new enhancements to learn from', 
+      processedItems: 0 
+    };
+  }
+  
+  console.log(`Found ${unprocessedItems.length} unprocessed LLM enhancements to learn from`);
+  
+  // Extract examples for learning
+  const examples = unprocessedItems.map(item => ({
+    originalPrompt: item.originalPrompt,
+    enhancedPrompt: item.enhancedPrompt,
+    context: item.context
+  }));
+  
+  // Learn patterns from examples
+  try {
+    await patternLearner.learnFromExamples(examples);
+    console.log('Pattern learning complete');
+  } catch (error) {
+    console.error('Error in pattern learning:', error);
+  }
+  
+  // Update rule weights if applicable
+  try {
+    await ruleWeightLearner.updateWeightsFromExamples(examples);
+    console.log('Rule weight learning complete');
+  } catch (error) {
+    console.error('Error in rule weight learning:', error);
+  }
+  
+  // Mark items as learned
+  const ids = unprocessedItems.map(item => item._id);
+  await collection.updateMany(
+    { _id: { $in: ids } },
+    { $set: { learned: true, learnedAt: new Date() } }
+  );
+  
+  const processingTime = Date.now() - startTime;
+  console.log(`Learning pipeline complete. Processed ${unprocessedItems.length} items in ${processingTime}ms`);
+  
+  return {
+    success: true,
+    processedItems: unprocessedItems.length,
+    processingTime
+  };
+}
+
+// Setup automated learning pipeline to run periodically
+function setupLearningSchedule() {
+  // Run learning pipeline every 24 hours
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  
+  async function scheduledLearning() {
+    try {
+      console.log('Running scheduled learning pipeline...');
+      await runLearningPipeline();
+      console.log('Scheduled learning complete');
+    } catch (error) {
+      console.error('Error in scheduled learning:', error);
+    }
+    
+    // Schedule next run
+    setTimeout(scheduledLearning, TWENTY_FOUR_HOURS);
+  }
+  
+  // Initial run after 10 minutes of server startup
+  setTimeout(scheduledLearning, 10 * 60 * 1000);
+  console.log('Learning pipeline scheduled to run every 24 hours');
+}
+
 /**
  * Start the server with automatic port discovery
  */
@@ -711,6 +903,9 @@ async function startServer() {
     try {
       await initDatabase();
       console.log('Database initialization complete');
+      
+      // Set up the learning schedule
+      setupLearningSchedule();
     } catch (dbError) {
       console.error('Database initialization failed, continuing with file-based storage:', dbError);
     }
@@ -783,6 +978,104 @@ async function startServer() {
 
 // Start the server
 startServer();
+
+// Admin monitoring dashboard endpoint
+app.get(`${apiBasePath}/admin/dashboard`, async (req, res) => {
+  try {
+    const db = getDb();
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
+    
+    // Get enhancement statistics
+    const llmEnhancementsCollection = db.collection('llm_enhancements');
+    const feedbackCollection = db.collection('feedback');
+    const historyCollection = db.collection('history');
+    
+    // Get total counts
+    const totalLLMEnhancements = await llmEnhancementsCollection.countDocuments();
+    const totalFeedback = await feedbackCollection.countDocuments();
+    const totalHistory = await historyCollection.countDocuments();
+    
+    // Get counts by source (LLM vs rule-based)
+    const enhancementsByType = await historyCollection.aggregate([
+      { $group: { _id: "$metadata.source", count: { $sum: 1 } } }
+    ]).toArray();
+    
+    // Get learning statistics
+    const learnedEnhancements = await llmEnhancementsCollection.countDocuments({ learned: true });
+    const pendingLearning = await llmEnhancementsCollection.countDocuments({ learned: false });
+    
+    // Get success rates from feedback
+    const positiveFeedback = await feedbackCollection.countDocuments({ wasSuccessful: true });
+    const negativeFeedback = await feedbackCollection.countDocuments({ wasSuccessful: false });
+    
+    // Get recent enhancements
+    const recentEnhancements = await llmEnhancementsCollection
+      .find({})
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .toArray();
+    
+    // Get enhancement counts per day for the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const dailyEnhancements = await historyCollection.aggregate([
+      { $match: { timestamp: { $gte: thirtyDaysAgo } } },
+      { $group: {
+          _id: { 
+            $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$timestamp" } }
+          },
+          count: { $sum: 1 },
+          llmCount: { 
+            $sum: { 
+              $cond: [
+                { $ne: ["$metadata.source", "backend-default"] }, 
+                1, 
+                0
+              ] 
+            }
+          },
+          ruleCount: { 
+            $sum: { 
+              $cond: [
+                { $eq: ["$metadata.source", "backend-default"] }, 
+                1, 
+                0
+              ] 
+            }
+          }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]).toArray();
+    
+    return res.json({
+      totalCounts: {
+        llmEnhancements: totalLLMEnhancements,
+        feedback: totalFeedback,
+        history: totalHistory
+      },
+      enhancementsByType,
+      learning: {
+        learned: learnedEnhancements,
+        pending: pendingLearning,
+        totalStored: totalLLMEnhancements
+      },
+      feedback: {
+        positive: positiveFeedback,
+        negative: negativeFeedback,
+        successRate: totalFeedback ? (positiveFeedback / totalFeedback) * 100 : 0
+      },
+      dailyEnhancements,
+      recentEnhancements
+    });
+  } catch (error) {
+    console.error('Error generating dashboard:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
 
 module.exports = {
   app,

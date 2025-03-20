@@ -1,0 +1,50 @@
+{
+  "memory_bank": {
+    "project_brief": "Zeidgeist Prompter is a self-optimizing prompt enhancement system designed to improve user prompts before they're sent to language models. The system should primarily use LLM-powered suggestions and only fall back to rule-based methods. Data from LLM refinements should be stored in a database and used for ongoing machine learning to improve the system.",
+    
+    "product_context": "The project addresses the need for better prompt engineering by allowing users to input raw prompts and receive refined versions. The current implementation is spending money on LLM APIs but without properly utilizing the resulting data for learning or consistently delivering LLM-enhanced prompts to users (instead falling back to rule-based enhancement).",
+    
+    "active_context": "The system has been updated to properly use LLM-enhanced prompts and store the results for learning. We've added diagnostic tools, improved error handling and fallback strategies, and implemented a full learning pipeline to extract patterns from successful LLM refinements. The deployment process now includes validation of API credentials and environment variables to ensure the system functions as intended.",
+    
+    "system_patterns": {
+      "architecture": "Monorepo structure with backend (Node.js/Express) and frontend (Next.js) packages",
+      "enhancement_pipeline": "1. User submits a prompt, 2. System attempts LLM enhancement with prioritized providers (Claude, Gemini, Mistral, DeepSeek), 3. If all LLMs fail, fall back to rule-based, 4. Return enhanced prompt, 5. Store successful enhancements for learning",
+      "learning_mechanism": "Automated pipeline extracts patterns from successful LLM-enhanced prompts to improve rule-based enhancement over time",
+      "data_flow": "Frontend → API → LLM Enhancement → Database → Scheduled Learning Pipeline → Improved Rules"
+    },
+    
+    "tech_context": {
+      "backend": "Node.js with Express, MongoDB for storage",
+      "frontend": "Next.js with React and TypeScript",
+      "external_services": "LLM APIs: DeepSeek, Mistral, Claude, Gemini (in priority order)",
+      "deployment": "Google Cloud, Docker container with deployment validation"
+    },
+    
+    "progress": {
+      "status": "Fixed and enhanced with improved error handling and learning pipeline",
+      "completed": [
+        "Basic system architecture",
+        "Frontend interface",
+        "Rule-based enhancement",
+        "LLM integration code",
+        "Diagnostic tools for API credential verification",
+        "Enhanced error handling and fallback strategy",
+        "Learning pipeline for LLM-enhanced prompts",
+        "Automated pattern extraction from successful enhancements",
+        "Database storage of enhancement data",
+        "Deployment checks and validation"
+      ],
+      "issues": [
+        "Needs validation in production environment",
+        "May require ongoing monitoring to ensure API credentials remain valid",
+        "Learning pipeline effectiveness should be measured over time"
+      ],
+      "next_steps": [
+        "Deploy to production and monitor success rates of LLM enhancements",
+        "Analyze database to ensure data is being collected properly",
+        "Measure impact of learning pipeline on rule-based enhancement quality",
+        "Consider implementing usage tracking to optimize API costs"
+      ]
+    }
+  }
+} 

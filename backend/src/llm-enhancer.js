@@ -338,17 +338,117 @@ function getAvailableLLMs() {
 }
 
 /**
- * Randomly select an LLM from available ones
+ * Test connectivity to an LLM API with a minimal request
  */
-function selectRandomLLM() {
-  const available = getAvailableLLMs();
-  
-  if (available.length === 0) {
-    return null;
+async function testLLMConnection(llm) {
+  if (!USE_EXTERNAL_APIS) {
+    return { success: false, error: 'External APIs are disabled' };
   }
   
-  const randomIndex = Math.floor(Math.random() * available.length);
-  return available[randomIndex];
+  const config = LLM_CONFIGS[llm];
+  if (!config || !config.enabled) {
+    return { success: false, error: 'LLM not configured or disabled' };
+  }
+  
+  const startTime = Date.now();
+  const testPrompt = "Hello, this is a test prompt.";
+  
+  try {
+    // Make a minimal API call based on the provider
+    let response;
+    
+    switch(llm) {
+      case 'deepseek':
+        response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [{ role: "user", content: testPrompt }],
+            max_tokens: 5
+          })
+        });
+        break;
+        
+      case 'mistral':
+        response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [{ role: "user", content: testPrompt }],
+            max_tokens: 5
+          })
+        });
+        break;
+        
+      case 'claude':
+        response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01',
+            'x-api-key': config.apiKey
+          },
+          body: JSON.stringify({
+            model: config.model,
+            system: "You are a helpful assistant.",
+            messages: [{ role: "user", content: testPrompt }],
+            max_tokens: 5
+          })
+        });
+        break;
+        
+      case 'gemini':
+        const queryParams = new URLSearchParams({
+          key: config.apiKey
+        }).toString();
+        
+        response = await fetch(`${config.endpoint}?${queryParams}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: testPrompt }] }],
+            generationConfig: {
+              maxOutputTokens: 5
+            }
+          })
+        });
+        break;
+        
+      default:
+        return { success: false, error: `Unknown LLM provider: ${llm}` };
+    }
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { 
+        success: false, 
+        statusCode: response.status,
+        error: `API returned ${response.status}`,
+        details: errorData
+      };
+    }
+    
+    return { 
+      success: true, 
+      responseTime: Date.now() - startTime,
+      statusCode: response.status
+    };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error.message
+    };
+  }
 }
 
 /**
@@ -357,99 +457,119 @@ function selectRandomLLM() {
 async function enhancePrompt(rawPrompt, context = "", isRefinement = false) {
   // First check if external APIs are enabled
   if (!USE_EXTERNAL_APIS) {
-    // Return a format that matches the local enhancer result
-    return {
-      enhancedPrompt: rawPrompt,
-      wasEnhanced: false,
-      metadata: {
-        source: "external-apis-disabled",
-        model: "none",
-        processingTime: 0,
-        success: false
-      }
-    };
+    console.log('External APIs are disabled, skipping LLM enhancement');
+    return createDefaultResponse(rawPrompt, "external-apis-disabled");
   }
 
-  // Get a list of available LLMs
-  const llm = selectRandomLLM();
+  // Get available LLMs in priority order
+  const availableLLMs = getPrioritizedLLMs();
   
-  if (!llm) {
-    // No LLMs are available or configured
-    return {
-      enhancedPrompt: rawPrompt,
-      wasEnhanced: false,
-      metadata: {
-        source: "no-llms-available",
-        model: "none",
-        processingTime: 0,
-        success: false
-      }
-    };
+  if (availableLLMs.length === 0) {
+    console.log('No LLMs are available or configured');
+    return createDefaultResponse(rawPrompt, "no-llms-available");
   }
+  
+  console.log(`Attempting enhancement with ${availableLLMs.length} available LLMs: ${availableLLMs.join(', ')}`);
   
   // Track start time for total processing
   const startTime = Date.now();
   
-  try {
-    let result;
-    
-    // Call the appropriate LLM enhancer
-    switch (llm) {
-      case 'deepseek':
-        result = await enhanceWithDeepseek(rawPrompt, context, isRefinement);
-        break;
-      case 'mistral':
-        result = await enhanceWithMistral(rawPrompt, context, isRefinement);
-        break;
-      case 'claude':
-        result = await enhanceWithClaude(rawPrompt, context, isRefinement);
-        break;
-      case 'gemini':
-        result = await enhanceWithGemini(rawPrompt, context, isRefinement);
-        break;
-      default:
-        throw new Error(`Unknown LLM: ${llm}`);
+  // Try each LLM in priority order until one succeeds
+  let lastError = null;
+  
+  for (const llm of availableLLMs) {
+    try {
+      console.log(`Trying enhancement with ${llm}...`);
+      let result;
+      
+      // Call the appropriate LLM enhancer
+      switch (llm) {
+        case 'claude':
+          result = await enhanceWithClaude(rawPrompt, context, isRefinement);
+          break;
+        case 'gemini':
+          result = await enhanceWithGemini(rawPrompt, context, isRefinement);
+          break;
+        case 'mistral':
+          result = await enhanceWithMistral(rawPrompt, context, isRefinement);
+          break;
+        case 'deepseek':
+          result = await enhanceWithDeepseek(rawPrompt, context, isRefinement);
+          break;
+        default:
+          console.log(`Unknown LLM: ${llm}, skipping`);
+          continue;
+      }
+      
+      // Check if the LLM made meaningful changes
+      const wasEnhanced = result.enhancedPrompt !== rawPrompt;
+      
+      if (!wasEnhanced) {
+        console.log(`${llm} returned unchanged prompt, trying next LLM if available`);
+        continue;
+      }
+      
+      console.log(`Successfully enhanced prompt with ${llm}`);
+      
+      // Format the result to match the expected structure
+      return {
+        enhancedPrompt: result.enhancedPrompt,
+        wasEnhanced: true,
+        enhancements: [{
+          type: 'llm.enhancement',
+          description: `Enhanced using ${llm} model`
+        }],
+        metadata: {
+          source: result.source,
+          model: result.metadata.model,
+          processingTime: result.metadata.processingTime || (Date.now() - startTime),
+          success: true,
+          usage: result.metadata.usage || {}
+        }
+      };
+    } catch (error) {
+      console.error(`Error enhancing prompt with ${llm}:`, error);
+      lastError = error;
+      // Continue to next LLM
     }
-    
-    // Check if the LLM made meaningful changes
-    const wasEnhanced = result.enhancedPrompt !== rawPrompt;
-    
-    // Format the result to match the expected structure
-    return {
-      enhancedPrompt: result.enhancedPrompt,
-      wasEnhanced,
-      enhancements: [{
-        type: 'llm.enhancement',
-        description: `Enhanced using ${llm} model`
-      }],
-      metadata: {
-        source: result.source,
-        model: result.metadata.model,
-        processingTime: result.metadata.processingTime || (Date.now() - startTime),
-        success: result.metadata.success,
-        usage: result.metadata.usage || {}
-      }
-    };
-  } catch (error) {
-    console.error(`Error enhancing prompt with ${llm}:`, error);
-    
-    // Fall back to returning the original prompt
-    return {
-      enhancedPrompt: rawPrompt,
-      wasEnhanced: false,
-      enhancements: [],
-      metadata: {
-        source: "llm-error",
-        model: llm,
-        processingTime: Date.now() - startTime,
-        success: false,
-        error: error.message
-      }
-    };
   }
+  
+  // If we get here, all LLMs failed
+  console.error('All LLM enhancement attempts failed:', lastError);
+  return createDefaultResponse(rawPrompt, "all-llms-failed", lastError?.message);
+}
+
+/**
+ * Get configured LLMs in priority order (best first)
+ */
+function getPrioritizedLLMs() {
+  // Define priority order (most capable/reliable first)
+  const priorityOrder = ['claude', 'gemini', 'mistral', 'deepseek'];
+  
+  // Filter to only include enabled LLMs, maintaining priority order
+  return priorityOrder.filter(llm => LLM_CONFIGS[llm].enabled);
+}
+
+/**
+ * Helper to create a default response for when LLM enhancement fails
+ */
+function createDefaultResponse(prompt, reason = "unknown", errorMessage = null) {
+  return {
+    enhancedPrompt: prompt,
+    wasEnhanced: false,
+    enhancements: [],
+    metadata: {
+      source: reason,
+      model: "none",
+      processingTime: 0,
+      success: false,
+      error: errorMessage
+    }
+  };
 }
 
 module.exports = {
   enhancePrompt,
-  getAvailableLLMs
+  getAvailableLLMs,
+  testLLMConnection
 }; 
