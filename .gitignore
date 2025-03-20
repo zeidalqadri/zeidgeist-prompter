@@ -1,0 +1,1 @@
+# Node modules\nnode_modules/\n\n# Build files\n.next/\ndist/\nbuild/\n\n# Environment variables\n.env\n.env.local\n.env.development.local\n.env.test.local\n.env.production.local\n\n# IDE files\n.idea/\n.vscode/\n\n# OS files\n.DS_Store\nThumbs.db\n\n# Logs\nlogs/\n*.log\nnpm-debug.log*\n\n# Large files\n*.pkg\nAWSCLIV2.pkg\n\n# Temp dirs\ntmp/\ntemp/\n\n# Archive\narchive/\n
