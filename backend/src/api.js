@@ -17,16 +17,41 @@ const ruleWeightLearner = require('./learning/ruleWeightLearner');
 const net = require('net');
 const { initDatabase, getDb, getUserIdentifier } = require('./pgdb');
 const { checkEnvironmentVariables } = require('./checkEnv');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // Run environment variable check at startup
 checkEnvironmentVariables();
 
 // Create Express app
 const app = express();
-// Always use the PORT environment variable with Render (defaults to 10000)
-const PORT = parseInt(process.env.PORT || '10000', 10);
+// Get port from environment variable or command line argument
+const port = process.argv.includes('--port') 
+  ? parseInt(process.argv[process.argv.indexOf('--port') + 1], 10)
+  : parseInt(process.env.PORT || '10000', 10);
 const NEXT_PORT = process.env.NEXT_PORT || 3000;
 const basePath = process.env.BASE_PATH || '';
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  next();
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Add a root health check endpoint for Render
+app.get('/', (req, res) => {
+  console.log('Root health check endpoint called');
+  res.status(200).json({ status: 'ok', message: 'Zeidgeist Prompter API is running' });
+});
+
+// Set up base path for production environment
+const apiBasePath = basePath ? `${basePath}/api` : '/api';
 
 // Function to check if a port is in use
 function isPortInUse(port) {
@@ -60,13 +85,6 @@ async function findAvailablePort(startPort) {
   
   throw new Error(`Could not find an available port in range ${startPort}-${MAX_PORT}`);
 }
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// Set up base path for production environment
-const apiBasePath = basePath ? `${basePath}/api` : '/api';
 
 // New diagnostic endpoints for troubleshooting LLM issues
 app.get(`${apiBasePath}/diagnose`, async (req, res) => {
@@ -249,15 +267,23 @@ app.post(`${apiBasePath}/engineer`, async (req, res) => {
           try {
             const db = getDb();
             if (db) {
-              await db.collection('llm_enhancements').insertOne({
-                originalPrompt: prompt,
-                enhancedPrompt: result.enhancedPrompt,
-                context: context || null,
-                source: result.metadata.source,
-                model: result.metadata.model,
-                timestamp: new Date(),
-                learned: false // Flag to indicate this hasn't been used for learning yet
-              });
+              // PostgreSQL version of insertion
+              const client = await db.connect();
+              await client.query(
+                `INSERT INTO llm_enhancements 
+                 (originalprompt, enhancedprompt, context, source, model, timestamp, learned) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [
+                  prompt, 
+                  result.enhancedPrompt, 
+                  context || null, 
+                  result.metadata.source, 
+                  result.metadata.model, 
+                  new Date(),
+                  false
+                ]
+              );
+              client.release();
               console.log('Stored successful LLM enhancement for learning');
             }
           } catch (dbError) {
@@ -458,44 +484,25 @@ app.get(`${apiBasePath}/engineer/history`, async (req, res) => {
     // Get database connection
     const db = await getDb();
     
-    // If MongoDB is available, use it
+    // Query database for user's history - PostgreSQL version
+    let historyItems = [];
     if (db) {
       try {
-        // Query database for user's history
-        const historyItems = await db.collection('history')
-          .find({ userId })
-          .sort({ timestamp: -1 })
-          .limit(100)
-          .toArray();
-        
-        // Return history items
-        return res.status(200).json({ items: historyItems || [] });
+        const client = await db.connect();
+        const result = await client.query(
+          'SELECT * FROM history WHERE userid = $1 ORDER BY timestamp DESC',
+          [userId]
+        );
+        client.release();
+        historyItems = result.rows;
       } catch (dbError) {
-        console.error('Error retrieving history from MongoDB:', dbError);
-        // Fall back to file-based storage on error
+        console.error('Error querying history for export:', dbError);
+        // Continue with empty array
       }
     }
     
-    // Fallback to file-based storage
-    console.log('Using file-based storage for history retrieval');
-    
-    // Path to history file
-    const historyPath = path.join(__dirname, './data/prompt_history.json');
-    
-    // Check if history file exists
-    if (!fs.existsSync(historyPath)) {
-      // Return empty array if no history
-      return res.status(200).json({ items: [] });
-    }
-    
-    // Read history file
-    const historyData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-    
-    // Filter history for this user only
-    const userHistory = (historyData.items || []).filter(item => item.userId === userId);
-    
     // Return history items
-    return res.status(200).json({ items: userHistory || [] });
+    return res.status(200).json({ items: historyItems || [] });
   } catch (error) {
     console.error('Error retrieving history:', error);
     return res.status(200).json({ items: [], error: error.message });
@@ -524,14 +531,28 @@ app.post(`${apiBasePath}/engineer/history`, async (req, res) => {
     // If MongoDB is available, use it
     if (db) {
       try {
-        // Insert history item into database
-        await db.collection('history').insertOne(historyItem);
-        console.log('Saved history item to MongoDB');
+        // Insert history item into database - PostgreSQL version
+        const client = await db.connect();
+        await client.query(
+          `INSERT INTO history 
+           (userid, original, refined, context, timestamp, metadata) 
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            userId,
+            historyItem.original,
+            historyItem.refined,
+            historyItem.context || null,
+            new Date(historyItem.timestamp),
+            historyItem.metadata ? JSON.stringify(historyItem.metadata) : null
+          ]
+        );
+        client.release();
+        console.log('Saved history item to PostgreSQL');
         
         // Return success
         return res.status(200).json({ success: true });
       } catch (dbError) {
-        console.error('Error storing history item to MongoDB:', dbError);
+        console.error('Error storing history item to PostgreSQL:', dbError);
         // Fall back to file-based storage on error
       }
     }
@@ -673,10 +694,21 @@ app.get(`${apiBasePath}/engineer/export`, async (req, res) => {
     const db = await getDb();
     
     // Query database for user's history
-    const historyItems = await db.collection('history')
-      .find({ userId })
-      .sort({ timestamp: -1 })
-      .toArray();
+    let historyItems = [];
+    if (db) {
+      try {
+        const client = await db.connect();
+        const result = await client.query(
+          'SELECT * FROM history WHERE userid = $1 ORDER BY timestamp DESC',
+          [userId]
+        );
+        client.release();
+        historyItems = result.rows;
+      } catch (dbError) {
+        console.error('Error querying history for export:', dbError);
+        // Continue with empty array
+      }
+    }
     
     if (format === 'csv') {
       // Set response headers for CSV
@@ -748,58 +780,77 @@ async function runLearningPipeline() {
       };
     }
     
-    // Get unprocessed LLM enhancements
-    const collection = db.collection('llm_enhancements');
-    const unprocessedItems = await collection.find({ learned: false }).toArray();
-    
-    if (unprocessedItems.length === 0) {
-      return { 
-        success: true, 
-        message: 'No new enhancements to learn from', 
-        processedItems: 0 
+    try {
+      // Get unprocessed LLM enhancements - using PostgreSQL
+      const client = await db.connect();
+      const result = await client.query(
+        'SELECT * FROM llm_enhancements WHERE learned = FALSE'
+      );
+      const unprocessedItems = result.rows;
+      client.release();
+      
+      if (unprocessedItems.length === 0) {
+        return { 
+          success: true, 
+          message: 'No new enhancements to learn from', 
+          processedItems: 0 
+        };
+      }
+      
+      console.log(`Found ${unprocessedItems.length} unprocessed LLM enhancements to learn from`);
+      
+      // Extract examples for learning
+      const examples = unprocessedItems.map(item => ({
+        originalPrompt: item.originalprompt,
+        enhancedPrompt: item.enhancedprompt,
+        context: item.context
+      }));
+      
+      // Learn patterns from examples
+      try {
+        await patternLearner.learnFromExamples(examples);
+        console.log('Pattern learning complete');
+      } catch (error) {
+        console.error('Error in pattern learning:', error);
+      }
+      
+      // Update rule weights if applicable
+      try {
+        await ruleWeightLearner.updateWeightsFromExamples(examples);
+        console.log('Rule weight learning complete');
+      } catch (error) {
+        console.error('Error in rule weight learning:', error);
+      }
+      
+      // Mark items as learned - using PostgreSQL
+      const itemIds = unprocessedItems.map(item => item.id);
+      const idsPlaceholders = itemIds.map((_, i) => `$${i + 1}`).join(',');
+      
+      const updateClient = await db.connect();
+      const updateResult = await updateClient.query(
+        `UPDATE llm_enhancements 
+         SET learned = TRUE, learnedat = NOW() 
+         WHERE id IN (${idsPlaceholders})`,
+        itemIds
+      );
+      updateClient.release();
+      
+      const processingTime = Date.now() - startTime;
+      console.log(`Learning pipeline complete. Processed ${unprocessedItems.length} items in ${processingTime}ms`);
+      
+      return {
+        success: true,
+        processedItems: unprocessedItems.length,
+        processingTime
+      };
+    } catch (dbError) {
+      console.error('Database error in learning pipeline:', dbError);
+      return {
+        success: false,
+        message: `Database error: ${dbError.message}`,
+        processedItems: 0
       };
     }
-    
-    console.log(`Found ${unprocessedItems.length} unprocessed LLM enhancements to learn from`);
-    
-    // Extract examples for learning
-    const examples = unprocessedItems.map(item => ({
-      originalPrompt: item.originalPrompt,
-      enhancedPrompt: item.enhancedPrompt,
-      context: item.context
-    }));
-    
-    // Learn patterns from examples
-    try {
-      await patternLearner.learnFromExamples(examples);
-      console.log('Pattern learning complete');
-    } catch (error) {
-      console.error('Error in pattern learning:', error);
-    }
-    
-    // Update rule weights if applicable
-    try {
-      await ruleWeightLearner.updateWeightsFromExamples(examples);
-      console.log('Rule weight learning complete');
-    } catch (error) {
-      console.error('Error in rule weight learning:', error);
-    }
-    
-    // Mark items as learned
-    const ids = unprocessedItems.map(item => item._id);
-    await collection.updateMany(
-      { _id: { $in: ids } },
-      { $set: { learned: true, learnedAt: new Date() } }
-    );
-    
-    const processingTime = Date.now() - startTime;
-    console.log(`Learning pipeline complete. Processed ${unprocessedItems.length} items in ${processingTime}ms`);
-    
-    return {
-      success: true,
-      processedItems: unprocessedItems.length,
-      processingTime
-    };
   } catch (error) {
     console.error('Error in runLearningPipeline:', error);
     return {
@@ -833,9 +884,7 @@ function setupLearningSchedule() {
   console.log('Learning pipeline scheduled to run every 24 hours');
 }
 
-/**
- * Start the server with automatic port discovery
- */
+// Initialize and start the server
 async function startServer() {
   try {
     // Initialize the database connection
@@ -843,9 +892,6 @@ async function startServer() {
     try {
       await initDatabase();
       console.log('Database initialization complete');
-      
-      // Set up the learning schedule
-      setupLearningSchedule();
     } catch (dbError) {
       console.error('Database initialization failed, continuing with file-based storage:', dbError);
     }
@@ -866,130 +912,51 @@ async function startServer() {
       console.log(`  • Gemini: ${process.env.GEMINI_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
     }
     
-    // For Render compatibility, always bind to 0.0.0.0 and use the PORT env variable
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ API server running on 0.0.0.0:${PORT}`);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
-      }
-      console.log(`🌐 Base path: ${basePath || '/'}`);
+    // Try to start the server
+    console.log(`Attempting to start server on port ${port}...`);
+    const server = await new Promise((resolve, reject) => {
+      const s = app.listen(port, '0.0.0.0', () => {
+        console.log(`✅ API server running on 0.0.0.0:${port}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
+        }
+        console.log(`🌐 Base path: ${basePath || '/'}`);
+        
+        // Save the port to a file for other processes to know which port was used
+        try {
+          fs.writeFileSync(path.join(__dirname, '../.port'), port.toString());
+          console.log(`💾 Port information saved to .port file`);
+        } catch (err) {
+          console.warn('Failed to save port information:', err);
+        }
+        
+        // Log server address info
+        const addr = s.address();
+        console.log(`🔌 Server listening on ${addr.address}:${addr.port}`);
+        resolve(s);
+      });
       
-      // Save the port to a file for other processes to know which port was used
-      try {
-        fs.writeFileSync(path.join(__dirname, '../.port'), PORT.toString());
-        console.log(`💾 Port information saved to .port file`);
-      } catch (err) {
-        console.warn('Failed to save port information:', err);
-      }
+      s.on('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+          console.error(`Port ${port} is already in use`);
+          reject(error);
+        } else {
+          reject(error);
+        }
+      });
     });
+    
+    return server;
   } catch (error) {
     console.error('Error starting server:', error);
     process.exit(1);
   }
 }
 
-// Start the server
-startServer();
+// Export the app and startServer function
+module.exports = { app, startServer };
 
-// Admin monitoring dashboard endpoint
-app.get(`${apiBasePath}/admin/dashboard`, async (req, res) => {
-  try {
-    const db = getDb();
-    if (!db) {
-      return res.status(500).json({ error: 'Database not available' });
-    }
-    
-    // Get enhancement statistics
-    const llmEnhancementsCollection = db.collection('llm_enhancements');
-    const feedbackCollection = db.collection('feedback');
-    const historyCollection = db.collection('history');
-    
-    // Get total counts
-    const totalLLMEnhancements = await llmEnhancementsCollection.countDocuments();
-    const totalFeedback = await feedbackCollection.countDocuments();
-    const totalHistory = await historyCollection.countDocuments();
-    
-    // Get counts by source (LLM vs rule-based)
-    const enhancementsByType = await historyCollection.aggregate([
-      { $group: { _id: "$metadata.source", count: { $sum: 1 } } }
-    ]).toArray();
-    
-    // Get learning statistics
-    const learnedEnhancements = await llmEnhancementsCollection.countDocuments({ learned: true });
-    const pendingLearning = await llmEnhancementsCollection.countDocuments({ learned: false });
-    
-    // Get success rates from feedback
-    const positiveFeedback = await feedbackCollection.countDocuments({ wasSuccessful: true });
-    const negativeFeedback = await feedbackCollection.countDocuments({ wasSuccessful: false });
-    
-    // Get recent enhancements
-    const recentEnhancements = await llmEnhancementsCollection
-      .find({})
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .toArray();
-    
-    // Get enhancement counts per day for the last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const dailyEnhancements = await historyCollection.aggregate([
-      { $match: { timestamp: { $gte: thirtyDaysAgo } } },
-      { $group: {
-          _id: { 
-            $dateToString: { format: "%Y-%m-%d", date: { $toDate: "$timestamp" } }
-          },
-          count: { $sum: 1 },
-          llmCount: { 
-            $sum: { 
-              $cond: [
-                { $ne: ["$metadata.source", "backend-default"] }, 
-                1, 
-                0
-              ] 
-            }
-          },
-          ruleCount: { 
-            $sum: { 
-              $cond: [
-                { $eq: ["$metadata.source", "backend-default"] }, 
-                1, 
-                0
-              ] 
-            }
-          }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]).toArray();
-    
-    return res.json({
-      totalCounts: {
-        llmEnhancements: totalLLMEnhancements,
-        feedback: totalFeedback,
-        history: totalHistory
-      },
-      enhancementsByType,
-      learning: {
-        learned: learnedEnhancements,
-        pending: pendingLearning,
-        totalStored: totalLLMEnhancements
-      },
-      feedback: {
-        positive: positiveFeedback,
-        negative: negativeFeedback,
-        successRate: totalFeedback ? (positiveFeedback / totalFeedback) * 100 : 0
-      },
-      dailyEnhancements,
-      recentEnhancements
-    });
-  } catch (error) {
-    console.error('Error generating dashboard:', error);
-    return res.status(500).json({ error: error.message });
-  }
-});
-
-module.exports = {
-  app,
-  startServer
-}; 
+// Start the server if this file is run directly
+if (require.main === module) {
+  startServer();
+} 
