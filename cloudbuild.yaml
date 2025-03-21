@@ -8,7 +8,7 @@ steps:
     '--build-arg', 'MISTRAL_API_KEY=${_MISTRAL_API_KEY}',
     '--build-arg', 'CLAUDE_API_KEY=${_CLAUDE_API_KEY}',
     '--build-arg', 'GEMINI_API_KEY=${_GEMINI_API_KEY}',
-    '--build-arg', 'MONGODB_URI=mongodb+srv://zeidalqadri:password123@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster',
+    '--build-arg', 'MONGODB_URI=${_MONGODB_URI}',
     '--build-arg', 'USE_EXTERNAL_APIS=true',
     '.'
   ]
@@ -38,7 +38,7 @@ steps:
   - '--min-instances'
   - '1'
   - '--set-env-vars'
-  - 'USE_EXTERNAL_APIS=true,MONGODB_URI=mongodb+srv://zeidalqadri:password123@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster,DEEPSEEK_API_KEY=${_DEEPSEEK_API_KEY},MISTRAL_API_KEY=${_MISTRAL_API_KEY},CLAUDE_API_KEY=${_CLAUDE_API_KEY},GEMINI_API_KEY=${_GEMINI_API_KEY}'
+  - 'USE_EXTERNAL_APIS=true,MONGODB_URI=${_MONGODB_URI},DEEPSEEK_API_KEY=${_DEEPSEEK_API_KEY},MISTRAL_API_KEY=${_MISTRAL_API_KEY},CLAUDE_API_KEY=${_CLAUDE_API_KEY},GEMINI_API_KEY=${_GEMINI_API_KEY}'
 
 images:
 - 'gcr.io/zeidgeistdotcom/zeidgeist-prompter:latest'

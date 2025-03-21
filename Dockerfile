@@ -57,4 +57,4 @@ ENV NODE_ENV=production
 RUN mkdir -p frontend-new/public frontend-new/.next/static
 
 # Run deployment checks and then start the application
-CMD ["sh", "-c", "node backend/src/deploy-check.js || node backend/src/api.js"]
+CMD ["node", "backend/src/deploy-check.js" ]

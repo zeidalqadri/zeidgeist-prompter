@@ -183,10 +183,13 @@ async function runDeploymentChecks() {
     process.exit(EXIT_ERROR);
   } else if (warningCount > 0) {
     console.log('⚠️ Deployment check passed with warnings. Review warnings before deploying.');
-    process.exit(EXIT_WARNING);
+    // Continue with warnings
+    console.log('Starting API server despite warnings...');
+    require('./api');
   } else {
     console.log('✅ All deployment checks passed successfully!');
-    process.exit(EXIT_SUCCESS);
+    console.log('Starting API server...');
+    require('./api');
   }
 }
 

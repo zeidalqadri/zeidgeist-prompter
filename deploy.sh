@@ -42,7 +42,7 @@ GEMINI_API_KEY=${GEMINI_API_KEY:-"placeholder"}
 # Submit to Cloud Build with substitutions
 echo "Submitting to Cloud Build with substitutions..."
 gcloud builds submit --config=cloudbuild.yaml \
-  --substitutions=_DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY",_MISTRAL_API_KEY="$MISTRAL_API_KEY",_CLAUDE_API_KEY="$CLAUDE_API_KEY",_GEMINI_API_KEY="$GEMINI_API_KEY"
+  --substitutions=_DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY",_MISTRAL_API_KEY="$MISTRAL_API_KEY",_CLAUDE_API_KEY="$CLAUDE_API_KEY",_GEMINI_API_KEY="$GEMINI_API_KEY",_MONGODB_URI="mongodb+srv://zeidalqadri:${MONGODB_PASSWORD:-password123}@zeidgeist-cluster.vuiut.mongodb.net/promptEnhancer?retryWrites=true&w=majority"
 
 echo "Deployment complete!"
 echo "Your service should be available at:"
