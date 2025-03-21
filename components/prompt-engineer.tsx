@@ -8,12 +8,37 @@ import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import FeedbackForm from "./feedback-form"
 
+// Create a simple inline toast component
+function SimpleToast({ show, message }: { show: boolean, message: string }) {
+  if (!show) return null;
+  return (
+    <div className="fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded-md shadow-lg transition-opacity duration-300">
+      {message}
+    </div>
+  );
+}
+
 // Interface for tracking prompt history
 interface PromptHistoryItem {
   original: string;
   refined: string;
   context?: string;
   timestamp: Date;
+  metadata?: {
+    source?: string;
+    model?: string;
+    processingTime?: number;
+  };
+}
+
+// Return type for the engineer API
+interface EngineerResponse {
+  result: string;
+  metadata?: {
+    source?: string;
+    model?: string;
+    processingTime?: number;
+  };
 }
 
 export default function PromptEngineer() {
@@ -35,6 +60,8 @@ export default function PromptEngineer() {
   
   // Flag to track if at least one prompt has been refined
   const [hasRefinedPrompt, setHasRefinedPrompt] = useState(false)
+  const [enhancementSource, setEnhancementSource] = useState<string | null>(null)
+  const [enhancementTime, setEnhancementTime] = useState<number | null>(null)
 
   // Load existing history when component mounts
   useEffect(() => {
@@ -57,13 +84,46 @@ export default function PromptEngineer() {
     loadHistory();
   }, []);
 
+  // Load prompt history from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('promptHistory')
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory)
+        // Convert string timestamps back to Date objects
+        const historyWithDates = parsedHistory.map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        }))
+        setPromptHistory(historyWithDates)
+        
+        // If we have history, set the hasRefinedPrompt flag
+        if (historyWithDates.length > 0) {
+          setHasRefinedPrompt(true)
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load prompt history:', e)
+    }
+  }, [])
+
+  // Save prompt history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('promptHistory', JSON.stringify(promptHistory))
+    } catch (e) {
+      console.error('Failed to save prompt history:', e)
+    }
+  }, [promptHistory])
+
   // Add item to prompt history
-  const addToHistory = useCallback((original: string, refined: string, contextValue?: string) => {
+  const addToHistory = useCallback((original: string, refined: string, contextValue?: string, metadata?: any) => {
     const historyItem: PromptHistoryItem = {
       original,
       refined,
       context: contextValue,
-      timestamp: new Date()
+      timestamp: new Date(),
+      metadata
     }
     
     // Send to server for ML training purposes
@@ -101,6 +161,8 @@ export default function PromptEngineer() {
     setError(null)
     setShowFeedback(false)
     setRefinedWithContext("")
+    setEnhancementSource(null)
+    setEnhancementTime(null)
 
     try {
       // Check multiple ways to determine if this is a refinement
@@ -111,10 +173,20 @@ export default function PromptEngineer() {
       // Consider it a refinement if it matches previous history OR the last refined prompt
       const isRefinement = isInHistory || wasLastRefined
       
+      // Check if this is an expansion request (from Repeat button)
+      const repeatType = localStorage.getItem('repeatType')
+      const repeatCount = parseInt(localStorage.getItem('repeatCount') || '0')
+      const isExpansion = repeatType === 'expand' && repeatCount > 0
+      
       // If we're not sure if it's refined, ask the user
-      if (isLikelyRefined(prompt) && !isRefinement && !confirm("This prompt appears to be already refined. Continue with refinement?")) {
+      if (isLikelyRefined(prompt) && !isRefinement && !isExpansion && !confirm("This prompt appears to be already refined. Continue with refinement?")) {
         setIsLoading(false)
         return
+      }
+      
+      // Clear repeatType after using it
+      if (isExpansion) {
+        localStorage.removeItem('repeatType')
       }
 
       const response = await fetch('/api/engineer', {
@@ -124,47 +196,46 @@ export default function PromptEngineer() {
         },
         body: JSON.stringify({ 
           prompt,
-          isRefinement  // Flag to indicate this is a refinement iteration
+          context: context || "",
+          isRefinement,  // Flag to indicate this is a refinement iteration
+          isExpansion,   // Flag to indicate this is an expansion request
+          repeatCount    // Counter for how many times repeated
         }),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Don't throw an error, just log it and handle gracefully
-        console.error("Response not OK:", data)
-        if (data.result) {
-          // If we have a result despite the error, use it
-          setResult(data.result)
-          addToHistory(prompt, data.result)
-        } else {
-          // Otherwise just use the original prompt
-          setResult(prompt)
-          addToHistory(prompt, prompt)
-        }
-        return
-      }
-
-      // Handle successful response
-      if (data.result) {
+      const data: EngineerResponse = await response.json()
+      
+      if (response.ok && data.result) {
         setResult(data.result)
-        // Add to history when we get a successful result
-        addToHistory(prompt, data.result)
+        addToHistory(prompt, data.result, context, data.metadata)
+        
+        // Also set enhanced prompt with context if context is provided
+        if (context) {
+          setRefinedWithContext(`Context: ${context}\n\nPrompt: ${data.result}`)
+        }
+        
+        // Store the last refined prompt for comparison in future requests
+        localStorage.setItem('lastRefinedPrompt', data.result)
+        
+        // Store enhancement source and time information if available
+        if (data.metadata) {
+          if (data.metadata.source) {
+            setEnhancementSource(data.metadata.source)
+          }
+          if (data.metadata.processingTime) {
+            setEnhancementTime(data.metadata.processingTime)
+          }
+        }
       } else {
-        // Handle case where no result was returned
-        setResult(prompt)
-        addToHistory(prompt, prompt)
+        throw new Error(data.result || 'Failed to enhance prompt')
       }
-    } catch (err) {
-      console.error('Error enhancing prompt:', err)
-      // Don't show error to user, just use original prompt
-      setResult(prompt)
-      // Still add to history so user doesn't lose their input
-      addToHistory(prompt, prompt)
+    } catch (error) {
+      console.error('Error enhancing prompt:', error)
+      setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setIsLoading(false)
     }
-  }, [prompt, addToHistory, promptHistory])
+  }, [prompt, context, promptHistory, addToHistory])
 
   // Check if a prompt is already refined
   const isLikelyRefined = useCallback((text: string): boolean => {
@@ -276,21 +347,35 @@ export default function PromptEngineer() {
   }
 
   const handleRepeat = () => {
-    const textToRepeat = refinedWithContext || result
-    setPrompt(textToRepeat)
-    setResult("")
-    setRefinedWithContext("")
-    setShowFeedback(false)
-    setShowContext(false)
-    setError(null)
+    const textToRepeat = refinedWithContext || result;
+    setPrompt(textToRepeat);
+    setResult("");
+    setRefinedWithContext("");
+    setShowFeedback(false);
+    setShowContext(false);
+    setError(null);
     
     // Store this as a refinement to ensure it keeps improving
-    localStorage.setItem('lastRefinedPrompt', textToRepeat)
+    localStorage.setItem('lastRefinedPrompt', textToRepeat);
+    
+    // Store metadata indicating this is a request for further expansion/elaboration
+    localStorage.setItem('repeatType', 'expand');
+    localStorage.setItem('repeatCount', String(parseInt(localStorage.getItem('repeatCount') || '0') + 1));
   }
 
   // Format timestamp for display
   const formatTime = (date: Date): string => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    // Calculate time since the event
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
   }
 
   // Toggle expanded state for a history item
@@ -306,79 +391,230 @@ export default function PromptEngineer() {
     })
   }
 
+  // Toggle context input visibility
+  const toggleContext = useCallback(() => {
+    setShowContext(prevState => !prevState)
+  }, [])
+
+  // Function to handle expansion button (Repeat)
+  const handleExpand = useCallback(() => {
+    // Set the refined prompt as the new input
+    setPrompt(result)
+    
+    // Store state to indicate this is an expansion request
+    localStorage.setItem('repeatType', 'expand')
+    
+    // Increment the repeat count
+    const currentCount = parseInt(localStorage.getItem('repeatCount') || '0')
+    localStorage.setItem('repeatCount', (currentCount + 1).toString())
+    
+    // Reset refined output
+    setResult("")
+    setRefinedWithContext("")
+    setShowFeedback(false)
+  }, [result])
+
+  // Function to set a prompt from history
+  const setPromptFromHistory = useCallback((item: PromptHistoryItem) => {
+    setPrompt(item.refined)
+    if (item.context) {
+      setContext(item.context)
+      setShowContext(true)
+    }
+    setResult("")
+    setRefinedWithContext("")
+    setShowFeedback(false)
+  }, [])
+
+  // Function to provide feedback on enhancement
+  const provideFeedback = useCallback((isPositive: boolean) => {
+    // Send feedback to server
+    fetch('/api/engineer/feedback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        original: prompt,
+        refined: result,
+        wasSuccessful: isPositive
+      }),
+    }).catch(err => console.error('Failed to send feedback:', err))
+    
+    // Show feedback confirmation
+    setShowFeedback(true)
+  }, [prompt, result])
+
   return (
-    <div className="w-full max-w-xl">
+    <div className="w-full max-w-4xl">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-base font-medium">Raw</h1>
-        {(prompt || context || result || refinedWithContext) && (
-          <Button variant="ghost" size="icon" onClick={clearAll} className="h-8 w-8">
-            <X size={16} />
-          </Button>
-        )}
+        <h1 className="text-2xl font-bold tracking-tight">
+          <a href="https://zeidgeist.vercel.app" className="text-black hover:text-gray-700 transition-colors">
+            zeidgeistdotcom
+          </a>
+          <span className="text-gray-400 text-sm ml-2">v0.6.8</span>
+        </h1>
       </div>
 
-      <form id="promptForm" onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid gap-6">
         <div>
-          <Textarea
-            id="promptTextarea"
-            placeholder="Raw input..."
-            className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            required
-          />
-        </div>
-
-        <div className="flex justify-between items-center">
-          <div className="text-xs text-gray-500">Press Cmd+Enter (or Ctrl+Enter) to refine</div>
-          <Button
-            type="submit"
-            size="sm"
-            className="bg-black-primary hover:bg-black-rich text-white-pure"
-            disabled={isLoading || !prompt.trim()}
-          >
-            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            <span className="ml-1">Refine</span>
-          </Button>
-        </div>
-      </form>
-
-      {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-          {error}
-        </div>
-      )}
-
-      {result && !refinedWithContext && (
-        <div className="mt-6">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-medium">Refined</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyToClipboard(result)}
-              className="h-7 text-gray-60 hover:text-black-primary"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </Button>
-          </div>
-          <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{result}</div>
-          
-          <div className="mt-3">
-            <div className="flex justify-between items-center">
+            <h2 className="text-base font-medium">Raw</h2>
+            {(prompt || context || result || refinedWithContext) && (
               <Button
-                type="button"
-                variant={showContext ? "default" : "outline"}
-                size="sm"
-                onClick={() => setShowContext(!showContext)}
-                className="text-gray-60 hover:text-black-primary"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setPrompt("")
+                  setContext("")
+                  setResult("")
+                  setRefinedWithContext("")
+                  setEnhancementSource(null)
+                  setShowFeedback(false)
+                  setShowContext(false)
+                }}
+                className="h-8 w-8"
               >
-                <Info size={14} className="mr-1" />
-                Add Context
-                {showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
+                <X size={16} />
               </Button>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div>
+              <Textarea
+                id="promptTextarea"
+                placeholder="Ramble..."
+                className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="text-xs text-gray-500 hidden">Press Cmd+Enter (or Ctrl+Enter) to refine</div>
+              <Button
+                type="submit"
+                size="sm"
+                className="bg-black-primary hover:bg-black-rich text-white-pure"
+                disabled={isLoading || !prompt.trim()}
+                title={`${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'}`}
+              >
+                {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                <span className="ml-1">Refactor</span>
+              </Button>
+            </div>
+          </form>
+
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+              {error}
+            </div>
+          )}
+
+          {result && !refinedWithContext && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-base font-medium">Refined</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(result)}
+                  className="h-7 text-gray-60 hover:text-black-primary"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </Button>
+              </div>
+              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{result}</div>
               
-              <div className="flex gap-2">
+              <div className="mt-3">
+                <div className="flex justify-between items-center">
+                  <Button
+                    type="button"
+                    variant={showContext ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowContext(!showContext)}
+                    className="text-gray-60 hover:text-black-primary"
+                  >
+                    <Info size={14} className="mr-1" />
+                    Add Context
+                    {showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
+                  </Button>
+                  
+                  <div className="flex gap-2">
+                    {!showFeedback && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setShowFeedback(true)}
+                      >
+                        Give Feedback
+                      </Button>
+                    )}
+                    <Button 
+                      size="sm" 
+                      className="bg-black-primary hover:bg-black-rich text-white-pure" 
+                      onClick={handleExpand}
+                    >
+                      <RotateCw size={14} className="mr-1" />
+                      Repeat
+                    </Button>
+                  </div>
+                </div>
+                
+                {showContext && (
+                  <div className="mt-3 space-y-3">
+                    <Textarea
+                      placeholder="Add contextual information..."
+                      className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary"
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white-pure"
+                        onClick={handleRefineWithContext}
+                        disabled={isLoadingContext || !context.trim()}
+                      >
+                        {isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                        <span className="ml-1">Refine+</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {showFeedback && (
+                <div className="mt-4">
+                  <FeedbackForm 
+                    originalPrompt={prompt}
+                    enhancedPrompt={result}
+                    onClose={() => setShowFeedback(false)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {refinedWithContext && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-base font-medium">Refined+ (with context)</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(refinedWithContext)}
+                  className="h-7 text-gray-60 hover:text-black-primary"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </Button>
+              </div>
+              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">
+                {refinedWithContext}
+              </div>
+              <div className="flex justify-end gap-2 mt-3">
                 {!showFeedback && (
                   <Button 
                     variant="outline" 
@@ -391,238 +627,168 @@ export default function PromptEngineer() {
                 <Button 
                   size="sm" 
                   className="bg-black-primary hover:bg-black-rich text-white-pure" 
-                  onClick={handleRepeat}
+                  onClick={handleExpand}
                 >
                   <RotateCw size={14} className="mr-1" />
                   Repeat
                 </Button>
               </div>
-            </div>
-            
-            {showContext && (
-              <div className="mt-3 space-y-3">
-                <Textarea
-                  placeholder="Add contextual information..."
-                  className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary"
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white-pure"
-                    onClick={handleRefineWithContext}
-                    disabled={isLoadingContext || !context.trim()}
-                  >
-                    {isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                    <span className="ml-1">Refine+</span>
-                  </Button>
+              
+              {showFeedback && (
+                <div className="mt-4">
+                  <FeedbackForm 
+                    originalPrompt={prompt}
+                    enhancedPrompt={refinedWithContext}
+                    onClose={() => setShowFeedback(false)}
+                  />
                 </div>
+              )}
+            </div>
+          )}
+          
+          {/* Prompt History / Audit Trail */}
+          {hasRefinedPrompt && (
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-base font-medium">Receipt{promptHistory.length === 1 ? '' : 's'} ({promptHistory.length} record{promptHistory.length === 1 ? '' : 's'})</h2>
+                <Button
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="h-7"
+                >
+                  {showHistory ? "Hide" : "Show"}
+                </Button>
               </div>
-            )}
-          </div>
-          
-          {showFeedback && (
-            <div className="mt-4">
-              <FeedbackForm 
-                originalPrompt={prompt}
-                enhancedPrompt={result}
-                onClose={() => setShowFeedback(false)}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {refinedWithContext && (
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-medium">Refined+ (with context)</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyToClipboard(refinedWithContext)}
-              className="h-7 text-gray-60 hover:text-black-primary"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-            </Button>
-          </div>
-          <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">
-            {refinedWithContext}
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            {!showFeedback && (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setShowFeedback(true)}
-              >
-                Give Feedback
-              </Button>
-            )}
-            <Button 
-              size="sm" 
-              className="bg-black-primary hover:bg-black-rich text-white-pure" 
-              onClick={handleRepeat}
-            >
-              <RotateCw size={14} className="mr-1" />
-              Repeat
-            </Button>
-          </div>
-          
-          {showFeedback && (
-            <div className="mt-4">
-              <FeedbackForm 
-                originalPrompt={prompt}
-                enhancedPrompt={refinedWithContext}
-                onClose={() => setShowFeedback(false)}
-              />
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Prompt History / Audit Trail */}
-      {hasRefinedPrompt && (
-        <div className="mt-10 border-t border-gray-200 pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-60 hover:text-black-primary flex items-center gap-1"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <Clock size={14} />
-              <h3 className="text-base font-medium">Prompt History</h3>
-              {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </Button>
-            <div className="text-xs text-gray-500">{promptHistory.length} entries</div>
-          </div>
-          
-          {showHistory && (
-            <div className="mt-2">
-              {promptHistory.length > 0 ? (
-                <div className="border border-gray-100 rounded-md overflow-hidden">
-                  <div className="max-h-[400px] overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Time</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Original</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Refined</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {promptHistory.map((item, index) => (
-                          <React.Fragment key={index}>
-                            <tr 
-                              className={index % 2 === 0 ? "bg-white hover:bg-gray-100" : "bg-gray-50 hover:bg-gray-100"}
-                              onClick={() => toggleExpandItem(index)}
-                            >
-                              <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
-                              <td className="px-3 py-2 align-top">
-                                <div className="max-w-[150px] truncate cursor-help" title={item.original}>
-                                  {item.original.substring(0, 50)}
-                                  {item.original.length > 50 ? "..." : ""}
-                                </div>
-                                {item.context && (
-                                  <div className="mt-1 text-gray-500 italic max-w-[150px] truncate cursor-help" title={item.context}>
-                                    Context: {item.context.substring(0, 30)}
-                                    {item.context.length > 30 ? "..." : ""}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 align-top">
-                                <div className="max-w-[200px] truncate cursor-help" title={item.refined}>
-                                  {item.refined.substring(0, 70)}
-                                  {item.refined.length > 70 ? "..." : ""}
-                                </div>
-                              </td>
-                              <td className="px-3 py-2 align-top whitespace-nowrap">
-                                <div className="flex gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 hover:bg-gray-200"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPrompt(item.refined);
-                                    }}
-                                    title="Use this prompt"
-                                  >
-                                    <RotateCw size={12} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 hover:bg-gray-200"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      copyToClipboard(item.refined);
-                                    }}
-                                    title="Copy to clipboard"
-                                  >
-                                    <Copy size={12} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 hover:bg-gray-200"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleExpandItem(index);
-                                    }}
-                                    title={expandedItems.has(index) ? "Collapse" : "Expand"}
-                                  >
-                                    {expandedItems.has(index) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                  </Button>
-                                </div>
-                              </td>
+              
+              {showHistory && (
+                <div className="mt-2">
+                  {promptHistory.length > 0 ? (
+                    <div className="border border-gray-100 rounded-md overflow-hidden">
+                      <div className="max-h-[400px] overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium text-gray-600">Recency</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-600">Raw</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-600">Refined</th>
+                              <th className="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
                             </tr>
-                            {expandedItems.has(index) && (
-                              <tr className="border-t border-gray-100">
-                                <td colSpan={4} className="px-4 py-3 bg-white">
-                                  <div className="grid grid-cols-2 gap-4 text-xs">
-                                    <div>
-                                      <div className="font-medium mb-1 text-gray-600">Original:</div>
-                                      <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                        {item.original}
+                          </thead>
+                          <tbody>
+                            {promptHistory.map((item, index) => (
+                              <React.Fragment key={index}>
+                                <tr 
+                                  className={index % 2 === 0 ? "bg-white hover:bg-gray-100" : "bg-gray-50 hover:bg-gray-100"}
+                                  onClick={() => toggleExpandItem(index)}
+                                >
+                                  <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
+                                  <td className="px-3 py-2 align-top">
+                                    <div className="max-w-[150px] truncate cursor-help" title={item.original}>
+                                      {item.original.substring(0, 50)}
+                                      {item.original.length > 50 ? "..." : ""}
+                                    </div>
+                                    {item.context && (
+                                      <div className="mt-1 text-gray-500 italic max-w-[150px] truncate cursor-help" title={item.context}>
+                                        Context: {item.context.substring(0, 30)}
+                                        {item.context.length > 30 ? "..." : ""}
                                       </div>
-                                      {item.context && (
-                                        <>
-                                          <div className="font-medium mt-2 mb-1 text-gray-600">Context:</div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2 align-top">
+                                    <div className="max-w-[200px] truncate cursor-help" title={item.refined}>
+                                      {item.refined.substring(0, 70)}
+                                      {item.refined.length > 70 ? "..." : ""}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 align-top whitespace-nowrap">
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 hover:bg-gray-200"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPrompt(item.refined);
+                                        }}
+                                        title="Use this prompt"
+                                      >
+                                        <RotateCw size={12} />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 hover:bg-gray-200"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyToClipboard(item.refined);
+                                        }}
+                                        title="Copy to clipboard"
+                                      >
+                                        <Copy size={12} />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 hover:bg-gray-200"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleExpandItem(index);
+                                        }}
+                                        title={expandedItems.has(index) ? "Collapse" : "Expand"}
+                                      >
+                                        {expandedItems.has(index) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {expandedItems.has(index) && (
+                                  <tr className="border-t border-gray-100">
+                                    <td colSpan={4} className="px-4 py-3 bg-white">
+                                      <div className="grid grid-cols-2 gap-4 text-xs">
+                                        <div>
+                                          <div className="font-medium mb-1 text-gray-600">Original:</div>
                                           <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                            {item.context}
+                                            {item.original}
                                           </div>
-                                        </>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="font-medium mb-1 text-gray-600">Refined:</div>
-                                      <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                        {item.refined}
+                                          {item.context && (
+                                            <>
+                                              <div className="font-medium mt-2 mb-1 text-gray-600">Context:</div>
+                                              <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                                                {item.context}
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <div className="font-medium mb-1 text-gray-600">Refined:</div>
+                                          <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                                            {item.refined}
+                                          </div>
+                                        </div>
                                       </div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center p-4 bg-gray-50 rounded-md border border-dashed border-gray-200">
-                  <div className="text-gray-500">No prompt history yet</div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4 bg-gray-50 rounded-md border border-dashed border-gray-200">
+                      <div className="text-gray-500">No prompt history yet</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
         </div>
-      )}
+      </div>
+      
+      <SimpleToast show={copied} message="Copied to clipboard!" />
     </div>
   )
 }
