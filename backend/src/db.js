@@ -21,7 +21,7 @@ async function initDatabase() {
     if (mongoUri.includes('mongodb+srv://') && !mongoUri.includes('ssl=')) {
       // Add SSL parameters directly to the connection string
       const separator = mongoUri.includes('?') ? '&' : '?';
-      mongoUri = `${mongoUri}${separator}ssl=true&tlsInsecure=true&directConnection=false`;
+      mongoUri = `${mongoUri}${separator}ssl=true&tlsAllowInvalidCertificates=true`;
     }
     
     console.log('Connecting to MongoDB with URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')); // Log URI with hidden credentials
@@ -31,8 +31,8 @@ async function initDatabase() {
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       serverSelectionTimeoutMS: 60000,
-      tlsInsecure: true,       // Try this instead of tlsAllowInvalidCertificates
-      directConnection: false  // Ensure we're using the SRV resolution
+      // Use only tlsAllowInvalidCertificates and not tlsInsecure to avoid conflict
+      tlsAllowInvalidCertificates: true
     });
     
     await client.connect();
