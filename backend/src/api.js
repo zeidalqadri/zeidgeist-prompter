@@ -180,20 +180,34 @@ app.use(`${basePath}/static`, express.static(path.join(__dirname, '../../fronten
 app.use(`${basePath}/public`, express.static(path.join(__dirname, '../../frontend/public')));
 const nextStaticPath = path.join(__dirname, '../../frontend/.next/static');
 const publicPath = path.join(__dirname, '../../frontend/public');
-const indexHtmlPath = path.join(__dirname, '../../frontend/.next/server/app/index.html');
 
-// Serve the frontend for all other routes
-app.use('*', (req, res) => {
-  try {
-    const staticPath = path.join(__dirname, '../../frontend');
-    // ... existing code ...
-  } catch (error) {
-    console.error('Error serving frontend:', error);
-    res.status(500).json({ error: 'Error serving frontend' });
-  }
-});
+// Add this right after the path definitions and before any other code
+// Log existence of frontend files for debugging
+const serverDir = path.join(__dirname, '../../frontend/.next/server');
+const pagesDir = path.join(serverDir, 'pages');
+const appDir = path.join(serverDir, 'app');
 
-// API endpoints
+console.log('Checking for frontend build files:');
+console.log('- Server directory exists:', fs.existsSync(serverDir));
+console.log('- Pages directory exists:', fs.existsSync(pagesDir));
+console.log('- App directory exists:', fs.existsSync(appDir));
+
+// Check specifically for index files
+const pagesIndexPath = path.join(pagesDir, 'index.html');
+const appIndexPath = path.join(appDir, 'index.html');
+console.log('- Pages index.html exists:', fs.existsSync(pagesIndexPath));
+console.log('- App index.html exists:', fs.existsSync(appIndexPath));
+
+// Use the correct index path based on what exists
+const indexHtmlPath = fs.existsSync(pagesIndexPath) 
+  ? pagesIndexPath 
+  : fs.existsSync(appIndexPath) 
+    ? appIndexPath 
+    : path.join(__dirname, '../../frontend/.next/server/pages/index.html');
+
+console.log('- Using index path:', indexHtmlPath);
+
+// Define the API routes before the catch-all route
 
 /**
  * Enhance a single prompt
@@ -883,6 +897,60 @@ function setupLearningSchedule() {
   setTimeout(scheduledLearning, 10 * 60 * 1000);
   console.log('Learning pipeline scheduled to run every 24 hours');
 }
+
+// Serve the frontend at the root path
+app.get(`${basePath}`, (req, res) => {
+  try {
+    if (fs.existsSync(indexHtmlPath)) {
+      const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+      
+      // Replace any base path references if needed
+      const processedHtml = basePath 
+        ? indexHtml.replace(/<base href="\/"/g, `<base href="${basePath}/"`)
+        : indexHtml;
+      
+      res.setHeader('Content-Type', 'text/html');
+      res.send(processedHtml);
+    } else {
+      console.error('Index HTML file not found at:', indexHtmlPath);
+      res.status(500).send('Frontend not built correctly. Check build process.');
+    }
+  } catch (error) {
+    console.error('Error serving frontend:', error);
+    res.status(500).json({ error: 'Error serving frontend', details: error.message });
+  }
+});
+
+// Handle Next.js static files explicitly
+app.get('/_next/*', (req, res) => {
+  const filePath = path.join(__dirname, '../../frontend/.next', req.path);
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send('Static file not found');
+  }
+});
+
+// Final catch-all route for client-side routing
+app.get('*', (req, res) => {
+  // Skip API routes 
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API route not found' });
+  }
+
+  try {
+    if (fs.existsSync(indexHtmlPath)) {
+      const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(indexHtml);
+    } else {
+      res.status(404).send('Not found');
+    }
+  } catch (error) {
+    console.error('Error in catch-all route:', error);
+    res.status(500).json({ error: 'Error serving frontend' });
+  }
+});
 
 // Initialize and start the server
 async function startServer() {

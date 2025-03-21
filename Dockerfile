@@ -22,10 +22,15 @@ COPY . .
 # Build frontend
 RUN cd frontend && npm run build
 
+# Verify the frontend build directory structure
+RUN ls -la frontend/.next/server/app || echo "App directory not found" && \
+    ls -la frontend/.next/server/pages || echo "Pages directory not found" && \
+    find frontend/.next -name "index.html" -type f || echo "No index.html found"
+
 # Environment variables
 ENV PORT=10000
 ENV NODE_ENV=production
-ENV BASE_PATH=/prompter
+ENV BASE_PATH=""
 ENV USE_EXTERNAL_APIS=true
 
 # Expose port

@@ -12,7 +12,7 @@ services:
       - key: PORT
         value: 10000
       - key: BASE_PATH
-        value: /prompter
+        value: ""
       - key: USE_EXTERNAL_APIS
         value: true
       - key: DATABASE_URL
