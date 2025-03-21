@@ -2,7 +2,7 @@
  * Database utility for MongoDB connection and user identification
  */
 
-const { MongoClient } = require('mongodb');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 const crypto = require('crypto');
 
 // MongoDB connection variables
@@ -26,9 +26,19 @@ async function initDatabase() {
     
     console.log('Connecting to MongoDB with URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')); // Log URI with hidden credentials
     
-    // IMPORTANT: Using a minimal set of options with no SSL configurations
-    // Let the URI handle all SSL settings to avoid conflicts
+    // Enhanced connection options with explicit TLS/SSL settings
     client = new MongoClient(mongoUri, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      },
+      ssl: true,
+      tls: true,
+      tlsCAFile: undefined, // Let Node.js use its built-in CA store
+      maxIdleTimeMS: 30000,
+      minPoolSize: 5,
+      maxPoolSize: 10,
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
       serverSelectionTimeoutMS: 60000
