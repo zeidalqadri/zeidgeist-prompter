@@ -41,13 +41,13 @@ COPY --from=builder /app/frontend/.next/static/ ./frontend/.next/static/
 COPY --from=builder /app/frontend/public/ ./frontend/public/
 
 # Set environment variables - moved before any deployment checks
-ENV PORT=8080
+ENV PORT=10000
 ENV NODE_ENV=production
 ENV BASE_PATH=/prompter
 ENV USE_EXTERNAL_APIS=true
 
 # Expose the port the app will run on (explicitly use the same port as the ENV setting)
-EXPOSE 8080
+EXPOSE 10000
 
 # Create dummy frontend directory structure if needed
 RUN mkdir -p frontend-new/public frontend-new/.next/static

@@ -23,8 +23,8 @@ checkEnvironmentVariables();
 
 // Create Express app
 const app = express();
-// Always use the PORT environment variable with Render (don't set a default)
-const PORT = parseInt(process.env.PORT || '8080', 10);
+// Always use the PORT environment variable with Render (defaults to 10000)
+const PORT = parseInt(process.env.PORT || '10000', 10);
 const NEXT_PORT = process.env.NEXT_PORT || 3000;
 const basePath = process.env.BASE_PATH || '';
 
