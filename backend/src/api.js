@@ -921,14 +921,20 @@ app.get(`${basePath}`, (req, res) => {
   }
 });
 
-// Handle Next.js static files explicitly
-app.get('/_next/*', (req, res) => {
-  const filePath = path.join(__dirname, '../../frontend/.next', req.path);
+// Update the static file serving section
+// =============================================================
+// Serve Next.js static files with correct paths
+app.use('/_next', express.static(path.join(__dirname, '../../frontend/.next')));
+app.use('/static', express.static(path.join(__dirname, '../../frontend/public')));
+
+// Handle Next.js static files specifically
+app.get('/_next/*', (req, res, next) => {
+  const filePath = path.join(__dirname, '../../frontend/.next', req.path.replace('/_next', ''));
+  console.log('Trying to serve:', filePath);
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    res.status(404).send('Static file not found');
+    return res.sendFile(filePath);
   }
+  next();
 });
 
 // Final catch-all route for client-side routing
@@ -949,6 +955,57 @@ app.get('*', (req, res) => {
   } catch (error) {
     console.error('Error in catch-all route:', error);
     res.status(500).json({ error: 'Error serving frontend' });
+  }
+});
+
+// Add this debug endpoint to see the file structure
+app.get('/debug-files', (req, res) => {
+  const results = {
+    nextDir: {},
+    staticFiles: []
+  };
+  
+  // Check the .next directory
+  const nextDir = path.join(__dirname, '../../frontend/.next');
+  
+  try {
+    // List directories in .next
+    if (fs.existsSync(nextDir)) {
+      const dirs = fs.readdirSync(nextDir);
+      dirs.forEach(dir => {
+        const fullPath = path.join(nextDir, dir);
+        if (fs.statSync(fullPath).isDirectory()) {
+          results.nextDir[dir] = fs.readdirSync(fullPath).slice(0, 5); // First 5 files as example
+        } else {
+          results.nextDir[`file:${dir}`] = fs.statSync(fullPath).size;
+        }
+      });
+    } else {
+      results.nextDir = 'Directory not found';
+    }
+    
+    // Find all static files
+    function findFiles(dir, base = '') {
+      if (!fs.existsSync(dir)) return;
+      
+      const files = fs.readdirSync(dir);
+      files.forEach(file => {
+        const fullPath = path.join(dir, file);
+        const relativePath = path.join(base, file);
+        
+        if (fs.statSync(fullPath).isDirectory()) {
+          findFiles(fullPath, relativePath);
+        } else if (/\.(js|css|woff2|png|jpg|svg)$/.test(file)) {
+          results.staticFiles.push(relativePath);
+        }
+      });
+    }
+    
+    findFiles(path.join(nextDir, 'static'), 'static');
+    
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
 
