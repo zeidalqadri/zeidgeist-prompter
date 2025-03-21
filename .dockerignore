@@ -1,18 +1,36 @@
-node_modules
+# Version control
 .git
 .gitignore
-.next
-*.log
+.github
+
+# Dependency directories
+node_modules
+**/node_modules
+
+# Environment files
 .env
-.env.local
-.env.development
-.env.production
-.env.test
+.env.*
+**/.env
+**/.env.*
+
+# Development and build artifacts
+**/.next/
+**/dist/
+**/build/
+**/.DS_Store
+**/*.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.DS_Store
-Dockerfile
-.dockerignore
+
+# Render specific
+.render-buildpacks.json
+.renderignore
+
+# Docker 
+Dockerfile.*
+docker-compose.yml
+
+# Documentation and other unnecessary files
 README.md
-.github 
+LICENSE
+CHANGELOG.md
+**/*.md 
