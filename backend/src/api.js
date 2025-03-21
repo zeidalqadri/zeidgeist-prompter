@@ -733,64 +733,81 @@ async function runLearningPipeline() {
   console.log('Starting learning pipeline...');
   const startTime = Date.now();
   
-  // Get database connection
-  const db = getDb();
-  if (!db) {
-    throw new Error('Database not available');
-  }
-  
-  // Get unprocessed LLM enhancements
-  const collection = db.collection('llm_enhancements');
-  const unprocessedItems = await collection.find({ learned: false }).toArray();
-  
-  if (unprocessedItems.length === 0) {
-    return { 
-      success: true, 
-      message: 'No new enhancements to learn from', 
-      processedItems: 0 
+  try {
+    // Get database connection - import if needed
+    const dbModule = require('./db');
+    const db = await dbModule.getDb();
+    
+    // If we're in fallback mode (no database), log and return early
+    if (!db) {
+      console.log('Database not available, skipping learning pipeline');
+      return { 
+        success: false, 
+        message: 'Database not available, operating in fallback mode', 
+        processedItems: 0 
+      };
+    }
+    
+    // Get unprocessed LLM enhancements
+    const collection = db.collection('llm_enhancements');
+    const unprocessedItems = await collection.find({ learned: false }).toArray();
+    
+    if (unprocessedItems.length === 0) {
+      return { 
+        success: true, 
+        message: 'No new enhancements to learn from', 
+        processedItems: 0 
+      };
+    }
+    
+    console.log(`Found ${unprocessedItems.length} unprocessed LLM enhancements to learn from`);
+    
+    // Extract examples for learning
+    const examples = unprocessedItems.map(item => ({
+      originalPrompt: item.originalPrompt,
+      enhancedPrompt: item.enhancedPrompt,
+      context: item.context
+    }));
+    
+    // Learn patterns from examples
+    try {
+      await patternLearner.learnFromExamples(examples);
+      console.log('Pattern learning complete');
+    } catch (error) {
+      console.error('Error in pattern learning:', error);
+    }
+    
+    // Update rule weights if applicable
+    try {
+      await ruleWeightLearner.updateWeightsFromExamples(examples);
+      console.log('Rule weight learning complete');
+    } catch (error) {
+      console.error('Error in rule weight learning:', error);
+    }
+    
+    // Mark items as learned
+    const ids = unprocessedItems.map(item => item._id);
+    await collection.updateMany(
+      { _id: { $in: ids } },
+      { $set: { learned: true, learnedAt: new Date() } }
+    );
+    
+    const processingTime = Date.now() - startTime;
+    console.log(`Learning pipeline complete. Processed ${unprocessedItems.length} items in ${processingTime}ms`);
+    
+    return {
+      success: true,
+      processedItems: unprocessedItems.length,
+      processingTime
+    };
+  } catch (error) {
+    console.error('Error in runLearningPipeline:', error);
+    return {
+      success: false,
+      message: 'Error in runLearningPipeline',
+      processedItems: 0
     };
   }
-  
-  console.log(`Found ${unprocessedItems.length} unprocessed LLM enhancements to learn from`);
-  
-  // Extract examples for learning
-  const examples = unprocessedItems.map(item => ({
-    originalPrompt: item.originalPrompt,
-    enhancedPrompt: item.enhancedPrompt,
-    context: item.context
-  }));
-  
-  // Learn patterns from examples
-  try {
-    await patternLearner.learnFromExamples(examples);
-    console.log('Pattern learning complete');
-  } catch (error) {
-    console.error('Error in pattern learning:', error);
-  }
-  
-  // Update rule weights if applicable
-  try {
-    await ruleWeightLearner.updateWeightsFromExamples(examples);
-    console.log('Rule weight learning complete');
-  } catch (error) {
-    console.error('Error in rule weight learning:', error);
-  }
-  
-  // Mark items as learned
-  const ids = unprocessedItems.map(item => item._id);
-  await collection.updateMany(
-    { _id: { $in: ids } },
-    { $set: { learned: true, learnedAt: new Date() } }
-  );
-  
-  const processingTime = Date.now() - startTime;
-  console.log(`Learning pipeline complete. Processed ${unprocessedItems.length} items in ${processingTime}ms`);
-  
-  return {
-    success: true,
-    processedItems: unprocessedItems.length,
-    processingTime
-  };
 }
 
 // Setup automated learning pipeline to run periodically

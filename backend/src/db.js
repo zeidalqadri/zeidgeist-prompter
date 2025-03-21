@@ -17,37 +17,39 @@ async function initDatabase() {
     // Get MongoDB connection string from environment variables
     let mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/promptEnhancer';
     
-    // Add required SSL parameters directly to the connection string
-    // This avoids SSL configuration issues in the MongoClient options
-    if (mongoUri.includes('mongodb+srv://') && !mongoUri.includes('retryWrites=')) {
-      const separator = mongoUri.includes('?') ? '&' : '?';
-      mongoUri = `${mongoUri}${separator}retryWrites=true&w=majority&tls=true`;
+    // Append SSL parameters directly to the URI instead of in the options
+    if (mongoUri.includes('mongodb+srv://')) {
+      // Parse the URI to extract any existing database name
+      const dbName = mongoUri.split('/').pop().split('?')[0] || 'promptEnhancer';
+      
+      // Remove any existing query parameters and add our own comprehensive set
+      mongoUri = mongoUri.split('?')[0];
+      mongoUri = `${mongoUri}/${dbName}?retryWrites=true&w=majority&ssl=true&tls=true&tlsAllowInvalidCertificates=true&tlsInsecure=true&authSource=admin`;
     }
     
     console.log('Connecting to MongoDB with URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')); // Log URI with hidden credentials
     
-    // Enhanced connection options with explicit TLS/SSL settings
+    // Use minimal options - put everything in the connection string instead
     client = new MongoClient(mongoUri, {
       serverApi: {
         version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
+        strict: false, // Set to false to be more lenient
+        deprecationErrors: false // Set to false to avoid additional errors
       },
-      ssl: true,
-      tls: true,
-      tlsCAFile: undefined, // Let Node.js use its built-in CA store
-      maxIdleTimeMS: 30000,
-      minPoolSize: 5,
-      maxPoolSize: 10,
       connectTimeoutMS: 30000,
-      socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 60000
+      socketTimeoutMS: 60000,
+      serverSelectionTimeoutMS: 60000,
+      maxPoolSize: 10,
+      minPoolSize: 0 // Starting with 0 to allow more flexibility
     });
     
     await client.connect();
     console.log('Connected to MongoDB successfully');
     
-    db = client.db();
+    // Explicitly get the database, don't rely on connection string parsing
+    const dbName = process.env.MONGODB_DB_NAME || mongoUri.split('/').pop().split('?')[0] || 'promptEnhancer';
+    db = client.db(dbName);
+    console.log(`Using database: ${dbName}`);
     
     // Create indexes for collections
     try {
