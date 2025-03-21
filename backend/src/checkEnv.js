@@ -11,6 +11,9 @@ const path = require('path');
 function checkEnvironmentVariables() {
   console.log('🔍 Checking environment variables...');
   
+  const missingVars = [];
+  const warningVars = [];
+  
   // Required environment variables
   const requiredVars = [
     'USE_EXTERNAL_APIS'
@@ -29,6 +32,37 @@ function checkEnvironmentVariables() {
   if (!fs.existsSync(envPath)) {
     console.warn('⚠️ Warning: No .env file found. Creating a template .env file.');
     createTemplateEnvFile(envPath);
+  }
+  
+  // Check for required environment variables
+  if (!process.env.PORT) {
+    warningVars.push('PORT (will default to 10000)');
+  }
+  
+  if (!process.env.NODE_ENV) {
+    warningVars.push('NODE_ENV (will default to development)');
+  }
+  
+  // Check for database connection string
+  if (!process.env.DATABASE_URL && !process.env.MONGODB_URI) {
+    warningVars.push('DATABASE_URL or MONGODB_URI (will default to in-memory storage)');
+  }
+  
+  // Check for external API configuration
+  if (process.env.USE_EXTERNAL_APIS === 'true') {
+    // If external APIs are enabled, check for API keys
+    let missingApiKeys = [];
+    for (const [envVar, provider] of Object.entries(llmApiKeys)) {
+      if (!process.env[envVar]) {
+        missingApiKeys.push(provider);
+      }
+    }
+    
+    if (missingApiKeys.length > 0) {
+      warningVars.push(`API keys for: ${missingApiKeys.join(', ')} (some LLM providers will not be available)`);
+    }
+  } else if (process.env.USE_EXTERNAL_APIS !== 'false') {
+    warningVars.push('USE_EXTERNAL_APIS not set to true/false (will default to false)');
   }
   
   // Check required variables
@@ -71,11 +105,26 @@ function checkEnvironmentVariables() {
     console.log('ℹ️ External APIs are disabled (USE_EXTERNAL_APIS=false). Using rule-based enhancements only.');
   }
   
-  // Check database connection string
-  if (process.env.MONGODB_URI) {
-    console.log('✅ MongoDB connection string is configured.');
-  } else {
-    console.log('ℹ️ No MongoDB connection string found. Using file-based storage.');
+  // Log any missing required variables
+  if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:');
+    missingVars.forEach(v => console.error(`   - ${v}`));
+    console.error('Application may not function correctly.');
+    // Uncomment the next line to exit on missing variables
+    // process.exit(1);
+  }
+  
+  // Log any warning variables
+  if (warningVars.length > 0) {
+    console.warn('⚠️ Warning: The following environment variables are not set:');
+    warningVars.forEach(v => console.warn(`   - ${v}`));
+  }
+  
+  // Log verification result
+  if (missingVars.length === 0 && warningVars.length === 0) {
+    console.log('✅ All required environment variables are set.');
+  } else if (missingVars.length === 0) {
+    console.log('✓ All required environment variables are set, but there are warnings.');
   }
   
   console.log('✨ Environment check complete.\n');

@@ -15,7 +15,7 @@ const { trainFromFile } = require('./training/batchTrainer');
 const patternLearner = require('./learning/patternLearner');
 const ruleWeightLearner = require('./learning/ruleWeightLearner');
 const net = require('net');
-const { initDatabase, getDb, getUserIdentifier } = require('./db');
+const { initDatabase, getDb, getUserIdentifier } = require('./pgdb');
 const { checkEnvironmentVariables } = require('./checkEnv');
 
 // Run environment variable check at startup
@@ -735,7 +735,7 @@ async function runLearningPipeline() {
   
   try {
     // Get database connection - import if needed
-    const dbModule = require('./db');
+    const dbModule = require('./pgdb');
     const db = await dbModule.getDb();
     
     // If we're in fallback mode (no database), log and return early
