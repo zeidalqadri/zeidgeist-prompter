@@ -25,7 +25,12 @@ async function initDatabase() {
       socketTimeoutMS: 45000,
       serverSelectionTimeoutMS: 60000,
       retryWrites: true,
-      retryReads: true
+      retryReads: true,
+      ssl: true,
+      tls: true,
+      tlsAllowInvalidCertificates: true, // Address SSL certificate validation issues
+      useNewUrlParser: true,
+      useUnifiedTopology: true
     });
     
     await client.connect();
