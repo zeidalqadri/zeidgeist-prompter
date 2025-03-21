@@ -740,7 +740,7 @@ export default function PromptEngineer() {
           />
         </div>
 
-        <div className="mt-1 flex justify-between items-center">
+        <div className="flex justify-between items-center">
           <div className="text-xs text-gray-500"></div>
           <Button 
             type="submit"
@@ -988,7 +988,7 @@ export default function PromptEngineer() {
         </div>
       )}
       
-      {/* Recollect / Audit Trail */}
+      {/* Receipt(s) / Audit Trail */}
       {hasRefinedPrompt && (
         <div className="mt-8 border rounded-lg p-4 bg-white">
           <div className="flex justify-between items-center mb-3">
