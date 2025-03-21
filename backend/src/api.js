@@ -279,25 +279,18 @@ app.post(`${apiBasePath}/engineer`, async (req, res) => {
           
           // Store successful LLM enhancement in database for future learning
           try {
-            const db = getDb();
+            const db = await getDb();
             if (db) {
-              // PostgreSQL version of insertion
-              const client = await db.connect();
-              await client.query(
-                `INSERT INTO llm_enhancements 
-                 (originalprompt, enhancedprompt, context, source, model, timestamp, learned) 
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [
-                  prompt, 
-                  result.enhancedPrompt, 
-                  context || null, 
-                  result.metadata.source, 
-                  result.metadata.model, 
-                  new Date(),
-                  false
-                ]
-              );
-              client.release();
+              // Insert directly using the MongoDB-like collection API
+              await db.collection('llm_enhancements').insertOne({
+                originalPrompt: prompt,
+                enhancedPrompt: result.enhancedPrompt,
+                context: context || null,
+                source: result.metadata.source,
+                model: result.metadata.model,
+                timestamp: new Date(),
+                learned: false
+              });
               console.log('Stored successful LLM enhancement for learning');
             }
           } catch (dbError) {
