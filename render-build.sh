@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 # Debug information
@@ -6,18 +6,11 @@ echo "Starting Render build script"
 echo "Node version: $(node -v)"
 echo "NPM version: $(npm -v)"
 
-# Make sure script is executable
-chmod +x render-build.sh
-
 # Clear node_modules to avoid any caching issues
 echo "Cleaning previous installations..."
-rm -rf node_modules
-rm -rf frontend/node_modules
-rm -rf backend/node_modules
-
-# Clear npm cache to ensure clean installation
-echo "Clearing npm cache..."
-npm cache clean --force
+rm -rf node_modules || true
+rm -rf frontend/node_modules || true
+rm -rf backend/node_modules || true
 
 # Install root dependencies
 echo "Installing root dependencies..."
