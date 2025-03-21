@@ -1,7 +1,9 @@
 services:
   - type: web
     name: zeidgeist-prompter
-    env: node
+    runtime: node
+    plan: starter
+    region: ohio
     buildCommand: ./render-build.sh
     startCommand: node backend/src/api.js
     envVars:
@@ -17,6 +19,18 @@ services:
         fromDatabase:
           name: zeidgeist-db
           property: connectionString
+    buildFilter:
+      paths:
+        - package.json
+        - package-lock.json
+        - backend/**/*
+        - frontend/**/*
+        - render-build.sh
+      ignoredPaths:
+        - .dockerignore
+        - **/*.Dockerfile
+        - **/Dockerfile
+        - **/docker-compose.yml
 
 databases:
   - name: zeidgeist-db
