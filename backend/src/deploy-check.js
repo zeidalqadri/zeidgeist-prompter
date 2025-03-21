@@ -6,7 +6,7 @@
  */
 
 const { checkEnvironmentVariables } = require('./checkEnv');
-const { MongoClient } = require('mongodb');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
@@ -43,26 +43,31 @@ function log(level, message) {
 
 // Check database connection
 async function checkDatabaseConnection() {
-  if (!process.env.MONGODB_URI) {
-    log(LOG_LEVELS.WARN, 'No MongoDB URI configured. Will use file-based storage in production.');
-    log(LOG_LEVELS.WARN, 'This limits scalability and reliability. Consider adding a MongoDB connection.');
+  if (!process.env.DATABASE_URL) {
+    log(LOG_LEVELS.WARN, 'No PostgreSQL DATABASE_URL configured. Will use file-based storage in production.');
+    log(LOG_LEVELS.WARN, 'This limits scalability and reliability. Consider adding a PostgreSQL connection.');
     return false;
   }
   
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
     
-    // Check if we can access the database
-    const db = client.db();
-    await db.listCollections().toArray();
+    // Test connection
+    const client = await pool.connect();
+    await client.query('SELECT NOW()');
+    client.release();
     
-    log(LOG_LEVELS.INFO, 'Successfully connected to MongoDB database');
-    await client.close();
+    log(LOG_LEVELS.INFO, 'Successfully connected to PostgreSQL database');
+    await pool.end();
     return true;
   } catch (error) {
     log(LOG_LEVELS.ERROR, `Database connection failed: ${error.message}`);
-    log(LOG_LEVELS.ERROR, 'Fix the MongoDB connection string before deployment.');
+    log(LOG_LEVELS.ERROR, 'Fix the PostgreSQL connection string before deployment.');
     return false;
   }
 }
@@ -133,7 +138,7 @@ function checkDependencies() {
   }
   
   // Check if key dependencies are installed
-  const requiredDeps = ['express', 'mongodb', 'node-fetch'];
+  const requiredDeps = ['express', 'pg', 'node-fetch'];
   const missingDeps = [];
   
   for (const dep of requiredDeps) {

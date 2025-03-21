@@ -8,7 +8,7 @@
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const { MongoClient } = require('mongodb');
+const { Pool } = require('pg');
 const { checkEnvironmentVariables } = require('./checkEnv');
 
 // Read port from .port file or use default
@@ -101,34 +101,46 @@ async function checkApiStatus() {
 async function checkDatabase() {
   console.log('🔍 Checking database connection...');
   
-  if (!process.env.MONGODB_URI) {
-    console.log('ℹ️ No MongoDB URI configured, using file-based storage');
+  if (!process.env.DATABASE_URL) {
+    console.log('ℹ️ No PostgreSQL DATABASE_URL configured, using file-based storage');
     return true;
   }
   
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
     
-    // Check if we can access the database
-    const db = client.db();
-    const collections = await db.listCollections().toArray();
+    // Test connection and check tables
+    const client = await pool.connect();
     
-    console.log(`✅ Successfully connected to MongoDB database`);
-    console.log(`   Found ${collections.length} collections`);
+    // Check if tables exist
+    const tablesQuery = `
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    const { rows: tables } = await client.query(tablesQuery);
     
-    // Check for expected collections
-    const expectedCollections = ['history', 'feedback', 'llm_enhancements'];
-    const missingCollections = expectedCollections.filter(
-      name => !collections.some(col => col.name === name)
+    console.log(`✅ Successfully connected to PostgreSQL database`);
+    console.log(`   Found ${tables.length} tables`);
+    
+    // Check for expected tables
+    const expectedTables = ['history', 'feedback', 'llm_enhancements'];
+    const missingTables = expectedTables.filter(
+      name => !tables.some(table => table.table_name === name)
     );
     
-    if (missingCollections.length > 0) {
-      console.warn(`⚠️ Warning: Missing expected collections: ${missingCollections.join(', ')}`);
+    if (missingTables.length > 0) {
+      console.warn(`⚠️ Warning: Missing expected tables: ${missingTables.join(', ')}`);
       console.log('   These will be created automatically when needed');
     }
     
-    await client.close();
+    client.release();
+    await pool.end();
     return true;
   } catch (error) {
     console.error(`❌ Database connection failed: ${error.message}`);
