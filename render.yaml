@@ -4,7 +4,7 @@ services:
     env: docker
     plan: starter
     region: ohio
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: Dockerfile
     dockerCommand: node backend/src/api.js
     envVars:
       - key: NODE_ENV
