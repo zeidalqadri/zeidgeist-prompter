@@ -17,11 +17,11 @@ if (missingVars.length > 0) {
 }
 
 // Database check
-if (!process.env.MONGODB_URI) {
-  console.warn('⚠️ Warning: No MongoDB URI configured. Using file-based storage.');
+if (!process.env.DATABASE_URL) {
+  console.warn('⚠️ Warning: No PostgreSQL DATABASE_URL configured. Using file-based storage.');
   console.warn('This limits scalability but the application will still function.');
 } else {
-  console.log('✓ MongoDB connection string found');
+  console.log('✓ PostgreSQL connection string found');
 }
 
 // API Keys check

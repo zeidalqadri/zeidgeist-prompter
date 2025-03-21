@@ -3,54 +3,49 @@ FROM node:18-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
-COPY backend/package*.json ./backend/
+# Copy package files individually to avoid caching issues
+COPY package.json .
+COPY frontend/package.json frontend/
+COPY backend/package.json backend/
 
-# Install dependencies at root level
+# Install dependencies
 RUN npm install
 
-# Copy application code for build
-COPY frontend ./frontend/
-COPY backend ./backend/
+# Copy application code
+COPY . .
 
-# Build the Next.js frontend
+# Build frontend
 WORKDIR /app/frontend
 RUN npm run build
 
-# Now create the production image
+# Create production image
 FROM node:18-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY backend/package*.json ./backend/
+# Copy package files for production
+COPY package.json .
+COPY backend/package.json backend/
 
 # Install production dependencies
 RUN npm install --only=production
 
 # Copy backend code
-COPY backend/ ./backend/
+COPY backend ./backend/
 
-# Copy the built frontend
+# Copy built frontend from builder stage
 COPY --from=builder /app/frontend/.next/standalone/ ./frontend/
 COPY --from=builder /app/frontend/.next/static/ ./frontend/.next/static/
 COPY --from=builder /app/frontend/public/ ./frontend/public/
 
-# Set environment variables - moved before any deployment checks
+# Set environment variables
 ENV PORT=10000
 ENV NODE_ENV=production
 ENV BASE_PATH=/prompter
 ENV USE_EXTERNAL_APIS=true
 
-# Expose the port the app will run on (explicitly use the same port as the ENV setting)
+# Expose port
 EXPOSE 10000
 
-# Create dummy frontend directory structure if needed
-RUN mkdir -p frontend-new/public frontend-new/.next/static
-
-# Run the application with proper validation
-CMD ["/bin/bash", "-c", "node backend/scripts/deployment-validate.js && node backend/src/api.js"]
+# Run the application
+CMD ["node", "backend/src/api.js"]
