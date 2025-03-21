@@ -23,7 +23,8 @@ checkEnvironmentVariables();
 
 // Create Express app
 const app = express();
-const DEFAULT_PORT = process.env.PORT || 8081;
+// Parse PORT as integer to avoid string comparison issues
+const PORT = parseInt(process.env.PORT || '8080', 10);
 const NEXT_PORT = process.env.NEXT_PORT || 3000;
 const basePath = process.env.BASE_PATH || '';
 
@@ -848,50 +849,22 @@ async function startServer() {
       console.log(`  • Gemini: ${process.env.GEMINI_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
     }
     
-    // We won't start the Next.js standalone server anymore
-    // The Express app will handle serving the static files
-    
-    // Try the default port first
-    const inUse = await isPortInUse(DEFAULT_PORT);
-    
-    if (inUse) {
-      console.log(`Default port ${DEFAULT_PORT} is already in use, finding an available port...`);
-      const availablePort = await findAvailablePort(DEFAULT_PORT + 1);
+    // For Render compatibility, always bind to 0.0.0.0 and use the PORT env variable
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`✅ API server running on 0.0.0.0:${PORT}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
+      }
+      console.log(`🌐 Base path: ${basePath || '/'}`);
       
-      app.listen(availablePort, () => {
-        console.log(`⚠️ Default port ${DEFAULT_PORT} was in use!`);
-        console.log(`✅ API server running on port ${availablePort}`);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
-        }
-        console.log(`🌐 Base path: ${basePath || '/'}`);
-        
-        // Save the port to a file for other processes to know which port was used
-        try {
-          fs.writeFileSync(path.join(__dirname, '../.port'), availablePort.toString());
-          console.log(`💾 Port information saved to .port file`);
-        } catch (err) {
-          console.warn('Failed to save port information:', err);
-        }
-      });
-    } else {
-      // Use the default port
-      app.listen(DEFAULT_PORT, () => {
-        console.log(`✅ API server running on port ${DEFAULT_PORT}`);
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`🔄 Proxying frontend requests to Next.js on port ${NEXT_PORT}`);
-        }
-        console.log(`🌐 Base path: ${basePath || '/'}`);
-        
-        // Save the port to a file for other processes to know which port was used
-        try {
-          fs.writeFileSync(path.join(__dirname, '../.port'), DEFAULT_PORT.toString());
-          console.log(`💾 Port information saved to .port file`);
-        } catch (err) {
-          console.warn('Failed to save port information:', err);
-        }
-      });
-    }
+      // Save the port to a file for other processes to know which port was used
+      try {
+        fs.writeFileSync(path.join(__dirname, '../.port'), PORT.toString());
+        console.log(`💾 Port information saved to .port file`);
+      } catch (err) {
+        console.warn('Failed to save port information:', err);
+      }
+    });
   } catch (error) {
     console.error('Error starting server:', error);
     process.exit(1);

@@ -46,11 +46,11 @@ ENV NODE_ENV=production
 ENV BASE_PATH=/prompter
 ENV USE_EXTERNAL_APIS=true
 
-# Expose the port the app will run on
+# Expose the port the app will run on (explicitly use the same port as the ENV setting)
 EXPOSE 8080
 
 # Create dummy frontend directory structure if needed
 RUN mkdir -p frontend-new/public frontend-new/.next/static
 
-# Run validation script followed by deployment checks and API start
-CMD node backend/scripts/deployment-validate.js && node backend/src/api.js
+# Run the application with proper validation
+CMD ["/bin/bash", "-c", "node backend/scripts/deployment-validate.js && node backend/src/api.js"]
