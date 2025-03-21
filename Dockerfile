@@ -9,7 +9,7 @@ COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
 # Install dependencies at root level
-RUN npm ci
+RUN npm install
 
 # Copy application code for build
 COPY frontend ./frontend/
@@ -30,7 +30,7 @@ COPY package*.json ./
 COPY backend/package*.json ./backend/
 
 # Install production dependencies
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # Copy backend code
 COPY backend/ ./backend/
