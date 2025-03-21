@@ -13,7 +13,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "http-proxy-middleware": "^3.0.3",
-    "mongodb": "^5.8.0",
+    "mongodb": "6.3.0",
     "node-fetch": "^2.7.0",
     "uuid": "^9.0.0"
   },

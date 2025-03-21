@@ -4,6 +4,8 @@ services:
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
+    region: oregon
+    healthCheckPath: /prompter/api/health
     envVars:
       - key: PORT
         value: 10000
@@ -14,7 +16,7 @@ services:
       - key: BASE_PATH
         value: /prompter
       - key: MONGODB_URI
-        value: mongodb+srv://zeidalqadri:[REPLACE_WITH_PASSWORD]@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster
+        value: mongodb+srv://zeidalqadri:[REPLACE_WITH_PASSWORD]@zeidgeist-cluster.vuiut.mongodb.net/prompter?retryWrites=true&w=majority&tls=true
         # Replace [REPLACE_WITH_PASSWORD] with actual password in Render dashboard
       - key: DEEPSEEK_API_KEY
         sync: false

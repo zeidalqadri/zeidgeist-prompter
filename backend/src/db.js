@@ -17,22 +17,21 @@ async function initDatabase() {
     // Get MongoDB connection string from environment variables
     let mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/promptEnhancer';
     
-    // Add SSL parameters to the connection string if not already present
-    if (mongoUri.includes('mongodb+srv://') && !mongoUri.includes('ssl=')) {
-      // Add SSL parameters directly to the connection string
+    // Add required SSL parameters directly to the connection string
+    // This avoids SSL configuration issues in the MongoClient options
+    if (mongoUri.includes('mongodb+srv://') && !mongoUri.includes('retryWrites=')) {
       const separator = mongoUri.includes('?') ? '&' : '?';
-      mongoUri = `${mongoUri}${separator}ssl=true&tlsAllowInvalidCertificates=true`;
+      mongoUri = `${mongoUri}${separator}retryWrites=true&w=majority&tls=true`;
     }
     
     console.log('Connecting to MongoDB with URI:', mongoUri.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')); // Log URI with hidden credentials
     
-    // Create a new client with minimal options to avoid SSL issues
+    // IMPORTANT: Using a minimal set of options with no SSL configurations
+    // Let the URI handle all SSL settings to avoid conflicts
     client = new MongoClient(mongoUri, {
       connectTimeoutMS: 30000,
       socketTimeoutMS: 45000,
-      serverSelectionTimeoutMS: 60000,
-      // Use only tlsAllowInvalidCertificates and not tlsInsecure to avoid conflict
-      tlsAllowInvalidCertificates: true
+      serverSelectionTimeoutMS: 60000
     });
     
     await client.connect();
