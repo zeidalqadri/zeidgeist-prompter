@@ -40,21 +40,17 @@ COPY --from=builder /app/frontend/.next/standalone/ ./frontend/
 COPY --from=builder /app/frontend/.next/static/ ./frontend/.next/static/
 COPY --from=builder /app/frontend/public/ ./frontend/public/
 
-# Copy .env file or create if it doesn't exist
-COPY .env ./
-
-# Add the base path configuration
-RUN echo "BASE_PATH=/prompter" >> .env
+# Set environment variables - moved before any deployment checks
+ENV PORT=8080
+ENV NODE_ENV=production
+ENV BASE_PATH=/prompter
+ENV USE_EXTERNAL_APIS=true
 
 # Expose the port the app will run on
 EXPOSE 8080
 
-# Set environment variables
-ENV PORT=8080
-ENV NODE_ENV=production
-
-# Create dummy frontend directory structure
+# Create dummy frontend directory structure if needed
 RUN mkdir -p frontend-new/public frontend-new/.next/static
 
-# Run deployment checks and then start the application
-CMD ["node", "backend/src/deploy-check.js" ]
+# Run validation script followed by deployment checks and API start
+CMD node backend/scripts/deployment-validate.js && node backend/src/api.js

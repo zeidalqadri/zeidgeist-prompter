@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: zeidgeist-prompter
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: USE_EXTERNAL_APIS
+        value: true
+      - key: BASE_PATH
+        value: /prompter
+      - key: MONGODB_URI
+        value: mongodb+srv://zeidalqadri:<db_password>@zeidgeist-cluster.vuiut.mongodb.net/?retryWrites=true&w=majority&appName=zeidgeist-cluster
+        # Replace <db_password> with your actual password in the Render dashboard
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: CLAUDE_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false 
