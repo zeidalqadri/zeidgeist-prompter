@@ -1,45 +1,26 @@
-# syntax=docker/dockerfile:1.4
-# RENDER_CACHE_BUST=1
-
-FROM node:18-slim AS builder
+# Use the official Node.js 18 image as base
+FROM node:18-slim
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files individually to avoid caching issues
-COPY package.json .
-COPY frontend/package.json frontend/
-COPY backend/package.json backend/
+# Copy package.json files first
+COPY package.json ./
+COPY frontend/package.json ./frontend/
+COPY backend/package.json ./backend/
 
-# Install dependencies
+# Install all dependencies (including devDependencies)
 RUN npm install
 
-# Copy application code
+# Copy the entire codebase
 COPY . .
 
-# Build frontend
+# Build the frontend
 WORKDIR /app/frontend
 RUN npm run build
 
-# Create production image
-FROM node:18-slim
-
+# Return to the main directory
 WORKDIR /app
-
-# Copy package files for production
-COPY package.json .
-COPY backend/package.json backend/
-
-# Install production dependencies
-RUN npm install --only=production
-
-# Copy backend code
-COPY backend ./backend/
-
-# Copy built frontend from builder stage
-COPY --from=builder /app/frontend/.next/standalone/ ./frontend/
-COPY --from=builder /app/frontend/.next/static/ ./frontend/.next/static/
-COPY --from=builder /app/frontend/public/ ./frontend/public/
 
 # Set environment variables
 ENV PORT=10000
@@ -47,8 +28,8 @@ ENV NODE_ENV=production
 ENV BASE_PATH=/prompter
 ENV USE_EXTERNAL_APIS=true
 
-# Expose port
+# Expose the application port
 EXPOSE 10000
 
-# Run the application
-CMD ["node", "backend/src/api.js"]
+# Validate environment and start the application
+CMD ["sh", "-c", "node backend/scripts/deployment-validate.js && node backend/src/api.js"]
