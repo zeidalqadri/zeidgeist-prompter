@@ -1,3 +1,6 @@
+# syntax=docker/dockerfile:1.4
+# RENDER_CACHE_BUST=1
+
 FROM node:18-slim AS builder
 
 # Set working directory

@@ -1,28 +1,23 @@
 services:
   - type: web
     name: zeidgeist-prompter
-    env: docker
-    dockerfilePath: ./Dockerfile
-    plan: free
-    region: oregon
-    healthCheckPath: /prompter/api/health
+    env: node
+    buildCommand: ./render-build.sh
+    startCommand: node backend/src/api.js
     envVars:
-      - key: PORT
-        value: 10000
       - key: NODE_ENV
         value: production
-      - key: USE_EXTERNAL_APIS
-        value: true
+      - key: PORT
+        value: 10000
       - key: BASE_PATH
         value: /prompter
-      - key: MONGODB_URI
-        value: mongodb+srv://zeidalqadri:[REPLACE_WITH_PASSWORD]@zeidgeist-cluster.vuiut.mongodb.net/prompter?retryWrites=true&w=majority&tls=true
-        # Replace [REPLACE_WITH_PASSWORD] with actual password in Render dashboard
-      - key: DEEPSEEK_API_KEY
-        sync: false
-      - key: MISTRAL_API_KEY
-        sync: false
-      - key: CLAUDE_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false 
+      - key: USE_EXTERNAL_APIS
+        value: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zeidgeist-db
+          property: connectionString
+
+databases:
+  - name: zeidgeist-db
+    ipAllowList: [] 
