@@ -1,9 +1,9 @@
 services:
   - type: web
     name: zeidgeist-prompter
-    env: docker
-    dockerfilePath: Dockerfile
-    dockerCommand: node backend/src/api.js
+    env: node
+    buildCommand: ./render-build.sh
+    startCommand: node backend/src/api.js
     envVars:
       - key: NODE_ENV
         value: production
