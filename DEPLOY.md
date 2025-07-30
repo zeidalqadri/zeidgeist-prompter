@@ -46,9 +46,9 @@ npm run db:studio
 2. Navigate to **Pages** → **Create a project**
 3. Connect to Git → Select this repository
 4. Configure build settings:
-   - **Framework preset**: Next.js
+   - **Framework preset**: None (use custom settings)
    - **Build command**: `npm run build`
-   - **Build output directory**: `.next`
+   - **Build output directory**: `dist`
    - **Root directory**: `/` (or path to this directory)
 
 ### 2. Environment Variables
@@ -147,6 +147,35 @@ For deployment issues:
 4. Test API keys independently
 
 ## 🔄 Updates
+
+### Recent Deployment Fixes (July 2025)
+
+The deployment configuration has been updated to fix 404 errors and routing issues:
+
+1. **Build Output Directory**: Changed from `.next` to `dist`
+   - Next.js exports to `out/` directory by default
+   - Custom build script moves `out/` to `dist/` for Cloudflare
+
+2. **Routing Configuration**: Updated `_routes.json`
+   - API routes (`/api/*`) are handled by Cloudflare Functions
+   - Static assets are served directly by Cloudflare CDN
+   - Added specific exclusions for static file types
+
+3. **Security Headers**: Added `_headers` file
+   - X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+   - Cache control headers for optimal performance
+   - Different caching strategies for static vs dynamic content
+
+4. **Build Process**: Custom build script (`scripts/build-cloudflare.js`)
+   - Ensures proper file structure for Cloudflare Pages
+   - Copies routing and header configurations
+   - Creates 404.html for proper error handling
+
+5. **Key Configuration Files**:
+   - `wrangler.toml`: Cloudflare Pages configuration
+   - `_routes.json`: API routing rules
+   - `_headers`: Security and caching headers
+   - `next.config.js`: Static export configuration
 
 To deploy updates:
 1. Push changes to main branch

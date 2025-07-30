@@ -4,6 +4,19 @@
     "/api/*"
   ],
   "exclude": [
-    "/*"
+    "/_next/*",
+    "/static/*",
+    "/*.js",
+    "/*.css",
+    "/*.json",
+    "/*.txt",
+    "/*.xml",
+    "/*.ico",
+    "/*.png",
+    "/*.jpg",
+    "/*.jpeg",
+    "/*.svg",
+    "/*.woff",
+    "/*.woff2"
   ]
 }
