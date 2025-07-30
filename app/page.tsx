@@ -1,4 +1,4 @@
-import PromptEngineer from "@/components/prompt-engineer"
+import PromptEngineer from "../components/prompt-engineer"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {

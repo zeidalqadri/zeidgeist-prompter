@@ -3,8 +3,8 @@
 import React from "react"
 
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "./ui/button"
+import { Textarea } from "./ui/textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import FeedbackForm from "./feedback-form"
 
