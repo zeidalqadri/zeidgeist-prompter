@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
+import { db, promptHistory, NewPromptHistory } from "../../../lib/db"
+import { desc } from "drizzle-orm"
 
-// In-memory storage for development (in production, use a database)
-let promptHistory: Array<{
-  original: string
-  refined: string
-  context?: string
-  timestamp: Date
-  metadata?: any
-}> = []
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Return the stored history
-    return NextResponse.json({ 
-      items: promptHistory.slice(0, 50) // Limit to last 50 items
-    })
+    // Fetch recent history from database
+    const history = await db
+      .select()
+      .from(promptHistory)
+      .orderBy(desc(promptHistory.timestamp))
+      .limit(50)
+
+    // Transform to match existing frontend format
+    const items = history.map(item => ({
+      original: item.original,
+      refined: item.refined,
+      context: item.context || undefined,
+      timestamp: item.timestamp,
+      metadata: item.metadata ? JSON.parse(item.metadata) : undefined
+    }))
+
+    return NextResponse.json({ items })
   } catch (error) {
     console.error("Error fetching history:", error)
     return NextResponse.json(
@@ -33,30 +39,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Store the history item
-    const historyItem = {
+    // Create new history record
+    const newHistory: NewPromptHistory = {
       original,
       refined,
-      context,
+      context: context || null,
       timestamp: new Date(timestamp || Date.now()),
-      metadata
+      metadata: metadata ? JSON.stringify(metadata) : null
     }
 
-    // Add to the beginning of the array (most recent first)
-    promptHistory.unshift(historyItem)
-
-    // Keep only the last 100 items to prevent memory issues
-    if (promptHistory.length > 100) {
-      promptHistory = promptHistory.slice(0, 100)
-    }
+    // Insert into database
+    await db.insert(promptHistory).values(newHistory)
 
     // Log for monitoring
-    console.log('History item stored:', {
+    console.log('History item stored in database:', {
       originalLength: original.length,
       refinedLength: refined.length,
       hasContext: !!context,
-      timestamp: historyItem.timestamp.toISOString(),
-      totalItems: promptHistory.length
+      timestamp: newHistory.timestamp?.toISOString() || new Date().toISOString()
     })
 
     return NextResponse.json({ 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       message: "History item stored successfully" 
     })
   } catch (error) {
-    console.error("Error storing history:", error)
+    console.error("Error storing history in database:", error)
     return NextResponse.json(
       { error: "Failed to store history" },
       { status: 500 }
