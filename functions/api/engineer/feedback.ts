@@ -1,5 +1,4 @@
-import { db, feedback, NewFeedback } from "../../../app/lib/db"
-import { processEnhancementFeedback } from "../../../app/lib/llm-enhancer"
+import { db, feedback, NewFeedback } from "../../_shared/db"
 
 export default async function handler(request: Request): Promise<Response> {
   // Only allow POST requests
@@ -29,9 +28,9 @@ export default async function handler(request: Request): Promise<Response> {
 
     // Create new feedback record
     const newFeedback: NewFeedback = {
-      originalPrompt: original,
-      enhancedPrompt: refined,
-      wasSuccessful,
+      original,
+      refined,
+      wasSuccessful: wasSuccessful ? 'yes' : 'no',
       feedbackText: feedbackText || null,
       userAgent,
       ipAddress
@@ -39,9 +38,6 @@ export default async function handler(request: Request): Promise<Response> {
 
     // Store feedback in database
     await db.insert(feedback).values(newFeedback)
-
-    // Also process with existing function for compatibility
-    await processEnhancementFeedback(original, refined, wasSuccessful, feedbackText)
 
     // Log feedback for monitoring
     console.log('Feedback stored in database:', {
