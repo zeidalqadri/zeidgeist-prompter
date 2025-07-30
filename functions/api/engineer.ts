@@ -1,5 +1,5 @@
-import { enhancePrompt } from "../../app/lib/llm-enhancer"
-import { db, enhancementLogs, NewEnhancementLog } from "../../app/lib/db"
+import { db, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
+import { enhancePrompt } from "../_shared/llm-enhancer"
 
 export default async function handler(request: Request): Promise<Response> {
   // Only allow POST requests
@@ -48,16 +48,16 @@ export default async function handler(request: Request): Promise<Response> {
 
     // Process the prompt using our LLM-based enhancer
     try {
-      const enhancedPrompt = await enhancePrompt(
+      const enhancementResponse = await enhancePrompt(
         trimmedPrompt, 
         context || "", 
-        isRefinement || isExpansion
+        { isRefinement: !!isRefinement, isExpansion: !!isExpansion, repeatCount }
       )
       
       const processingTime = Date.now() - startTime
       
       // CRITICAL: Verify the enhancedPrompt is actually different from the input
-      if (enhancedPrompt === trimmedPrompt) {
+      if (enhancementResponse.enhancedPrompt === trimmedPrompt) {
         console.warn("Enhancement returned identical prompt, applying intelligent fallback")
         
         // Apply intelligent fallback based on prompt analysis
@@ -70,15 +70,10 @@ export default async function handler(request: Request): Promise<Response> {
         // Log fallback enhancement to database
         try {
           const enhancementLog: NewEnhancementLog = {
-            promptLength: trimmedPrompt.length,
-            hasContext: !!context,
-            isRefinement: !!isRefinement,
-            isExpansion: !!isExpansion,
-            repeatCount: repeatCount || 0,
+            original: trimmedPrompt,
+            enhanced: fallbackEnhanced,
             source: 'fallback',
-            processingTime,
-            wasIdentical: true,
-            hadError: false
+            processingTime: processingTime.toString()
           }
           await db.insert(enhancementLogs).values(enhancementLog)
         } catch (logError) {
@@ -89,7 +84,7 @@ export default async function handler(request: Request): Promise<Response> {
           result: fallbackEnhanced,
           metadata: {
             source: 'fallback',
-            processingTime,
+            processingTime: processingTime.toString(),
             wasIdentical: true
           }
         }), {
@@ -98,26 +93,15 @@ export default async function handler(request: Request): Promise<Response> {
       }
       
       // Determine the source of enhancement for user feedback
-      let source = 'unknown'
-      if (enhancedPrompt.includes('Design a professional website') || 
-          enhancedPrompt.includes('comprehensive approach')) {
-        source = 'local'
-      } else {
-        source = 'external-api' // DeepSeek, Mistral, or Gemini
-      }
+      const source = enhancementResponse.source || 'unknown'
       
       // Log enhancement to database for analytics
       try {
         const enhancementLog: NewEnhancementLog = {
-          promptLength: trimmedPrompt.length,
-          hasContext: !!context,
-          isRefinement: !!isRefinement,
-          isExpansion: !!isExpansion,
-          repeatCount: repeatCount || 0,
+          original: trimmedPrompt,
+          enhanced: enhancementResponse.enhancedPrompt,
           source,
-          processingTime,
-          wasIdentical: false,
-          hadError: false
+          processingTime: processingTime.toString()
         }
         await db.insert(enhancementLogs).values(enhancementLog)
       } catch (logError) {
@@ -125,12 +109,12 @@ export default async function handler(request: Request): Promise<Response> {
       }
 
       return new Response(JSON.stringify({ 
-        result: enhancedPrompt,
+        result: enhancementResponse.enhancedPrompt,
         metadata: {
           source,
           processingTime,
           originalLength: trimmedPrompt.length,
-          enhancedLength: enhancedPrompt.length
+          enhancedLength: enhancementResponse.enhancedPrompt.length
         }
       }), {
         headers: { 'Content-Type': 'application/json' }
@@ -151,15 +135,10 @@ export default async function handler(request: Request): Promise<Response> {
       // Log error enhancement to database
       try {
         const enhancementLog: NewEnhancementLog = {
-          promptLength: trimmedPrompt.length,
-          hasContext: !!context,
-          isRefinement: !!isRefinement,
-          isExpansion: !!isExpansion,
-          repeatCount: repeatCount || 0,
+          original: trimmedPrompt,
+          enhanced: fallbackEnhanced,
           source: 'fallback-error',
-          processingTime,
-          wasIdentical: false,
-          hadError: true
+          processingTime: processingTime.toString()
         }
         await db.insert(enhancementLogs).values(enhancementLog)
       } catch (logError) {
@@ -185,15 +164,10 @@ export default async function handler(request: Request): Promise<Response> {
     // Log critical error to database
     try {
       const enhancementLog: NewEnhancementLog = {
-        promptLength: 0, // Unknown due to error
-        hasContext: false,
-        isRefinement: false,
-        isExpansion: false,
-        repeatCount: 0,
+        original: 'ERROR_UNKNOWN',
+        enhanced: 'ERROR_FALLBACK',
         source: 'error-handler',
-        processingTime,
-        wasIdentical: false,
-        hadError: true
+        processingTime: processingTime.toString()
       }
       await db.insert(enhancementLogs).values(enhancementLog)
     } catch (logError) {

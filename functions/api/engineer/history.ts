@@ -1,4 +1,4 @@
-import { db, promptHistory, NewPromptHistory } from "../../../app/lib/db"
+import { db, promptHistory, NewPromptHistory } from "../../_shared/db"
 import { desc } from "drizzle-orm"
 
 export default async function handler(request: Request): Promise<Response> {
