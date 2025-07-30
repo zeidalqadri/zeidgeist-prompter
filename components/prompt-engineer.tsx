@@ -493,7 +493,7 @@ export default function PromptEngineer() {
             </div>
 
             <div className="flex justify-between items-center">
-              <div className="text-xs text-gray-500 hidden">Press Cmd+Enter (or Ctrl+Enter) to refine</div>
+              <div className="text-xs text-gray-500">Press {navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'} to refine</div>
               <Button
                 type="submit"
                 size="sm"
@@ -527,6 +527,24 @@ export default function PromptEngineer() {
                 </Button>
               </div>
               <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{result}</div>
+              
+              {/* Enhancement metadata display */}
+              {(enhancementSource || enhancementTime !== null) && (
+                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  {enhancementSource && (
+                    <div className="flex items-center gap-1">
+                      <Zap size={12} />
+                      <span>Enhanced by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                    </div>
+                  )}
+                  {enhancementTime !== null && (
+                    <div className="flex items-center gap-1">
+                      <Clock size={12} />
+                      <span>{enhancementTime}ms</span>
+                    </div>
+                  )}
+                </div>
+              )}
               
               <div className="mt-3">
                 <div className="flex justify-between items-center">
@@ -614,6 +632,25 @@ export default function PromptEngineer() {
               <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">
                 {refinedWithContext}
               </div>
+              
+              {/* Enhancement metadata display for context refinement */}
+              {(enhancementSource || enhancementTime !== null) && (
+                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                  {enhancementSource && (
+                    <div className="flex items-center gap-1">
+                      <Zap size={12} />
+                      <span>Enhanced by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                    </div>
+                  )}
+                  {enhancementTime !== null && (
+                    <div className="flex items-center gap-1">
+                      <Clock size={12} />
+                      <span>{enhancementTime}ms</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="flex justify-end gap-2 mt-3">
                 {!showFeedback && (
                   <Button 
