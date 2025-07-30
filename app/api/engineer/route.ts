@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { enhancePrompt } from "../../lib/llm-enhancer"
+import { db, enhancementLogs, NewEnhancementLog } from "../../lib/db"
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -53,6 +54,24 @@ export async function POST(request: NextRequest) {
           repeatCount: repeatCount || 0
         })
         
+        // Log fallback enhancement to database
+        try {
+          const enhancementLog: NewEnhancementLog = {
+            promptLength: trimmedPrompt.length,
+            hasContext: !!context,
+            isRefinement: !!isRefinement,
+            isExpansion: !!isExpansion,
+            repeatCount: repeatCount || 0,
+            source: 'fallback',
+            processingTime,
+            wasIdentical: true,
+            hadError: false
+          }
+          await db.insert(enhancementLogs).values(enhancementLog)
+        } catch (logError) {
+          console.error("Failed to log fallback enhancement:", logError)
+        }
+
         return NextResponse.json({ 
           result: fallbackEnhanced,
           metadata: {
@@ -72,6 +91,24 @@ export async function POST(request: NextRequest) {
         source = 'external-api' // DeepSeek, Mistral, or Gemini
       }
       
+      // Log enhancement to database for analytics
+      try {
+        const enhancementLog: NewEnhancementLog = {
+          promptLength: trimmedPrompt.length,
+          hasContext: !!context,
+          isRefinement: !!isRefinement,
+          isExpansion: !!isExpansion,
+          repeatCount: repeatCount || 0,
+          source,
+          processingTime,
+          wasIdentical: false,
+          hadError: false
+        }
+        await db.insert(enhancementLogs).values(enhancementLog)
+      } catch (logError) {
+        console.error("Failed to log enhancement:", logError)
+      }
+
       return NextResponse.json({ 
         result: enhancedPrompt,
         metadata: {
@@ -94,6 +131,24 @@ export async function POST(request: NextRequest) {
         hasError: true
       })
       
+      // Log error enhancement to database
+      try {
+        const enhancementLog: NewEnhancementLog = {
+          promptLength: trimmedPrompt.length,
+          hasContext: !!context,
+          isRefinement: !!isRefinement,
+          isExpansion: !!isExpansion,
+          repeatCount: repeatCount || 0,
+          source: 'fallback-error',
+          processingTime,
+          wasIdentical: false,
+          hadError: true
+        }
+        await db.insert(enhancementLogs).values(enhancementLog)
+      } catch (logError) {
+        console.error("Failed to log error enhancement:", logError)
+      }
+
       return NextResponse.json({ 
         result: fallbackEnhanced,
         metadata: {
@@ -106,12 +161,32 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Critical error processing request:", error)
     
+    const processingTime = Date.now() - startTime
+    
+    // Log critical error to database
+    try {
+      const enhancementLog: NewEnhancementLog = {
+        promptLength: 0, // Unknown due to error
+        hasContext: false,
+        isRefinement: false,
+        isExpansion: false,
+        repeatCount: 0,
+        source: 'error-handler',
+        processingTime,
+        wasIdentical: false,
+        hadError: true
+      }
+      await db.insert(enhancementLogs).values(enhancementLog)
+    } catch (logError) {
+      console.error("Failed to log critical error:", logError)
+    }
+    
     // Graceful error handling with user-friendly message
     return NextResponse.json({
       result: "I'm having trouble processing your request right now. Please try rephrasing your prompt or try again in a moment.",
       metadata: {
         source: 'error-handler',
-        processingTime: Date.now() - startTime,
+        processingTime,
         hadCriticalError: true
       }
     }, { status: 200 }) // Use 200 to avoid showing error UI
