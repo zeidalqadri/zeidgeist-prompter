@@ -1,14 +1,24 @@
-import { NextRequest, NextResponse } from "next/server"
-import { db, feedback, NewFeedback } from "../../../lib/db"
-import { processEnhancementFeedback } from "../../../lib/llm-enhancer"
+import { db, feedback, NewFeedback } from "../../../app/lib/db"
+import { processEnhancementFeedback } from "../../../app/lib/llm-enhancer"
 
-export async function POST(request: NextRequest) {
+export default async function handler(request: Request): Promise<Response> {
+  // Only allow POST requests
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+
   try {
     const body = await request.json()
     const { original, refined, wasSuccessful, feedbackText } = body
 
     if (!original || !refined || typeof wasSuccessful !== 'boolean') {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     // Get request metadata
@@ -43,15 +53,17 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     })
 
-    return NextResponse.json({ 
+    return new Response(JSON.stringify({ 
       success: true, 
       message: "Feedback received successfully" 
+    }), {
+      headers: { 'Content-Type': 'application/json' }
     })
   } catch (error) {
     console.error("Error storing feedback in database:", error)
-    return NextResponse.json(
-      { error: "Failed to process feedback" },
-      { status: 500 }
-    )
+    return new Response(JSON.stringify({ error: "Failed to process feedback" }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }

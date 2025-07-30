@@ -1,8 +1,15 @@
-import { NextRequest, NextResponse } from "next/server"
-import { enhancePrompt } from "../../lib/llm-enhancer"
-import { db, enhancementLogs, NewEnhancementLog } from "../../lib/db"
+import { enhancePrompt } from "../../app/lib/llm-enhancer"
+import { db, enhancementLogs, NewEnhancementLog } from "../../app/lib/db"
 
-export async function POST(request: NextRequest) {
+export default async function handler(request: Request): Promise<Response> {
+  // Only allow POST requests
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+
   const startTime = Date.now()
   
   try {
@@ -11,16 +18,22 @@ export async function POST(request: NextRequest) {
 
     // Enhanced input validation
     if (!prompt || typeof prompt !== 'string') {
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         error: "Please provide a valid prompt to enhance." 
-      }, { status: 400 })
+      }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         error: "Prompt cannot be empty. Please enter some text to enhance." 
-      }, { status: 400 })
+      }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     // Log request for monitoring
@@ -72,13 +85,15 @@ export async function POST(request: NextRequest) {
           console.error("Failed to log fallback enhancement:", logError)
         }
 
-        return NextResponse.json({ 
+        return new Response(JSON.stringify({ 
           result: fallbackEnhanced,
           metadata: {
             source: 'fallback',
             processingTime,
             wasIdentical: true
           }
+        }), {
+          headers: { 'Content-Type': 'application/json' }
         })
       }
       
@@ -109,7 +124,7 @@ export async function POST(request: NextRequest) {
         console.error("Failed to log enhancement:", logError)
       }
 
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         result: enhancedPrompt,
         metadata: {
           source,
@@ -117,6 +132,8 @@ export async function POST(request: NextRequest) {
           originalLength: trimmedPrompt.length,
           enhancedLength: enhancedPrompt.length
         }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
       })
     } catch (enhancementError) {
       console.error("Error enhancing prompt:", enhancementError)
@@ -149,13 +166,15 @@ export async function POST(request: NextRequest) {
         console.error("Failed to log error enhancement:", logError)
       }
 
-      return NextResponse.json({ 
+      return new Response(JSON.stringify({ 
         result: fallbackEnhanced,
         metadata: {
           source: 'fallback-error',
           processingTime,
           hadError: true
         }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
       })
     }
   } catch (error) {
@@ -182,14 +201,17 @@ export async function POST(request: NextRequest) {
     }
     
     // Graceful error handling with user-friendly message
-    return NextResponse.json({
+    return new Response(JSON.stringify({
       result: "I'm having trouble processing your request right now. Please try rephrasing your prompt or try again in a moment.",
       metadata: {
         source: 'error-handler',
         processingTime,
         hadCriticalError: true
       }
-    }, { status: 200 }) // Use 200 to avoid showing error UI
+    }), {
+      status: 200, // Use 200 to avoid showing error UI
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
 
@@ -245,4 +267,4 @@ function generateIntelligentFallback(
   }
   
   return `${prompt}. Ensure comprehensive execution including: clear objective definition and scope; professional approach with attention to detail; organized structure with logical progression; quality standards and validation processes; appropriate resources and tools; timeline with realistic milestones; and success criteria for evaluation and optimization.${context ? ` Additional context: ${context}` : ''}`
-} 
+}
