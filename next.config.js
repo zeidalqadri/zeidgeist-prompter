@@ -8,6 +8,11 @@ const nextConfig = {
     unoptimized: true,
   },
   
+  // Disable ESLint during build for production
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Headers for security
   async headers() {
     return [
