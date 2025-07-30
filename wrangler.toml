@@ -1,0 +1,15 @@
+name = "aipromptise"
+compatibility_date = "2024-01-15"
+
+[env.production]
+name = "aipromptise"
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = "."
+
+# Pages configuration
+[pages]
+build_output_dir = "dist"
