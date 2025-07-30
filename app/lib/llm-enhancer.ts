@@ -12,11 +12,6 @@ interface LLMConfig {
   enabled: boolean;
 }
 
-// Interface for prompt enhancement request
-interface EnhancementRequest {
-  prompt: string;
-  context?: string;
-}
 
 // Interface for prompt enhancement response
 interface EnhancementResponse {
@@ -552,33 +547,76 @@ function enhanceByDomain(prompt: string): string {
 
 // Function to check if a prompt is already refined
 function isAlreadyRefined(prompt: string): boolean {
-  // Check if this is a repeat request from prompt history
-  // For our purposes, we'll assume prompts aren't already refined
-  // so we apply full enhancement on each iteration
-  return false;
+  // Enhanced refinement detection with multiple criteria
   
-  /* Original logic - commented out to encourage iteration
   // 1. Length check - refined prompts tend to be comprehensive
-  if (prompt.length > 150) {
-    
-    // 2. Structure check - refined prompts often have good structure
-    const hasStructure = prompt.includes(', ') && 
-                        (prompt.includes('. ') || prompt.includes('.\n'));
-    
-    // 3. Specificity check - refined prompts contain specific instructions
-    const hasSpecificity = prompt.includes('include') || 
-                          prompt.includes('design') ||
-                          prompt.includes('create') ||
-                          prompt.includes('sections');
-    
-    // If it passes multiple checks, it's likely already refined
-    if (hasStructure && hasSpecificity) {
-      return true;
-    }
+  if (prompt.length < 100) {
+    return false; // Short prompts are likely not refined
   }
   
-  return false;
-  */
+  // 2. Structure indicators - refined prompts have clear organization
+  const hasNumberedList = /\d+\.\s/.test(prompt);
+  const hasBulletPoints = /[•\-\*]\s/.test(prompt);
+  const hasColonSeparation = prompt.includes(':') && prompt.includes(',');
+  const hasMultipleSentences = (prompt.match(/\.\s/g) || []).length >= 3;
+  
+  // 3. Specificity indicators - refined prompts contain detailed instructions
+  const specificityKeywords = [
+    'include', 'ensure', 'incorporate', 'consider', 'address', 'provide',
+    'comprehensive', 'detailed', 'specific', 'professional', 'clear',
+    'sections', 'requirements', 'guidelines', 'specifications', 'criteria'
+  ];
+  
+  const specificityScore = specificityKeywords.reduce((score, keyword) => {
+    return score + (prompt.toLowerCase().includes(keyword) ? 1 : 0);
+  }, 0);
+  
+  // 4. Domain-specific refinement indicators
+  const hasInstructionalLanguage = /\b(should|must|need to|required|essential)\b/i.test(prompt);
+  const hasActionableItems = /\b(create|design|develop|implement|establish|organize)\b/i.test(prompt);
+  
+  // 5. Quality indicators - refined prompts often have these characteristics
+  const hasContextSetup = prompt.toLowerCase().includes('context') || 
+                         prompt.toLowerCase().includes('background') ||
+                         prompt.toLowerCase().includes('considering');
+  
+  // Calculate refinement confidence score
+  let refinementScore = 0;
+  
+  // Structure scoring
+  if (hasNumberedList) refinementScore += 3;
+  if (hasBulletPoints) refinementScore += 2;
+  if (hasColonSeparation) refinementScore += 2;
+  if (hasMultipleSentences) refinementScore += 2;
+  
+  // Specificity scoring
+  refinementScore += Math.min(specificityScore, 4); // Cap at 4 points
+  
+  // Language quality scoring
+  if (hasInstructionalLanguage) refinementScore += 2;
+  if (hasActionableItems) refinementScore += 1;
+  if (hasContextSetup) refinementScore += 1;
+  
+  // Length bonus for very detailed prompts
+  if (prompt.length > 300) refinementScore += 2;
+  if (prompt.length > 500) refinementScore += 1;
+  
+  // Threshold for considering a prompt "already refined"
+  // Score of 8+ indicates a well-structured, detailed prompt
+  const isRefined = refinementScore >= 8;
+  
+  // Log for debugging/monitoring
+  if (isRefined) {
+    console.log(`Prompt appears refined (score: ${refinementScore}):`, {
+      length: prompt.length,
+      hasStructure: hasNumberedList || hasBulletPoints || hasColonSeparation,
+      specificityScore,
+      hasInstructionalLanguage,
+      hasActionableItems
+    });
+  }
+  
+  return isRefined;
 }
 
 // Minimal enhancement for already-refined prompts
