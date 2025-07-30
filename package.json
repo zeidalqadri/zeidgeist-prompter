@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build && cp _routes.json out/ && rm -rf dist && cp -r out dist",
+    "build": "node scripts/build-cloudflare.js",
+    "build:next": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",

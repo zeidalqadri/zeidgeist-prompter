@@ -17,7 +17,7 @@ interface LLMConfig {
 interface EnhancementResponse {
   enhancedPrompt: string;
   source: 'deepseek' | 'mistral' | 'gemini' | 'local';
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 // Default configuration - replace with actual API keys in production
