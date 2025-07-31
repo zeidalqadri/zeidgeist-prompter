@@ -326,9 +326,9 @@ export async function enhancePrompt(
       return result;
     } catch (error) {
       console.error(`❌ ${provider.name} enhancement failed:`, {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'Unknown'
       });
       continue;
     }
