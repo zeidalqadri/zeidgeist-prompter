@@ -34,40 +34,32 @@ export const enhancementLogs = pgTable('enhancement_logs', {
   userAgent: text('user_agent'),
 })
 
-// Lazy database connection
-let _db: ReturnType<typeof drizzle> | null = null
+// Database connection factory
+export function createDb(env: Record<string, string>) {
+  const databaseUrl = env.DATABASE_URL
 
-function getDb() {
-  if (!_db) {
-    // Get database URL from environment variable
-    const databaseUrl = process.env.DATABASE_URL
-
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL environment variable is required')
-    }
-
-    // Create Neon HTTP client
-    const sql = neon(databaseUrl)
-
-    // Create Drizzle instance with schema
-    _db = drizzle(sql, { 
-      schema: {
-        promptHistory,
-        feedback,
-        enhancementLogs
-      }
-    })
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required')
   }
-  
-  return _db
+
+  // Create Neon HTTP client
+  const sql = neon(databaseUrl)
+
+  // Create Drizzle instance with schema
+  return drizzle(sql, { 
+    schema: {
+      promptHistory,
+      feedback,
+      enhancementLogs
+    }
+  })
 }
 
-// Export lazy database connection
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
-  get(target, prop) {
-    return getDb()[prop as keyof ReturnType<typeof drizzle>]
-  }
-})
+// For backward compatibility - will be removed
+export const db = {
+  insert: () => { throw new Error('Use createDb(env) instead') },
+  select: () => { throw new Error('Use createDb(env) instead') }
+}
 
 // Types for inserts
 export type NewPromptHistory = typeof promptHistory.$inferInsert
