@@ -84,17 +84,53 @@ export default function PromptEngineer() {
     loadHistory();
   }, []);
 
-  // Load prompt history from localStorage on component mount
+  // Load prompt history from localStorage on component mount with comprehensive error handling
   useEffect(() => {
     try {
       const savedHistory = localStorage.getItem('promptHistory')
       if (savedHistory) {
         const parsedHistory = JSON.parse(savedHistory)
-        // Convert string timestamps back to Date objects
-        const historyWithDates = parsedHistory.map((item: any) => ({
-          ...item,
-          timestamp: new Date(item.timestamp)
-        }))
+        console.log('Loading', parsedHistory.length, 'history items for processing')
+        
+        // Convert and validate all data with comprehensive error handling
+        const historyWithDates = parsedHistory
+          .map((item: any, index: number) => {
+            try {
+              // Ensure all required fields exist
+              if (!item.original || !item.refined) {
+                console.warn(`History item ${index} missing required fields:`, item)
+                return null
+              }
+              
+              // Handle timestamp conversion with multiple validation layers
+              let timestamp: Date
+              if (item.timestamp) {
+                const date = new Date(item.timestamp)
+                if (isNaN(date.getTime())) {
+                  console.warn(`Invalid timestamp for item ${index}:`, item.timestamp)
+                  timestamp = new Date()
+                } else {
+                  timestamp = date
+                }
+              } else {
+                timestamp = new Date()
+              }
+              
+              return {
+                original: String(item.original),
+                refined: String(item.refined),
+                context: item.context ? String(item.context) : undefined,
+                timestamp,
+                metadata: item.metadata || {}
+              }
+            } catch (itemError) {
+              console.error(`Error processing history item ${index}:`, itemError, item)
+              return null
+            }
+          })
+          .filter((item: PromptHistoryItem | null): item is PromptHistoryItem => item !== null)
+        
+        console.log('Successfully processed', historyWithDates.length, 'valid history items')
         setPromptHistory(historyWithDates)
         
         // If we have history, set the hasRefinedPrompt flag
@@ -103,7 +139,16 @@ export default function PromptEngineer() {
         }
       }
     } catch (e) {
-      console.error('Failed to load prompt history:', e)
+      console.error('Failed to load prompt history, clearing corrupted localStorage:', e)
+      // Clear corrupted localStorage data and reset state
+      try {
+        localStorage.removeItem('promptHistory')
+        localStorage.removeItem('hasRefinedPrompt')
+      } catch (clearError) {
+        console.error('Failed to clear localStorage:', clearError)
+      }
+      setPromptHistory([])
+      setHasRefinedPrompt(false)
     }
   }, [])
 
@@ -341,9 +386,22 @@ export default function PromptEngineer() {
     setRefinedWithContext("")
     setError(null)
     setShowFeedback(false)
-    setShowContext(false)
-    // Keep history when clearing, just hide it
-    setShowHistory(false)
+  }
+
+  // Emergency function to clear all localStorage data
+  const clearAllData = () => {
+    try {
+      localStorage.removeItem('promptHistory')
+      localStorage.removeItem('hasRefinedPrompt')
+      localStorage.removeItem('lastRefinedPrompt')
+      localStorage.removeItem('repeatType')
+      localStorage.removeItem('repeatCount')
+      setPromptHistory([])
+      setHasRefinedPrompt(false)
+      console.log('All localStorage data cleared successfully')
+    } catch (error) {
+      console.error('Error clearing localStorage:', error)
+    }
   }
 
   const handleRepeat = () => {
@@ -363,19 +421,49 @@ export default function PromptEngineer() {
     localStorage.setItem('repeatCount', String(parseInt(localStorage.getItem('repeatCount') || '0') + 1));
   }
 
-  // Format timestamp for display
-  const formatTime = (date: Date): string => {
-    // Calculate time since the event
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+  // Format timestamp for display with comprehensive error handling
+  const formatTime = (date: Date | string | number | null | undefined): string => {
+    try {
+      // Handle various input types and edge cases
+      if (!date) {
+        return 'Just now'
+      }
+      
+      let validDate: Date
+      
+      if (date instanceof Date) {
+        validDate = date
+      } else {
+        validDate = new Date(date)
+      }
+      
+      // Validate the resulting date
+      if (!validDate || isNaN(validDate.getTime())) {
+        console.warn('Invalid date passed to formatTime:', date, 'Type:', typeof date)
+        return 'Just now'
+      }
+      
+      // Calculate time since the event
+      const now = new Date();
+      const diffMs = now.getTime() - validDate.getTime();
+      
+      // Handle negative differences (future dates)
+      if (diffMs < 0) {
+        return 'Just now'
+      }
+      
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return `${diffDays}d ago`;
+    } catch (error) {
+      console.error('Critical error in formatTime:', error, 'Input was:', date, 'Type:', typeof date)
+      return 'Just now'
+    }
   }
 
   // Toggle expanded state for a history item

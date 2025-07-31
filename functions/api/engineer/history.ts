@@ -64,22 +64,23 @@ export async function onRequestGet(context: any): Promise<Response> {
     })
   } catch (error) {
     console.error("Error fetching history:", error)
-    console.error("Error type:", error.constructor.name)
-    console.error("Error message:", error.message)
-    console.error("Error stack:", error.stack)
+    console.error("Error type:", error instanceof Error ? error.constructor.name : typeof error)
+    console.error("Error message:", error instanceof Error ? error.message : String(error))
+    console.error("Error stack:", error instanceof Error ? error.stack : undefined)
     
     let errorMessage = "Failed to fetch history"
-    if (error.message.includes("connect")) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    if (errorMsg.includes("connect")) {
       errorMessage = "Database connection failed"
-    } else if (error.message.includes("does not exist")) {
+    } else if (errorMsg.includes("does not exist")) {
       errorMessage = "Database table not found"
-    } else if (error.message.includes("authentication")) {
+    } else if (errorMsg.includes("authentication")) {
       errorMessage = "Database authentication failed"
     }
     
     return new Response(JSON.stringify({ 
       error: errorMessage,
-      details: error.message 
+      details: error instanceof Error ? error.message : String(error) 
     }), {
       status: 500,
       headers: corsHeaders
