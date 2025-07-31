@@ -1,106 +1,93 @@
-import { db, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
+import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
 import { enhancePrompt } from "../_shared/llm-enhancer"
 
-export default async function handler(request: Request): Promise<Response> {
-  // Only allow POST requests
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
+// Handle CORS preflight requests
+export async function onRequestOptions(): Promise<Response> {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
 
+export async function onRequestPost(context: any): Promise<Response> {
+  const { request, env } = context
   const startTime = Date.now()
   
+  // Debug: Check API key values
+  console.log('🔍 API Key debugging:', {
+    claudeLength: env.CLAUDE_API_KEY?.length || 0,
+    openaiLength: env.OPENAI_API_KEY?.length || 0,
+    claudeExists: !!env.CLAUDE_API_KEY,
+    openaiExists: !!env.OPENAI_API_KEY,
+    claudeType: typeof env.CLAUDE_API_KEY,
+    openaiType: typeof env.OPENAI_API_KEY
+  })
+  
+  // Add CORS headers
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  }
+  
   try {
+    console.log('Function started, parsing JSON...')
     const body = await request.json()
+    console.log('JSON parsed successfully')
+    
     const { prompt, context, isRefinement, isExpansion, repeatCount } = body
+    console.log('Request data extracted:', { hasPrompt: !!prompt })
 
     // Enhanced input validation
     if (!prompt || typeof prompt !== 'string') {
+      console.log('Invalid prompt provided')
       return new Response(JSON.stringify({ 
         error: "Please provide a valid prompt to enhance." 
       }), { 
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       })
     }
 
     const trimmedPrompt = prompt.trim()
     if (!trimmedPrompt) {
+      console.log('Empty prompt provided')
       return new Response(JSON.stringify({ 
         error: "Prompt cannot be empty. Please enter some text to enhance." 
       }), { 
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       })
     }
 
-    // Log request for monitoring
-    console.log('Enhancement request:', {
-      promptLength: trimmedPrompt.length,
-      hasContext: !!context,
-      isRefinement: !!isRefinement,
-      isExpansion: !!isExpansion,
-      repeatCount: repeatCount || 0,
-      timestamp: new Date().toISOString()
-    })
-
+    console.log('About to enhance prompt...')
+    
     // Process the prompt using our LLM-based enhancer
     try {
+      console.log('🔧 Calling enhancePrompt function...');
+      console.log('🔍 Environment keys available:', Object.keys(env));
       const enhancementResponse = await enhancePrompt(
         trimmedPrompt, 
         context || "", 
-        { isRefinement: !!isRefinement, isExpansion: !!isExpansion, repeatCount }
+        { isRefinement: !!isRefinement, isExpansion: !!isExpansion, repeatCount, env }
       )
+      console.log('🎉 enhancePrompt returned:', enhancementResponse?.source);
       
       const processingTime = Date.now() - startTime
-      
-      // CRITICAL: Verify the enhancedPrompt is actually different from the input
-      if (enhancementResponse.enhancedPrompt === trimmedPrompt) {
-        console.warn("Enhancement returned identical prompt, applying intelligent fallback")
-        
-        // Apply intelligent fallback based on prompt analysis
-        const fallbackEnhanced = generateIntelligentFallback(trimmedPrompt, context, {
-          isRefinement: !!isRefinement,
-          isExpansion: !!isExpansion,
-          repeatCount: repeatCount || 0
-        })
-        
-        // Log fallback enhancement to database
-        try {
-          const enhancementLog: NewEnhancementLog = {
-            original: trimmedPrompt,
-            enhanced: fallbackEnhanced,
-            source: 'fallback',
-            processingTime: processingTime.toString()
-          }
-          await db.insert(enhancementLogs).values(enhancementLog)
-        } catch (logError) {
-          console.error("Failed to log fallback enhancement:", logError)
-        }
-
-        return new Response(JSON.stringify({ 
-          result: fallbackEnhanced,
-          metadata: {
-            source: 'fallback',
-            processingTime: processingTime.toString(),
-            wasIdentical: true
-          }
-        }), {
-          headers: { 'Content-Type': 'application/json' }
-        })
-      }
-      
-      // Determine the source of enhancement for user feedback
-      const source = enhancementResponse.source || 'unknown'
+      console.log('Enhancement completed successfully')
       
       // Log enhancement to database for analytics
       try {
+        const db = createDb(env)
         const enhancementLog: NewEnhancementLog = {
           original: trimmedPrompt,
           enhanced: enhancementResponse.enhancedPrompt,
-          source,
+          source: enhancementResponse.source,
           processingTime: processingTime.toString()
         }
         await db.insert(enhancementLogs).values(enhancementLog)
@@ -111,38 +98,46 @@ export default async function handler(request: Request): Promise<Response> {
       return new Response(JSON.stringify({ 
         result: enhancementResponse.enhancedPrompt,
         metadata: {
-          source,
+          source: enhancementResponse.source,
           processingTime,
           originalLength: trimmedPrompt.length,
-          enhancedLength: enhancementResponse.enhancedPrompt.length
+          enhancedLength: enhancementResponse.enhancedPrompt.length,
+          debugEnvKeys: Object.keys(env),
+          debugHasKeys: {
+            claude: !!env.CLAUDE_API_KEY,
+            openai: !!env.OPENAI_API_KEY,
+            deepseek: !!env.DEEPSEEK_API_KEY,
+            mistral: !!env.MISTRAL_API_KEY,
+            moonshot: !!env.MOONSHOT_API_KEY
+          },
+          debugKeyDetails: {
+            claudeLength: env.CLAUDE_API_KEY?.length || 0,
+            openaiLength: env.OPENAI_API_KEY?.length || 0,
+            claudeType: typeof env.CLAUDE_API_KEY,
+            openaiType: typeof env.OPENAI_API_KEY,
+            claudeFirstChar: env.CLAUDE_API_KEY?.[0] || 'none',
+            openaiFirstChar: env.OPENAI_API_KEY?.[0] || 'none'
+          }
         }
       }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       })
     } catch (enhancementError) {
-      console.error("Error enhancing prompt:", enhancementError)
+      console.error("❌ Error enhancing prompt:", {
+        message: enhancementError.message,
+        stack: enhancementError.stack,
+        name: enhancementError.name
+      })
       
       const processingTime = Date.now() - startTime
       
-      // Provide user-friendly error handling with intelligent fallback
-      const fallbackEnhanced = generateIntelligentFallback(trimmedPrompt, context, {
-        isRefinement: !!isRefinement,
-        isExpansion: !!isExpansion,
-        repeatCount: repeatCount || 0,
-        hasError: true
-      })
-      
-      // Log error enhancement to database
-      try {
-        const enhancementLog: NewEnhancementLog = {
-          original: trimmedPrompt,
-          enhanced: fallbackEnhanced,
-          source: 'fallback-error',
-          processingTime: processingTime.toString()
-        }
-        await db.insert(enhancementLogs).values(enhancementLog)
-      } catch (logError) {
-        console.error("Failed to log error enhancement:", logError)
+      // Provide simple fallback enhancement
+      let fallbackEnhanced = trimmedPrompt
+      if (!fallbackEnhanced.endsWith('.') && !fallbackEnhanced.endsWith('?') && !fallbackEnhanced.endsWith('!')) {
+        fallbackEnhanced += '.'
+      }
+      if (context && context.trim()) {
+        fallbackEnhanced = `Context: ${context}\n\nPrompt: ${fallbackEnhanced}`
       }
 
       return new Response(JSON.stringify({ 
@@ -150,29 +145,23 @@ export default async function handler(request: Request): Promise<Response> {
         metadata: {
           source: 'fallback-error',
           processingTime,
-          hadError: true
+          hadError: true,
+          errorMessage: enhancementError.message,
+          errorName: enhancementError.name
         }
       }), {
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       })
     }
   } catch (error) {
     console.error("Critical error processing request:", error)
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    })
     
     const processingTime = Date.now() - startTime
-    
-    // Log critical error to database
-    try {
-      const enhancementLog: NewEnhancementLog = {
-        original: 'ERROR_UNKNOWN',
-        enhanced: 'ERROR_FALLBACK',
-        source: 'error-handler',
-        processingTime: processingTime.toString()
-      }
-      await db.insert(enhancementLogs).values(enhancementLog)
-    } catch (logError) {
-      console.error("Failed to log critical error:", logError)
-    }
     
     // Graceful error handling with user-friendly message
     return new Response(JSON.stringify({
@@ -180,65 +169,12 @@ export default async function handler(request: Request): Promise<Response> {
       metadata: {
         source: 'error-handler',
         processingTime,
-        hadCriticalError: true
+        hadCriticalError: true,
+        errorMessage: error.message
       }
     }), {
       status: 200, // Use 200 to avoid showing error UI
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders
     })
   }
-}
-
-// Generate intelligent fallback enhancements based on prompt analysis
-function generateIntelligentFallback(
-  prompt: string, 
-  context?: string, 
-  options: {
-    isRefinement?: boolean
-    isExpansion?: boolean
-    repeatCount?: number
-    hasError?: boolean
-  } = {}
-): string {
-  const lowerPrompt = prompt.toLowerCase()
-  const { isRefinement, isExpansion, repeatCount = 0 } = options
-  
-  // For expansions/refinements, provide more substantial enhancements
-  const expansionLevel = isExpansion && repeatCount > 0 ? repeatCount : 0
-  
-  // Website-specific enhancement
-  if (lowerPrompt.includes('website') || lowerPrompt.includes('site') || lowerPrompt.includes('web')) {
-    const subject = prompt.replace(/website|site|web/gi, '').replace(/for|about/, '').trim()
-    
-    if (expansionLevel > 0) {
-      return `Create a comprehensive digital presence for ${subject} including: a professionally designed website with intuitive navigation and responsive design; strategic content architecture with clear information hierarchy; search engine optimization for improved visibility; user experience optimization for conversion; integrated analytics for performance tracking; security measures and regular maintenance protocols; social media integration and digital marketing alignment; accessibility compliance ensuring inclusive user access; and scalable infrastructure for future growth and feature expansion.`
-    }
-    
-    return `Design a professional website for ${subject} that includes: compelling homepage with clear value proposition; detailed service/product pages with comprehensive information; about section showcasing expertise and credibility; contact information with multiple communication channels; user-friendly navigation and mobile responsiveness; professional design reflecting brand identity; and optimized performance for excellent user experience.`
-  }
-  
-  // Writing-specific enhancement
-  if (lowerPrompt.includes('write') || lowerPrompt.includes('article') || lowerPrompt.includes('blog') || lowerPrompt.includes('content')) {
-    if (expansionLevel > 0) {
-      return `${prompt} with advanced content strategy including: comprehensive research methodology using primary and secondary sources; detailed audience analysis and persona development; content structure optimization for readability and engagement; SEO integration with strategic keyword placement; multimedia elements including relevant images, charts, or infographics; expert interviews or quotes for authority and credibility; data-driven insights and supporting statistics; clear call-to-action elements; content distribution planning across multiple channels; and performance metrics definition for measuring success and engagement.`
-    }
-    
-    return `${prompt} with structured approach including: engaging introduction that captures attention; well-researched main content with supporting evidence; clear organization with logical flow; appropriate tone for target audience; compelling conclusion with actionable insights; and professional formatting with proper citations where applicable.`
-  }
-  
-  // Planning/Strategy enhancement
-  if (lowerPrompt.includes('plan') || lowerPrompt.includes('strategy') || lowerPrompt.includes('organize')) {
-    if (expansionLevel > 0) {
-      return `${prompt} using comprehensive strategic planning methodology including: situational analysis with SWOT assessment; stakeholder mapping and engagement strategy; detailed timeline with critical path analysis; resource allocation with budget planning and risk assessment; performance indicators and success metrics definition; contingency planning for various scenarios; communication and change management protocols; quality assurance and review processes; implementation roadmap with phase-by-phase execution; and continuous improvement framework with regular evaluation and optimization cycles.`
-    }
-    
-    return `${prompt} with systematic approach including: clear objective definition; comprehensive situation assessment; strategic planning with actionable steps; resource identification and allocation; timeline development with milestones; risk assessment and mitigation strategies; progress monitoring mechanisms; and adaptation protocols for changing circumstances.`
-  }
-  
-  // Generic intelligent enhancement
-  if (expansionLevel > 0) {
-    return `${prompt}. Implement with advanced methodology including: comprehensive scope analysis and requirement gathering; strategic approach with best practices integration; detailed planning with phase-by-phase execution; quality assurance protocols with regular validation; stakeholder engagement and communication strategies; risk management with proactive mitigation; resource optimization for maximum efficiency; performance measurement with analytics and reporting; continuous improvement processes; and scalable framework for future enhancement and adaptation.`
-  }
-  
-  return `${prompt}. Ensure comprehensive execution including: clear objective definition and scope; professional approach with attention to detail; organized structure with logical progression; quality standards and validation processes; appropriate resources and tools; timeline with realistic milestones; and success criteria for evaluation and optimization.${context ? ` Additional context: ${context}` : ''}`
 }

@@ -1,22 +1,35 @@
-import { db, feedback, NewFeedback } from "../../_shared/db"
+import { createDb, feedback, NewFeedback } from "../../_shared/db"
 
-export default async function handler(request: Request): Promise<Response> {
-  // Only allow POST requests
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    })
+// Handle CORS preflight requests
+export async function onRequestOptions(): Promise<Response> {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
+
+export async function onRequestPost(context: any): Promise<Response> {
+  const { request, env } = context
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
   }
 
   try {
+    const db = createDb(env)
     const body = await request.json()
     const { original, refined, wasSuccessful, feedbackText } = body
 
     if (!original || !refined || typeof wasSuccessful !== 'boolean') {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: corsHeaders
       })
     }
 
@@ -53,13 +66,13 @@ export default async function handler(request: Request): Promise<Response> {
       success: true, 
       message: "Feedback received successfully" 
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders
     })
   } catch (error) {
     console.error("Error storing feedback in database:", error)
     return new Response(JSON.stringify({ error: "Failed to process feedback" }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: corsHeaders
     })
   }
 }
