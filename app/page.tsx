@@ -2,7 +2,7 @@ import PromptEngineer from "../components/prompt-engineer"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Raw → Refined | zeidgeistdotcom",
+  title: "Raw → Refined | mstprmpt.zeidgeist.com",
   description: "Prompt engineering service",
 }
 
