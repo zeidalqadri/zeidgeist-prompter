@@ -538,7 +538,7 @@ export default function PromptEngineer() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold tracking-tight">
           <a href="https://zeidgeist.vercel.app" className="text-black hover:text-gray-700 transition-colors">
-            zeidgeistdotcom
+            mstprmpt<sub className="text-xs">.zeidgeist.com</sub>
           </a>
           <span className="text-gray-400 text-sm ml-2">v0.6.8</span>
         </h1>
@@ -622,7 +622,7 @@ export default function PromptEngineer() {
                   {enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
-                      <span>Enhanced by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                      <span>Remixed by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
                     </div>
                   )}
                   {enhancementTime !== null && (
@@ -644,7 +644,7 @@ export default function PromptEngineer() {
                     className="text-gray-60 hover:text-black-primary"
                   >
                     <Info size={14} className="mr-1" />
-                    Add Context
+                    Refurbish
                     {showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
                   </Button>
                   
@@ -655,7 +655,7 @@ export default function PromptEngineer() {
                         size="sm" 
                         onClick={() => setShowFeedback(true)}
                       >
-                        Give Feedback
+                        Report
                       </Button>
                     )}
                     <Button 
@@ -727,7 +727,7 @@ export default function PromptEngineer() {
                   {enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
-                      <span>Enhanced by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                      <span>Remixed by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
                     </div>
                   )}
                   {enhancementTime !== null && (
