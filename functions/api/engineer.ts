@@ -124,9 +124,9 @@ export async function onRequestPost(context: any): Promise<Response> {
       })
     } catch (enhancementError) {
       console.error("❌ Error enhancing prompt:", {
-        message: enhancementError.message,
-        stack: enhancementError.stack,
-        name: enhancementError.name
+        message: enhancementError instanceof Error ? enhancementError.message : String(enhancementError),
+        stack: enhancementError instanceof Error ? enhancementError.stack : undefined,
+        name: enhancementError instanceof Error ? enhancementError.name : 'Unknown'
       })
       
       const processingTime = Date.now() - startTime
@@ -146,8 +146,8 @@ export async function onRequestPost(context: any): Promise<Response> {
           source: 'fallback-error',
           processingTime,
           hadError: true,
-          errorMessage: enhancementError.message,
-          errorName: enhancementError.name
+          errorMessage: enhancementError instanceof Error ? enhancementError.message : String(enhancementError),
+          errorName: enhancementError instanceof Error ? enhancementError.name : 'Unknown'
         }
       }), {
         headers: corsHeaders
@@ -156,9 +156,9 @@ export async function onRequestPost(context: any): Promise<Response> {
   } catch (error) {
     console.error("Critical error processing request:", error)
     console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : 'Unknown'
     })
     
     const processingTime = Date.now() - startTime
@@ -170,7 +170,7 @@ export async function onRequestPost(context: any): Promise<Response> {
         source: 'error-handler',
         processingTime,
         hadCriticalError: true,
-        errorMessage: error.message
+        errorMessage: error instanceof Error ? error.message : String(error)
       }
     }), {
       status: 200, // Use 200 to avoid showing error UI
