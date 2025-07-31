@@ -1,15 +1,10 @@
 name = "aipromptise"
 compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
 
-[env.production]
-name = "aipromptise"
+# Node.js compatibility for Functions
+compatibility_flags = ["nodejs_compat"]
 
-# Build configuration
-[build]
-command = "npm run build"
-cwd = "."
-watch_dir = "."
-
-# Pages configuration
-[pages]
-build_output_dir = "dist"
+# Environment variables
+[vars]
+NODE_ENV = "production"
