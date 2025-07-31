@@ -90,11 +90,14 @@ export default function PromptEngineer() {
       const savedHistory = localStorage.getItem('promptHistory')
       if (savedHistory) {
         const parsedHistory = JSON.parse(savedHistory)
-        // Convert string timestamps back to Date objects
-        const historyWithDates = parsedHistory.map((item: any) => ({
-          ...item,
-          timestamp: new Date(item.timestamp)
-        }))
+        // Convert string timestamps back to Date objects with validation
+        const historyWithDates = parsedHistory.map((item: any) => {
+          const date = new Date(item.timestamp)
+          return {
+            ...item,
+            timestamp: isNaN(date.getTime()) ? new Date() : date
+          }
+        })
         setPromptHistory(historyWithDates)
         
         // If we have history, set the hasRefinedPrompt flag
@@ -365,6 +368,11 @@ export default function PromptEngineer() {
 
   // Format timestamp for display
   const formatTime = (date: Date): string => {
+    // Validate date object first
+    if (!date || isNaN(date.getTime())) {
+      return 'Just now'
+    }
+    
     // Calculate time since the event
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
