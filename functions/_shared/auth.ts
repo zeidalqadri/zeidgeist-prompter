@@ -27,7 +27,7 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 /**
- * Simple API key authentication
+ * Simple API key authentication with public endpoint support
  */
 export function authenticateRequest(request: Request, env: any): AuthResult {
   // In development, allow unauthenticated access
@@ -35,10 +35,20 @@ export function authenticateRequest(request: Request, env: any): AuthResult {
     return { success: true, userId: 'dev-user' };
   }
 
+  // For public prompt enhancement, allow anonymous access
+  const url = new URL(request.url);
+  const isPublicEndpoint = url.pathname.includes('/api/engineer') && 
+                          !url.pathname.includes('/history') && 
+                          !url.pathname.includes('/feedback');
+  
+  if (isPublicEndpoint) {
+    return { success: true, userId: 'anonymous' };
+  }
+
   const apiKey = request.headers.get('x-api-key') || request.headers.get('Authorization')?.replace('Bearer ', '');
   
   if (!apiKey) {
-    return { success: false, error: 'API key required. Please include x-api-key header.' };
+    return { success: false, error: 'API key required for this endpoint. Please include x-api-key header.' };
   }
 
   // Simple API key validation (in production, use proper key management)
