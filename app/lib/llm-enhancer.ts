@@ -3,8 +3,7 @@
 
 import { trainingExamples } from './training-data';
 import { enhancePrompt as localEnhance } from './prompt-enhancer-v2';
-import { db } from '@/lib/db/drizzle';
-import { enhancementLogs, feedback } from '@/lib/db/schema';
+import { db, enhancementLogs, feedback } from './db';
 import { AdaptiveEnhancer } from './learning/adaptive-enhancer';
 import { LearningService } from './learning/learning-service';
 import { eq, desc } from 'drizzle-orm';
@@ -692,6 +691,10 @@ async function storeEnhancementExample(
     await db.insert(enhancementLogs).values({
       originalPrompt: rawPrompt,
       enhancedPrompt: enhancedPrompt,
+      promptLength: rawPrompt.length,
+      hasContext: !!context,
+      isRefinement: false,
+      isExpansion: false,
       source: source,
       enhancementModel: source,
       responseTime: 0, // Will be updated by the caller
@@ -743,9 +746,11 @@ export async function processEnhancementFeedback(
       // Store feedback in database
       await db.insert(feedback).values({
         enhancementId: logs[0].id,
-        successful: wasSuccessful,
+        originalPrompt: originalPrompt,
+        enhancedPrompt: enhancedPrompt,
+        wasSuccessful: wasSuccessful,
         score: score,
-        comment: feedbackText,
+        feedbackText: feedbackText,
         createdAt: new Date(),
       });
 

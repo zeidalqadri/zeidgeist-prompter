@@ -1,5 +1,4 @@
-import { db } from '@/lib/db/drizzle';
-import { trainingExamples, enhancementLogs, feedback } from '@/lib/db/schema';
+import { db, trainingExamples, enhancementLogs, feedback } from '../db';
 import { eq, and, gte, sql } from 'drizzle-orm';
 
 export interface EnhancementPattern {
@@ -42,7 +41,7 @@ export class PatternExtractor {
         feedback,
         and(
           eq(feedback.enhancementId, enhancementLogs.id),
-          eq(feedback.successful, true)
+          eq(feedback.wasSuccessful, true)
         )
       )
       .where(

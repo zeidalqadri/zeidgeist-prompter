@@ -1,4 +1,4 @@
-import { LearningService } from '@/lib/learning/learning-service';
+import { LearningService } from '../../app/lib/learning/learning-service';
 
 export interface Env {
   DATABASE_URL: string;
@@ -10,9 +10,9 @@ export interface Env {
  */
 export default {
   async scheduled(
-    controller: ScheduledController,
+    controller: any,
     env: Env,
-    ctx: ExecutionContext
+    ctx: any
   ): Promise<void> {
     console.log('Starting scheduled learning cycle...');
     
