@@ -1,5 +1,5 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
-import { desc } from "drizzle-orm"
+import { desc, sql } from "drizzle-orm"
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
@@ -15,6 +15,11 @@ export async function onRequestOptions(): Promise<Response> {
 
 export async function onRequestGet(context: any): Promise<Response> {
   const { request, env } = context
+  const url = new URL(request.url)
+  const page = parseInt(url.searchParams.get('page') || '0')
+  const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100) // Max 100 per page
+  const offset = page * limit
+  
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -39,15 +44,33 @@ export async function onRequestGet(context: any): Promise<Response> {
     const db = createDb(env)
     console.log("Debug: Database connection created successfully")
     
-    console.log("Debug: Executing database query...")
-    // Fetch recent history from database
-    const history = await db
-      .select()
-      .from(promptHistory)
-      .orderBy(desc(promptHistory.timestamp))
-      .limit(50)
+    console.log("Debug: Executing database query with pagination...", { page, limit, offset })
+    // Fetch recent history from database with pagination and optimized query
+    const [history, totalCountResult] = await Promise.all([
+      db
+        .select()
+        .from(promptHistory)
+        .orderBy(desc(promptHistory.timestamp))
+        .limit(limit)
+        .offset(offset),
+      
+      // Get total count for pagination info
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(promptHistory)
+    ])
 
-    console.log("Debug: Query executed successfully, records found:", history.length)
+    const totalCount = totalCountResult[0]?.count || 0
+    const hasMore = offset + history.length < totalCount
+    const totalPages = Math.ceil(totalCount / limit)
+    
+    console.log("Debug: Query executed successfully", { 
+      recordsFound: history.length, 
+      totalCount, 
+      page, 
+      totalPages,
+      hasMore 
+    })
 
     // Transform to match existing frontend format
     const items = history.map(item => ({
@@ -59,7 +82,17 @@ export async function onRequestGet(context: any): Promise<Response> {
     }))
 
     console.log("Debug: Data transformation completed, returning", items.length, "items")
-    return new Response(JSON.stringify({ items }), {
+    return new Response(JSON.stringify({ 
+      items,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages,
+        hasMore,
+        hasPrevious: page > 0
+      }
+    }), {
       headers: corsHeaders
     })
   } catch (error) {

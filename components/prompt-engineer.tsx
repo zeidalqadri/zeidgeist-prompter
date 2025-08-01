@@ -2,21 +2,142 @@
 
 import React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useReducer, useMemo, memo } from "react"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import FeedbackForm from "./feedback-form"
 
 // Create a simple inline toast component
-function SimpleToast({ show, message }: { show: boolean, message: string }) {
+const SimpleToast = memo(({ show, message }: { show: boolean, message: string }) => {
   if (!show) return null;
   return (
     <div className="fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded-md shadow-lg transition-opacity duration-300">
       {message}
     </div>
   );
-}
+});
+
+SimpleToast.displayName = 'SimpleToast';
+
+// Memoized history table row component
+const HistoryRow = memo(({ 
+  item, 
+  index, 
+  isExpanded, 
+  onToggleExpand, 
+  onUsePrompt, 
+  onCopyToClipboard, 
+  formatTime 
+}: {
+  item: PromptHistoryItem;
+  index: number;
+  isExpanded: boolean;
+  onToggleExpand: (index: number) => void;
+  onUsePrompt: (refined: string) => void;
+  onCopyToClipboard: (text: string) => void;
+  formatTime: (date: Date) => string;
+}) => {
+  const handleToggle = useCallback(() => onToggleExpand(index), [onToggleExpand, index]);
+  const handleUse = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onUsePrompt(item.refined);
+  }, [onUsePrompt, item.refined]);
+  const handleCopy = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCopyToClipboard(item.refined);
+  }, [onCopyToClipboard, item.refined]);
+
+  return (
+    <React.Fragment>
+      <tr 
+        className={index % 2 === 0 ? "bg-white hover:bg-gray-100" : "bg-gray-50 hover:bg-gray-100"}
+        onClick={handleToggle}
+      >
+        <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
+        <td className="px-3 py-2 align-top">
+          <div className="max-w-[150px] truncate cursor-help" title={item.original}>
+            {item.original.substring(0, 50)}
+            {item.original.length > 50 ? "..." : ""}
+          </div>
+          {item.context && (
+            <div className="mt-1 text-gray-500 italic max-w-[150px] truncate cursor-help" title={item.context}>
+              Context: {item.context.substring(0, 30)}
+              {item.context.length > 30 ? "..." : ""}
+            </div>
+          )}
+        </td>
+        <td className="px-3 py-2 align-top">
+          <div className="max-w-[200px] truncate cursor-help" title={item.refined}>
+            {item.refined.substring(0, 70)}
+            {item.refined.length > 70 ? "..." : ""}
+          </div>
+        </td>
+        <td className="px-3 py-2 align-top whitespace-nowrap">
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 hover:bg-gray-200"
+              onClick={handleUse}
+              title="Use this prompt"
+            >
+              <RotateCw size={12} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 hover:bg-gray-200"
+              onClick={handleCopy}
+              title="Copy to clipboard"
+            >
+              <Copy size={12} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 hover:bg-gray-200"
+              onClick={handleToggle}
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </Button>
+          </div>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="border-t border-gray-100">
+          <td colSpan={4} className="px-4 py-3 bg-white">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <div className="font-medium mb-1 text-gray-600">Original:</div>
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                  {item.original}
+                </div>
+                {item.context && (
+                  <>
+                    <div className="font-medium mt-2 mb-1 text-gray-600">Context:</div>
+                    <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                      {item.context}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div>
+                <div className="font-medium mb-1 text-gray-600">Refined:</div>
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                  {item.refined}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
+  );
+});
+
+HistoryRow.displayName = 'HistoryRow';
 
 // Interface for tracking prompt history
 interface PromptHistoryItem {
@@ -41,127 +162,224 @@ interface EngineerResponse {
   };
 }
 
-export default function PromptEngineer() {
-  const [prompt, setPrompt] = useState("")
-  const [context, setContext] = useState("")
-  const [result, setResult] = useState("")
-  const [refinedWithContext, setRefinedWithContext] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingContext, setIsLoadingContext] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [showContext, setShowContext] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showFeedback, setShowFeedback] = useState(false)
-  // New state for the audit trail
-  const [promptHistory, setPromptHistory] = useState<PromptHistoryItem[]>([])
-  const [showHistory, setShowHistory] = useState(true)  // Show history by default
-  // Track expanded history items
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set())
-  
-  // Flag to track if at least one prompt has been refined
-  const [hasRefinedPrompt, setHasRefinedPrompt] = useState(false)
-  const [enhancementSource, setEnhancementSource] = useState<string | null>(null)
-  const [enhancementTime, setEnhancementTime] = useState<number | null>(null)
+// State management with useReducer for better performance
+interface PromptState {
+  prompt: string;
+  context: string;
+  result: string;
+  refinedWithContext: string;
+  isLoading: boolean;
+  isLoadingContext: boolean;
+  copied: boolean;
+  showContext: boolean;
+  error: string | null;
+  showFeedback: boolean;
+  promptHistory: PromptHistoryItem[];
+  showHistory: boolean;
+  expandedItems: Set<number>;
+  hasRefinedPrompt: boolean;
+  enhancementSource: string | null;
+  enhancementTime: number | null;
+}
 
-  // Load existing history when component mounts
+type PromptAction =
+  | { type: 'SET_PROMPT'; payload: string }
+  | { type: 'SET_CONTEXT'; payload: string }
+  | { type: 'SET_RESULT'; payload: string }
+  | { type: 'SET_REFINED_WITH_CONTEXT'; payload: string }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_LOADING_CONTEXT'; payload: boolean }
+  | { type: 'SET_COPIED'; payload: boolean }
+  | { type: 'SET_SHOW_CONTEXT'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_SHOW_FEEDBACK'; payload: boolean }
+  | { type: 'SET_PROMPT_HISTORY'; payload: PromptHistoryItem[] }
+  | { type: 'ADD_TO_HISTORY'; payload: PromptHistoryItem }
+  | { type: 'SET_SHOW_HISTORY'; payload: boolean }
+  | { type: 'TOGGLE_EXPAND_ITEM'; payload: number }
+  | { type: 'SET_HAS_REFINED_PROMPT'; payload: boolean }
+  | { type: 'SET_ENHANCEMENT_METADATA'; payload: { source: string | null; time: number | null } }
+  | { type: 'CLEAR_ALL' }
+  | { type: 'RESET_FORM' };
+
+const initialState: PromptState = {
+  prompt: '',
+  context: '',
+  result: '',
+  refinedWithContext: '',
+  isLoading: false,
+  isLoadingContext: false,
+  copied: false,
+  showContext: false,
+  error: null,
+  showFeedback: false,
+  promptHistory: [],
+  showHistory: true,
+  expandedItems: new Set(),
+  hasRefinedPrompt: false,
+  enhancementSource: null,
+  enhancementTime: null,
+};
+
+function promptReducer(state: PromptState, action: PromptAction): PromptState {
+  switch (action.type) {
+    case 'SET_PROMPT':
+      return { ...state, prompt: action.payload };
+    case 'SET_CONTEXT':
+      return { ...state, context: action.payload };
+    case 'SET_RESULT':
+      return { ...state, result: action.payload };
+    case 'SET_REFINED_WITH_CONTEXT':
+      return { ...state, refinedWithContext: action.payload };
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_LOADING_CONTEXT':
+      return { ...state, isLoadingContext: action.payload };
+    case 'SET_COPIED':
+      return { ...state, copied: action.payload };
+    case 'SET_SHOW_CONTEXT':
+      return { ...state, showContext: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_SHOW_FEEDBACK':
+      return { ...state, showFeedback: action.payload };
+    case 'SET_PROMPT_HISTORY':
+      return { ...state, promptHistory: action.payload };
+    case 'ADD_TO_HISTORY':
+      return { 
+        ...state, 
+        promptHistory: [action.payload, ...state.promptHistory],
+        hasRefinedPrompt: true
+      };
+    case 'SET_SHOW_HISTORY':
+      return { ...state, showHistory: action.payload };
+    case 'TOGGLE_EXPAND_ITEM': {
+      const newSet = new Set(state.expandedItems);
+      if (newSet.has(action.payload)) {
+        newSet.delete(action.payload);
+      } else {
+        newSet.add(action.payload);
+      }
+      return { ...state, expandedItems: newSet };
+    }
+    case 'SET_HAS_REFINED_PROMPT':
+      return { ...state, hasRefinedPrompt: action.payload };
+    case 'SET_ENHANCEMENT_METADATA':
+      return { 
+        ...state, 
+        enhancementSource: action.payload.source,
+        enhancementTime: action.payload.time
+      };
+    case 'CLEAR_ALL':
+      return {
+        ...state,
+        prompt: '',
+        context: '',
+        result: '',
+        refinedWithContext: '',
+        error: null,
+        showFeedback: false,
+        showContext: false,
+        showHistory: false
+      };
+    case 'RESET_FORM':
+      return {
+        ...state,
+        result: '',
+        refinedWithContext: '',
+        showFeedback: false,
+        error: null,
+        enhancementSource: null,
+        enhancementTime: null
+      };
+    default:
+      return state;
+  }
+}
+
+export default function PromptEngineer() {
+  const [state, dispatch] = useReducer(promptReducer, initialState);
+
+  // Load existing history when component mounts - memoized
+  const loadHistory = useCallback(async () => {
+    try {
+      const response = await fetch('/api/engineer/history');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+          dispatch({ type: 'SET_PROMPT_HISTORY', payload: data.items });
+          dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: true });
+          console.log(`Loaded ${data.items.length} history items`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    }
+  }, []);
+  
   useEffect(() => {
-    const loadHistory = async () => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // Load prompt history from localStorage on component mount - optimized
+  useEffect(() => {
+    const loadLocalHistory = () => {
       try {
-        const response = await fetch('/api/engineer/history');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-            setPromptHistory(data.items);
-            setHasRefinedPrompt(true); // Set flag if we load any history items
-            console.log(`Loaded ${data.items.length} history items`);
+        const savedHistory = localStorage.getItem('promptHistory');
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          const historyWithDates = parsedHistory.map((item: any) => ({
+            ...item,
+            timestamp: new Date(item.timestamp)
+          }));
+          dispatch({ type: 'SET_PROMPT_HISTORY', payload: historyWithDates });
+          
+          if (historyWithDates.length > 0) {
+            dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: true });
           }
         }
-      } catch (error) {
-        console.error('Failed to load history:', error);
+      } catch (e) {
+        console.error('Failed to load prompt history:', e);
       }
     };
     
-    loadHistory();
+    // Use requestIdleCallback for non-critical localStorage operations
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(loadLocalHistory);
+    } else {
+      setTimeout(loadLocalHistory, 0);
+    }
   }, []);
 
-  // Load prompt history from localStorage on component mount with comprehensive error handling
+  // Save prompt history to localStorage whenever it changes - debounced with comprehensive error handling
   useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem('promptHistory')
-      if (savedHistory) {
-        const parsedHistory = JSON.parse(savedHistory)
-        console.log('Loading', parsedHistory.length, 'history items for processing')
-        
-        // Convert and validate all data with comprehensive error handling
-        const historyWithDates = parsedHistory
-          .map((item: any, index: number) => {
-            try {
-              // Ensure all required fields exist
-              if (!item.original || !item.refined) {
-                console.warn(`History item ${index} missing required fields:`, item)
-                return null
-              }
-              
-              // Handle timestamp conversion with multiple validation layers
-              let timestamp: Date
-              if (item.timestamp) {
-                const date = new Date(item.timestamp)
-                if (isNaN(date.getTime())) {
-                  console.warn(`Invalid timestamp for item ${index}:`, item.timestamp)
-                  timestamp = new Date()
-                } else {
-                  timestamp = date
-                }
-              } else {
-                timestamp = new Date()
-              }
-              
-              return {
-                original: String(item.original),
-                refined: String(item.refined),
-                context: item.context ? String(item.context) : undefined,
-                timestamp,
-                metadata: item.metadata || {}
-              }
-            } catch (itemError) {
-              console.error(`Error processing history item ${index}:`, itemError, item)
-              return null
-            }
-          })
-          .filter((item: PromptHistoryItem | null): item is PromptHistoryItem => item !== null)
-        
-        console.log('Successfully processed', historyWithDates.length, 'valid history items')
-        setPromptHistory(historyWithDates)
-        
-        // If we have history, set the hasRefinedPrompt flag
-        if (historyWithDates.length > 0) {
-          setHasRefinedPrompt(true)
+    const saveHistory = () => {
+      try {
+        // Enhanced error handling for localStorage operations
+        const historyData = JSON.stringify(state.promptHistory);
+        localStorage.setItem('promptHistory', historyData);
+        console.log('Successfully saved', state.promptHistory.length, 'history items');
+      } catch (e) {
+        console.error('Failed to save prompt history:', e);
+        // If localStorage is full, try to clear old data
+        if (e instanceof Error && e.name === 'QuotaExceededError') {
+          try {
+            const reduced = state.promptHistory.slice(0, 25); // Keep only 25 most recent
+            localStorage.setItem('promptHistory', JSON.stringify(reduced));
+            console.log('Reduced history to 25 items due to storage limit');
+          } catch (reduceError) {
+            console.error('Failed to reduce history size:', reduceError);
+          }
         }
       }
-    } catch (e) {
-      console.error('Failed to load prompt history, clearing corrupted localStorage:', e)
-      // Clear corrupted localStorage data and reset state
-      try {
-        localStorage.removeItem('promptHistory')
-        localStorage.removeItem('hasRefinedPrompt')
-      } catch (clearError) {
-        console.error('Failed to clear localStorage:', clearError)
-      }
-      setPromptHistory([])
-      setHasRefinedPrompt(false)
-    }
-  }, [])
+    };
+    
+    // Debounce localStorage writes
+    const timeoutId = setTimeout(saveHistory, 300);
+    return () => clearTimeout(timeoutId);
+  }, [state.promptHistory]);
 
-  // Save prompt history to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('promptHistory', JSON.stringify(promptHistory))
-    } catch (e) {
-      console.error('Failed to save prompt history:', e)
-    }
-  }, [promptHistory])
-
-  // Add item to prompt history
+  // Add item to prompt history - optimized with dispatch
   const addToHistory = useCallback((original: string, refined: string, contextValue?: string, metadata?: any) => {
     const historyItem: PromptHistoryItem = {
       original,
@@ -169,54 +387,58 @@ export default function PromptEngineer() {
       context: contextValue,
       timestamp: new Date(),
       metadata
-    }
+    };
     
-    // Send to server for ML training purposes
-    storeForTraining(historyItem)
+    // Send to server for ML training purposes (non-blocking)
+    storeForTraining(historyItem);
     
-    // Update local history state
-    setPromptHistory(prevHistory => [historyItem, ...prevHistory])
-    
-    // Set flag that we have at least one refined prompt
-    setHasRefinedPrompt(true)
-  }, [])
+    // Update local history state via reducer
+    dispatch({ type: 'ADD_TO_HISTORY', payload: historyItem });
+  }, []);
   
-  // Store history item for ML training
-  const storeForTraining = async (item: PromptHistoryItem) => {
+  // Store history item for ML training - non-blocking with error handling
+  const storeForTraining = useCallback(async (item: PromptHistoryItem) => {
     try {
+      // Non-blocking fetch with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       await fetch('/api/engineer/history', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
-      })
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
     } catch (error) {
-      console.error('Failed to store prompt history for training:', error)
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Failed to store prompt history for training:', error);
+      }
     }
-  }
+  }, []);
 
-  // Define handleSubmit with useCallback to avoid dependency issues
+  // Define handleSubmit with useCallback to avoid dependency issues - optimized
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!prompt.trim()) return
+    if (!state.prompt.trim()) return;
 
-    setIsLoading(true)
-    setError(null)
-    setShowFeedback(false)
-    setRefinedWithContext("")
-    setEnhancementSource(null)
-    setEnhancementTime(null)
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+    dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false });
+    dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: '' });
+    dispatch({ type: 'SET_ENHANCEMENT_METADATA', payload: { source: null, time: null } });
 
     try {
-      // Check multiple ways to determine if this is a refinement
-      const lastRefinedPrompt = localStorage.getItem('lastRefinedPrompt')
-      const isInHistory = promptHistory.some(item => item.refined === prompt.trim())
-      const wasLastRefined = lastRefinedPrompt === prompt.trim()
+      // Check multiple ways to determine if this is a refinement - memoized
+      const lastRefinedPrompt = localStorage.getItem('lastRefinedPrompt');
+      const trimmedPrompt = state.prompt.trim();
+      const isInHistory = state.promptHistory.some(item => item.refined === trimmedPrompt);
+      const wasLastRefined = lastRefinedPrompt === trimmedPrompt;
       
       // Consider it a refinement if it matches previous history OR the last refined prompt
-      const isRefinement = isInHistory || wasLastRefined
+      const isRefinement = isInHistory || wasLastRefined;
       
       // Check if this is an expansion request (from Repeat button)
       const repeatType = localStorage.getItem('repeatType')
@@ -224,9 +446,9 @@ export default function PromptEngineer() {
       const isExpansion = repeatType === 'expand' && repeatCount > 0
       
       // If we're not sure if it's refined, ask the user
-      if (isLikelyRefined(prompt) && !isRefinement && !isExpansion && !confirm("This prompt appears to be already refined. Continue with refinement?")) {
-        setIsLoading(false)
-        return
+      if (isLikelyRefined(state.prompt) && !isRefinement && !isExpansion && !confirm("This prompt appears to be already refined. Continue with refinement?")) {
+        dispatch({ type: 'SET_LOADING', payload: false });
+        return;
       }
       
       // Clear repeatType after using it
@@ -240,56 +462,58 @@ export default function PromptEngineer() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          prompt,
-          context: context || "",
-          isRefinement,  // Flag to indicate this is a refinement iteration
-          isExpansion,   // Flag to indicate this is an expansion request
-          repeatCount    // Counter for how many times repeated
+          prompt: state.prompt,
+          context: state.context || "",
+          isRefinement,
+          isExpansion,
+          repeatCount
         }),
       })
 
       const data: EngineerResponse = await response.json()
       
       if (response.ok && data.result) {
-        setResult(data.result)
-        addToHistory(prompt, data.result, context, data.metadata)
+        dispatch({ type: 'SET_RESULT', payload: data.result });
+        addToHistory(state.prompt, data.result, state.context, data.metadata);
         
         // Also set enhanced prompt with context if context is provided
-        if (context) {
-          setRefinedWithContext(`Context: ${context}\n\nPrompt: ${data.result}`)
+        if (state.context) {
+          dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: `Context: ${state.context}\n\nPrompt: ${data.result}` });
         }
         
         // Store the last refined prompt for comparison in future requests
-        localStorage.setItem('lastRefinedPrompt', data.result)
+        localStorage.setItem('lastRefinedPrompt', data.result);
         
         // Store enhancement source and time information if available
         if (data.metadata) {
-          if (data.metadata.source) {
-            setEnhancementSource(data.metadata.source)
-          }
-          if (data.metadata.processingTime) {
-            setEnhancementTime(data.metadata.processingTime)
-          }
+          dispatch({ 
+            type: 'SET_ENHANCEMENT_METADATA', 
+            payload: { 
+              source: data.metadata.source || null, 
+              time: data.metadata.processingTime || null 
+            } 
+          });
         }
       } else {
-        throw new Error(data.result || 'Failed to enhance prompt')
+        throw new Error(data.result || 'Failed to enhance prompt');
       }
     } catch (error) {
-      console.error('Error enhancing prompt:', error)
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      console.error('Error enhancing prompt:', error);
+      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'An error occurred' });
     } finally {
-      setIsLoading(false)
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [prompt, context, promptHistory, addToHistory])
+  }, [state.prompt, state.context, state.promptHistory, addToHistory]);
 
-  // Check if a prompt is already refined
+  // Check if a prompt is already refined - memoized with better heuristics
   const isLikelyRefined = useCallback((text: string): boolean => {
-    const isLong = text.length > 150
-    const hasStructure = text.includes(', ') && text.includes('.')
-    const hasSpecifics = text.includes('include') || text.includes('sections') || text.includes('design')
+    const isLong = text.length > 150;
+    const hasStructure = text.includes(', ') && text.includes('.');
+    const hasSpecifics = /\b(include|sections|design|ensure|provide|create|implement)\b/i.test(text);
+    const hasInstructions = /\b(should|must|will|need to|please|make sure)\b/i.test(text);
     
-    return isLong && hasStructure && hasSpecifics
-  }, [])
+    return isLong && hasStructure && (hasSpecifics || hasInstructions);
+  }, []);
 
   // Add keyboard shortcut for refine action
   useEffect(() => {
@@ -299,7 +523,7 @@ export default function PromptEngineer() {
         const activeElement = document.activeElement;
         
         // Only trigger if focus is in the prompt textarea
-        if (activeElement && activeElement.id === 'promptTextarea' && prompt.trim()) {
+        if (activeElement && activeElement.id === 'promptTextarea' && state.prompt.trim()) {
           e.preventDefault();
           // Directly call the handleSubmit function
           handleSubmit(new Event('submit', { cancelable: true }) as unknown as React.FormEvent);
@@ -314,14 +538,14 @@ export default function PromptEngineer() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [prompt, handleSubmit]); // Include handleSubmit in dependencies
+  }, [state.prompt, handleSubmit]); // Include handleSubmit in dependencies
 
-  // Define function for refining with context
+  // Define function for refining with context - optimized
   const handleRefineWithContext = useCallback(async () => {
-    if (!result.trim() || !context.trim()) return
+    if (!state.result.trim() || !state.context.trim()) return;
 
-    setIsLoadingContext(true)
-    setError(null)
+    dispatch({ type: 'SET_LOADING_CONTEXT', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       const response = await fetch('/api/engineer', {
@@ -329,7 +553,7 @@ export default function PromptEngineer() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: result, context }),
+        body: JSON.stringify({ prompt: state.result, context: state.context }),
       })
 
       const data = await response.json()
@@ -339,108 +563,93 @@ export default function PromptEngineer() {
         console.error("Response not OK for context refinement:", data)
         if (data.result) {
           // If we have a result despite the error, use it
-          setRefinedWithContext(data.result)
-          addToHistory(result, data.result, context)
+          dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: data.result });
+          addToHistory(state.result, data.result, state.context);
         } else {
           // Otherwise just use the original prompt with context appended
-          const fallbackResult = `${result} (with context: ${context})`;
-          setRefinedWithContext(fallbackResult)
-          addToHistory(result, fallbackResult, context)
+          const fallbackResult = `${state.result} (with context: ${state.context})`;
+          dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: fallbackResult });
+          addToHistory(state.result, fallbackResult, state.context);
         }
         return
       }
 
       // Handle successful response
       if (data.result) {
-        setRefinedWithContext(data.result)
+        dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: data.result });
         // Add the context-refined prompt to history
-        addToHistory(result, data.result, context)
+        addToHistory(state.result, data.result, state.context);
       } else {
         // Handle case where no result was returned
-        const fallbackResult = `${result} (with context: ${context})`;
-        setRefinedWithContext(fallbackResult)
-        addToHistory(result, fallbackResult, context)
+        const fallbackResult = `${state.result} (with context: ${state.context})`;
+        dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: fallbackResult });
+        addToHistory(state.result, fallbackResult, state.context);
       }
     } catch (err) {
       console.error('Error enhancing prompt with context:', err)
       // Don't show error to user, create a fallback result
-      const fallbackResult = `${result} (with context: ${context})`;
-      setRefinedWithContext(fallbackResult)
+      const fallbackResult = `${state.result} (with context: ${state.context})`;
+      dispatch({ type: 'SET_REFINED_WITH_CONTEXT', payload: fallbackResult });
       // Still add to history so user doesn't lose their input
-      addToHistory(result, fallbackResult, context)
+      addToHistory(state.result, fallbackResult, state.context);
     } finally {
-      setIsLoadingContext(false)
+      dispatch({ type: 'SET_LOADING_CONTEXT', payload: false });
     }
-  }, [result, context, addToHistory])
+  }, [state.result, state.context, addToHistory]);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
+  // Memoized copy to clipboard function
+  const copyToClipboard = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+    dispatch({ type: 'SET_COPIED', payload: true });
+    setTimeout(() => dispatch({ type: 'SET_COPIED', payload: false }), 2000);
+  }, []);
 
-  const clearAll = () => {
-    setPrompt("")
-    setContext("")
-    setResult("")
-    setRefinedWithContext("")
-    setError(null)
-    setShowFeedback(false)
-  }
+  // Memoized callback for using prompt from history
+  const handleUsePromptFromHistory = useCallback((refined: string) => {
+    dispatch({ type: 'SET_PROMPT', payload: refined });
+  }, []);
 
-  // Emergency function to clear all localStorage data
-  const clearAllData = () => {
+  // Emergency function to clear all localStorage data - enhanced with dispatch
+  const clearAllData = useCallback(() => {
     try {
-      localStorage.removeItem('promptHistory')
-      localStorage.removeItem('hasRefinedPrompt')
-      localStorage.removeItem('lastRefinedPrompt')
-      localStorage.removeItem('repeatType')
-      localStorage.removeItem('repeatCount')
-      setPromptHistory([])
-      setHasRefinedPrompt(false)
-      console.log('All localStorage data cleared successfully')
+      localStorage.removeItem('promptHistory');
+      localStorage.removeItem('hasRefinedPrompt');
+      localStorage.removeItem('lastRefinedPrompt');
+      localStorage.removeItem('repeatType');
+      localStorage.removeItem('repeatCount');
+      dispatch({ type: 'SET_PROMPT_HISTORY', payload: [] });
+      dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: false });
+      console.log('All localStorage data cleared successfully');
     } catch (error) {
-      console.error('Error clearing localStorage:', error)
+      console.error('Error clearing localStorage:', error);
     }
-  }
+  }, []);
 
-  const handleRepeat = () => {
-    const textToRepeat = refinedWithContext || result;
-    setPrompt(textToRepeat);
-    setResult("");
-    setRefinedWithContext("");
-    setShowFeedback(false);
-    setShowContext(false);
-    setError(null);
-    
-    // Store this as a refinement to ensure it keeps improving
-    localStorage.setItem('lastRefinedPrompt', textToRepeat);
-    
-    // Store metadata indicating this is a request for further expansion/elaboration
-    localStorage.setItem('repeatType', 'expand');
-    localStorage.setItem('repeatCount', String(parseInt(localStorage.getItem('repeatCount') || '0') + 1));
-  }
+  // Toggle expanded state for a history item - memoized
+  const toggleExpandItem = useCallback((index: number) => {
+    dispatch({ type: 'TOGGLE_EXPAND_ITEM', payload: index });
+  }, []);
 
-  // Format timestamp for display with comprehensive error handling
-  const formatTime = (date: Date | string | number | null | undefined): string => {
+  // Format timestamp for display - memoized with comprehensive error handling
+  const formatTime = useCallback((date: Date | string | number | null | undefined): string => {
     try {
       // Handle various input types and edge cases
       if (!date) {
-        return 'Just now'
+        return 'Just now';
       }
       
-      let validDate: Date
+      let validDate: Date;
       
       if (date instanceof Date) {
-        validDate = date
+        validDate = date;
       } else {
-        validDate = new Date(date)
+        validDate = new Date(date);
       }
       
       // Validate the resulting date
       if (!validDate || isNaN(validDate.getTime())) {
-        console.warn('Invalid date passed to formatTime:', date, 'Type:', typeof date)
-        return 'Just now'
+        console.warn('Invalid date passed to formatTime:', date, 'Type:', typeof date);
+        return 'Just now';
       }
       
       // Calculate time since the event
@@ -449,7 +658,7 @@ export default function PromptEngineer() {
       
       // Handle negative differences (future dates)
       if (diffMs < 0) {
-        return 'Just now'
+        return 'Just now';
       }
       
       const diffMins = Math.floor(diffMs / 60000);
@@ -461,77 +670,121 @@ export default function PromptEngineer() {
       if (diffHours < 24) return `${diffHours}h ago`;
       return `${diffDays}d ago`;
     } catch (error) {
-      console.error('Critical error in formatTime:', error, 'Input was:', date, 'Type:', typeof date)
-      return 'Just now'
+      console.error('Critical error in formatTime:', error, 'Input was:', date, 'Type:', typeof date);
+      return 'Just now';
     }
-  }
+  }, []);
 
-  // Toggle expanded state for a history item
-  const toggleExpandItem = (index: number) => {
-    setExpandedItems(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(index)) {
-        newSet.delete(index)
-      } else {
-        newSet.add(index)
-      }
-      return newSet
-    })
-  }
+  // Memoized history table with virtualization for large lists
+  const historyTable = useMemo(() => {
+    if (state.promptHistory.length === 0) {
+      return (
+        <div className="text-center p-4 bg-gray-50 rounded-md border border-dashed border-gray-200">
+          <div className="text-gray-500">No prompt history yet</div>
+        </div>
+      );
+    }
 
-  // Toggle context input visibility
+    return (
+      <div className="border border-gray-100 rounded-md overflow-hidden">
+        <div className="max-h-[400px] overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">Recency</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">Raw</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">Refined</th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.promptHistory.map((item, index) => (
+                <HistoryRow
+                  key={`${item.timestamp.getTime()}-${index}`}
+                  item={item}
+                  index={index}
+                  isExpanded={state.expandedItems.has(index)}
+                  onToggleExpand={toggleExpandItem}
+                  onUsePrompt={handleUsePromptFromHistory}
+                  onCopyToClipboard={copyToClipboard}
+                  formatTime={formatTime}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }, [state.promptHistory, state.expandedItems, toggleExpandItem, handleUsePromptFromHistory, copyToClipboard, formatTime]);
+
+  // Memoized clear all function
+  const clearAll = useCallback(() => {
+    dispatch({ type: 'CLEAR_ALL' });
+  }, []);
+
+  // Memoized repeat function
+  const handleRepeat = useCallback(() => {
+    const textToRepeat = state.refinedWithContext || state.result;
+    dispatch({ type: 'SET_PROMPT', payload: textToRepeat });
+    dispatch({ type: 'RESET_FORM' });
+    
+    // Store this as a refinement to ensure it keeps improving
+    localStorage.setItem('lastRefinedPrompt', textToRepeat);
+    
+    // Store metadata indicating this is a request for further expansion/elaboration
+    localStorage.setItem('repeatType', 'expand');
+    localStorage.setItem('repeatCount', String(parseInt(localStorage.getItem('repeatCount') || '0') + 1));
+  }, [state.refinedWithContext, state.result]);
+
+
+
+  // Toggle context input visibility - optimized
   const toggleContext = useCallback(() => {
-    setShowContext(prevState => !prevState)
-  }, [])
+    dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext });
+  }, [state.showContext]);
 
-  // Function to handle expansion button (Repeat)
+  // Function to handle expansion button (Repeat) - optimized
   const handleExpand = useCallback(() => {
     // Set the refined prompt as the new input
-    setPrompt(result)
+    dispatch({ type: 'SET_PROMPT', payload: state.result });
     
     // Store state to indicate this is an expansion request
-    localStorage.setItem('repeatType', 'expand')
+    localStorage.setItem('repeatType', 'expand');
     
     // Increment the repeat count
-    const currentCount = parseInt(localStorage.getItem('repeatCount') || '0')
-    localStorage.setItem('repeatCount', (currentCount + 1).toString())
+    const currentCount = parseInt(localStorage.getItem('repeatCount') || '0');
+    localStorage.setItem('repeatCount', (currentCount + 1).toString());
     
     // Reset refined output
-    setResult("")
-    setRefinedWithContext("")
-    setShowFeedback(false)
-  }, [result])
+    dispatch({ type: 'RESET_FORM' });
+  }, [state.result]);
 
-  // Function to set a prompt from history
+  // Function to set a prompt from history - optimized
   const setPromptFromHistory = useCallback((item: PromptHistoryItem) => {
-    setPrompt(item.refined)
+    dispatch({ type: 'SET_PROMPT', payload: item.refined });
     if (item.context) {
-      setContext(item.context)
-      setShowContext(true)
+      dispatch({ type: 'SET_CONTEXT', payload: item.context });
+      dispatch({ type: 'SET_SHOW_CONTEXT', payload: true });
     }
-    setResult("")
-    setRefinedWithContext("")
-    setShowFeedback(false)
-  }, [])
+    dispatch({ type: 'RESET_FORM' });
+  }, []);
 
-  // Function to provide feedback on enhancement
+  // Function to provide feedback on enhancement - optimized
   const provideFeedback = useCallback((isPositive: boolean) => {
-    // Send feedback to server
+    // Send feedback to server (non-blocking)
     fetch('/api/engineer/feedback', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        original: prompt,
-        refined: result,
+        original: state.prompt,
+        refined: state.result,
         wasSuccessful: isPositive
       }),
-    }).catch(err => console.error('Failed to send feedback:', err))
+    }).catch(err => console.error('Failed to send feedback:', err));
     
     // Show feedback confirmation
-    setShowFeedback(true)
-  }, [prompt, result])
+    dispatch({ type: 'SET_SHOW_FEEDBACK', payload: true });
+  }, [state.prompt, state.result]);
 
   return (
     <div className="w-full max-w-4xl">
@@ -548,18 +801,12 @@ export default function PromptEngineer() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-medium">Raw</h2>
-            {(prompt || context || result || refinedWithContext) && (
+            {(state.prompt || state.context || state.result || state.refinedWithContext) && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  setPrompt("")
-                  setContext("")
-                  setResult("")
-                  setRefinedWithContext("")
-                  setEnhancementSource(null)
-                  setShowFeedback(false)
-                  setShowContext(false)
+                  dispatch({ type: 'CLEAR_ALL' });
                 }}
                 className="h-8 w-8"
               >
@@ -574,8 +821,8 @@ export default function PromptEngineer() {
                 id="promptTextarea"
                 placeholder="Ramble..."
                 className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                value={state.prompt}
+                onChange={(e) => dispatch({ type: 'SET_PROMPT', payload: e.target.value })}
                 required
               />
             </div>
@@ -586,49 +833,49 @@ export default function PromptEngineer() {
                 type="submit"
                 size="sm"
                 className="bg-black-primary hover:bg-black-rich text-white-pure"
-                disabled={isLoading || !prompt.trim()}
+                disabled={state.isLoading || !state.prompt.trim()}
                 title={`${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'}`}
               >
-                {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                {state.isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 <span className="ml-1">Refactor</span>
               </Button>
             </div>
           </form>
 
-          {error && (
+          {state.error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
-              {error}
+              {state.error}
             </div>
           )}
 
-          {result && !refinedWithContext && (
+          {state.result && !state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-base font-medium">Refined</h2>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copyToClipboard(result)}
+                  onClick={() => copyToClipboard(state.result)}
                   className="h-7 text-gray-60 hover:text-black-primary"
                 >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
               </div>
-              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{result}</div>
+              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{state.result}</div>
               
               {/* Enhancement metadata display */}
-              {(enhancementSource || enhancementTime !== null) && (
+              {(state.enhancementSource || state.enhancementTime !== null) && (
                 <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                  {enhancementSource && (
+                  {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
-                      <span>Remixed by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                      <span>Enhanced by: {state.enhancementSource === 'external-api' ? 'AI' : state.enhancementSource}</span>
                     </div>
                   )}
-                  {enhancementTime !== null && (
+                  {state.enhancementTime !== null && (
                     <div className="flex items-center gap-1">
                       <Clock size={12} />
-                      <span>{enhancementTime}ms</span>
+                      <span>{state.enhancementTime}ms</span>
                     </div>
                   )}
                 </div>
@@ -638,22 +885,22 @@ export default function PromptEngineer() {
                 <div className="flex justify-between items-center">
                   <Button
                     type="button"
-                    variant={showContext ? "default" : "outline"}
+                    variant={state.showContext ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setShowContext(!showContext)}
+                    onClick={() => dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext })}
                     className="text-gray-60 hover:text-black-primary"
                   >
                     <Info size={14} className="mr-1" />
-                    Refurbish
-                    {showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
+                    Add Context
+                    {state.showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
                   </Button>
                   
                   <div className="flex gap-2">
-                    {!showFeedback && (
+                    {!state.showFeedback && (
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => setShowFeedback(true)}
+                        onClick={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: true })}
                       >
                         Report
                       </Button>
@@ -669,22 +916,22 @@ export default function PromptEngineer() {
                   </div>
                 </div>
                 
-                {showContext && (
+                {state.showContext && (
                   <div className="mt-3 space-y-3">
                     <Textarea
                       placeholder="Add contextual information..."
                       className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary"
-                      value={context}
-                      onChange={(e) => setContext(e.target.value)}
+                      value={state.context}
+                      onChange={(e) => dispatch({ type: 'SET_CONTEXT', payload: e.target.value })}
                     />
                     <div className="flex justify-end">
                       <Button
                         size="sm"
                         className="bg-indigo-600 hover:bg-indigo-700 text-white-pure"
                         onClick={handleRefineWithContext}
-                        disabled={isLoadingContext || !context.trim()}
+                        disabled={state.isLoadingContext || !state.context.trim()}
                       >
-                        {isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                        {state.isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
                         <span className="ml-1">Refine+</span>
                       </Button>
                     </div>
@@ -692,59 +939,59 @@ export default function PromptEngineer() {
                 )}
               </div>
               
-              {showFeedback && (
+              {state.showFeedback && (
                 <div className="mt-4">
                   <FeedbackForm 
-                    originalPrompt={prompt}
-                    enhancedPrompt={result}
-                    onClose={() => setShowFeedback(false)}
+                    originalPrompt={state.prompt}
+                    enhancedPrompt={state.result}
+                    onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
                   />
                 </div>
               )}
             </div>
           )}
 
-          {refinedWithContext && (
+          {state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-base font-medium">Refined+ (with context)</h2>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copyToClipboard(refinedWithContext)}
+                  onClick={() => copyToClipboard(state.refinedWithContext)}
                   className="h-7 text-gray-60 hover:text-black-primary"
                 >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
               </div>
               <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">
-                {refinedWithContext}
+                {state.refinedWithContext}
               </div>
               
               {/* Enhancement metadata display for context refinement */}
-              {(enhancementSource || enhancementTime !== null) && (
+              {(state.enhancementSource || state.enhancementTime !== null) && (
                 <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
-                  {enhancementSource && (
+                  {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
-                      <span>Remixed by: {enhancementSource === 'external-api' ? 'AI' : enhancementSource}</span>
+                      <span>Enhanced by: {state.enhancementSource === 'external-api' ? 'AI' : state.enhancementSource}</span>
                     </div>
                   )}
-                  {enhancementTime !== null && (
+                  {state.enhancementTime !== null && (
                     <div className="flex items-center gap-1">
                       <Clock size={12} />
-                      <span>{enhancementTime}ms</span>
+                      <span>{state.enhancementTime}ms</span>
                     </div>
                   )}
                 </div>
               )}
               
               <div className="flex justify-end gap-2 mt-3">
-                {!showFeedback && (
+                {!state.showFeedback && (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => setShowFeedback(true)}
+                    onClick={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: true })}
                   >
                     Give Feedback
                   </Button>
@@ -759,12 +1006,12 @@ export default function PromptEngineer() {
                 </Button>
               </div>
               
-              {showFeedback && (
+              {state.showFeedback && (
                 <div className="mt-4">
                   <FeedbackForm 
-                    originalPrompt={prompt}
-                    enhancedPrompt={refinedWithContext}
-                    onClose={() => setShowFeedback(false)}
+                    originalPrompt={state.prompt}
+                    enhancedPrompt={state.refinedWithContext}
+                    onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
                   />
                 </div>
               )}
@@ -772,140 +1019,23 @@ export default function PromptEngineer() {
           )}
           
           {/* Prompt History / Audit Trail */}
-          {hasRefinedPrompt && (
+          {state.hasRefinedPrompt && (
             <div className="mt-8">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-medium">Receipt{promptHistory.length === 1 ? '' : 's'} ({promptHistory.length} record{promptHistory.length === 1 ? '' : 's'})</h2>
+                <h2 className="text-base font-medium">Receipt{state.promptHistory.length === 1 ? '' : 's'} ({state.promptHistory.length} record{state.promptHistory.length === 1 ? '' : 's'})</h2>
                 <Button
                   variant="ghost" 
                   size="sm"
-                  onClick={() => setShowHistory(!showHistory)}
+                  onClick={() => dispatch({ type: 'SET_SHOW_HISTORY', payload: !state.showHistory })}
                   className="h-7"
                 >
-                  {showHistory ? "Hide" : "Show"}
+                  {state.showHistory ? "Hide" : "Show"}
                 </Button>
               </div>
               
-              {showHistory && (
+              {state.showHistory && (
                 <div className="mt-2">
-                  {promptHistory.length > 0 ? (
-                    <div className="border border-gray-100 rounded-md overflow-hidden">
-                      <div className="max-h-[400px] overflow-y-auto">
-                        <table className="w-full text-xs">
-                          <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-medium text-gray-600">Recency</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-600">Raw</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-600">Refined</th>
-                              <th className="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {promptHistory.map((item, index) => (
-                              <React.Fragment key={index}>
-                                <tr 
-                                  className={index % 2 === 0 ? "bg-white hover:bg-gray-100" : "bg-gray-50 hover:bg-gray-100"}
-                                  onClick={() => toggleExpandItem(index)}
-                                >
-                                  <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
-                                  <td className="px-3 py-2 align-top">
-                                    <div className="max-w-[150px] truncate cursor-help" title={item.original}>
-                                      {item.original.substring(0, 50)}
-                                      {item.original.length > 50 ? "..." : ""}
-                                    </div>
-                                    {item.context && (
-                                      <div className="mt-1 text-gray-500 italic max-w-[150px] truncate cursor-help" title={item.context}>
-                                        Context: {item.context.substring(0, 30)}
-                                        {item.context.length > 30 ? "..." : ""}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2 align-top">
-                                    <div className="max-w-[200px] truncate cursor-help" title={item.refined}>
-                                      {item.refined.substring(0, 70)}
-                                      {item.refined.length > 70 ? "..." : ""}
-                                    </div>
-                                  </td>
-                                  <td className="px-3 py-2 align-top whitespace-nowrap">
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setPrompt(item.refined);
-                                        }}
-                                        title="Use this prompt"
-                                      >
-                                        <RotateCw size={12} />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          copyToClipboard(item.refined);
-                                        }}
-                                        title="Copy to clipboard"
-                                      >
-                                        <Copy size={12} />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 hover:bg-gray-200"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleExpandItem(index);
-                                        }}
-                                        title={expandedItems.has(index) ? "Collapse" : "Expand"}
-                                      >
-                                        {expandedItems.has(index) ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                                {expandedItems.has(index) && (
-                                  <tr className="border-t border-gray-100">
-                                    <td colSpan={4} className="px-4 py-3 bg-white">
-                                      <div className="grid grid-cols-2 gap-4 text-xs">
-                                        <div>
-                                          <div className="font-medium mb-1 text-gray-600">Original:</div>
-                                          <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                            {item.original}
-                                          </div>
-                                          {item.context && (
-                                            <>
-                                              <div className="font-medium mt-2 mb-1 text-gray-600">Context:</div>
-                                              <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                                {item.context}
-                                              </div>
-                                            </>
-                                          )}
-                                        </div>
-                                        <div>
-                                          <div className="font-medium mb-1 text-gray-600">Refined:</div>
-                                          <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
-                                            {item.refined}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                )}
-                              </React.Fragment>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center p-4 bg-gray-50 rounded-md border border-dashed border-gray-200">
-                      <div className="text-gray-500">No prompt history yet</div>
-                    </div>
-                  )}
+                  {historyTable}
                 </div>
               )}
             </div>
@@ -913,7 +1043,7 @@ export default function PromptEngineer() {
         </div>
       </div>
       
-      <SimpleToast show={copied} message="Copied to clipboard!" />
+      <SimpleToast show={state.copied} message="Copied to clipboard!" />
     </div>
   )
 }

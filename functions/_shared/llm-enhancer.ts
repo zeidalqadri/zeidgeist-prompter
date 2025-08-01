@@ -1,4 +1,4 @@
-// Simplified LLM enhancer for Cloudflare Functions
+// Optimized LLM enhancer for Cloudflare Functions with sophisticated analysis
 
 interface EnhancementResponse {
   enhancedPrompt: string;
@@ -6,8 +6,221 @@ interface EnhancementResponse {
   metadata?: Record<string, unknown>;
 }
 
-// Simple local enhancement as fallback
-function enhanceLocally(prompt: string, context?: string, options: any = {}): EnhancementResponse {
+interface EnhancementOptions {
+  isRefinement?: boolean;
+  isExpansion?: boolean;
+  repeatCount?: number;
+  env?: Record<string, string>;
+}
+
+// Sophisticated analysis functions ported from client-side enhancer
+
+// Function to check if a prompt is already refined
+function isAlreadyRefined(prompt: string): boolean {
+  // Enhanced refinement detection with multiple criteria
+  if (prompt.length < 100) {
+    return false; // Short prompts are likely not refined
+  }
+  
+  // Structure indicators - refined prompts have clear organization
+  const hasNumberedList = /\d+\.\s/.test(prompt);
+  const hasBulletPoints = /[•\-\*]\s/.test(prompt);
+  const hasColonSeparation = prompt.includes(':') && prompt.includes(',');
+  const hasMultipleSentences = (prompt.match(/\.\s/g) || []).length >= 3;
+  
+  // Specificity indicators - refined prompts contain detailed instructions
+  const specificityKeywords = [
+    'include', 'ensure', 'incorporate', 'consider', 'address', 'provide',
+    'comprehensive', 'detailed', 'specific', 'professional', 'clear',
+    'sections', 'requirements', 'guidelines', 'specifications', 'criteria'
+  ];
+  
+  const specificityScore = specificityKeywords.reduce((score, keyword) => {
+    return score + (prompt.toLowerCase().includes(keyword) ? 1 : 0);
+  }, 0);
+  
+  // Domain-specific refinement indicators
+  const hasInstructionalLanguage = /\b(should|must|need to|required|essential)\b/i.test(prompt);
+  const hasActionableItems = /\b(create|design|develop|implement|establish|organize)\b/i.test(prompt);
+  
+  // Quality indicators - refined prompts often have these characteristics
+  const hasContextSetup = prompt.toLowerCase().includes('context') || 
+                         prompt.toLowerCase().includes('background') ||
+                         prompt.toLowerCase().includes('considering');
+  
+  // Calculate refinement confidence score
+  let refinementScore = 0;
+  
+  // Structure scoring
+  if (hasNumberedList) refinementScore += 3;
+  if (hasBulletPoints) refinementScore += 2;
+  if (hasColonSeparation) refinementScore += 2;
+  if (hasMultipleSentences) refinementScore += 2;
+  
+  // Specificity scoring
+  refinementScore += Math.min(specificityScore, 4); // Cap at 4 points
+  
+  // Language quality scoring
+  if (hasInstructionalLanguage) refinementScore += 2;
+  if (hasActionableItems) refinementScore += 1;
+  if (hasContextSetup) refinementScore += 1;
+  
+  // Length bonus for very detailed prompts
+  if (prompt.length > 300) refinementScore += 2;
+  if (prompt.length > 500) refinementScore += 1;
+  
+  // Threshold for considering a prompt "already refined"
+  const isRefined = refinementScore >= 8;
+  
+  return isRefined;
+}
+
+// Minimal enhancement for already-refined prompts
+function minimalEnhance(prompt: string, context?: string): string {
+  let enhanced = prompt;
+  
+  // Fix punctuation and formatting issues
+  enhanced = enhanced.replace(/\s+/g, ' ').trim();
+  enhanced = enhanced.replace(/\.\s*,/g, '.');
+  enhanced = enhanced.replace(/,,/g, ',');
+  enhanced = enhanced.replace(/\.\./g, '.');
+  
+  // Ensure it ends with proper punctuation
+  if (!enhanced.endsWith('.') && !enhanced.endsWith('!') && !enhanced.endsWith('?')) {
+    enhanced += '.';
+  }
+  
+  // Add context if relevant and not already included
+  if (context && !prompt.toLowerCase().includes(context.toLowerCase())) {
+    // Check if the context should be added
+    if (context.length < prompt.length / 2) {
+      // Find a natural place to insert the context
+      const insertPoint = enhanced.indexOf(', ') + 2;
+      if (insertPoint > 2) {
+        enhanced = enhanced.slice(0, insertPoint) + 
+                  'considering ' + context + ', ' + 
+                  enhanced.slice(insertPoint);
+      }
+    }
+  }
+  
+  return enhanced;
+}
+
+// Domain-specific enhancement
+function enhanceByDomain(prompt: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Extract the core subject after "for" if it exists
+  let subject = prompt;
+  if (prompt.includes(' for ')) {
+    subject = prompt.split(' for ')[1].trim();
+  } else if (prompt.includes('website')) {
+    subject = prompt.replace('website', '').trim();
+  }
+  
+  // Website domain with profession detection
+  if (lowerPrompt.includes('website') || lowerPrompt.includes('webpage') || lowerPrompt.includes('site')) {
+    // Academic/Professor profiles
+    if (lowerPrompt.includes('professor') || lowerPrompt.includes('academic') || 
+        lowerPrompt.includes('university') || lowerPrompt.includes('faculty') ||
+        lowerPrompt.includes('lecturer') || lowerPrompt.includes('researcher')) {
+      
+      // Detect if it's also a healthcare professional
+      let academicHealthcareContent = "";
+      if (lowerPrompt.includes('doctor') || lowerPrompt.includes('dentist') || 
+          lowerPrompt.includes('orthodontist') || lowerPrompt.includes('medical')) {
+        academicHealthcareContent = "\n9. Patient care services and clinic information\n10. Integration between clinical practice and academic research";
+      }
+      
+      return `Design a professional website for ${subject}. Include sections for:
+1. Academic biography and research interests
+2. Publications and scholarly works with downloadable papers
+3. Courses taught and teaching philosophy
+4. Research projects and laboratory information
+5. Student resources and mentorship opportunities
+6. CV/resume with academic appointments and honors
+7. Conference presentations and upcoming speaking engagements
+8. Contact information and office hours${academicHealthcareContent}`;
+    }
+    
+    // Medical/Healthcare professionals
+    if (lowerPrompt.includes('doctor') || lowerPrompt.includes('physician') || 
+        lowerPrompt.includes('dentist') || lowerPrompt.includes('orthodontist') ||
+        lowerPrompt.includes('clinic') || lowerPrompt.includes('medical') ||
+        lowerPrompt.includes('healthcare')) {
+      return `Design a professional website for ${subject}. Include sections for:
+1. Services and treatments offered with detailed descriptions
+2. Professional credentials, education, and certifications
+3. Patient testimonials and success stories
+4. Before-and-after galleries (where appropriate)
+5. Insurance information and payment options
+6. Easy-to-use appointment scheduling system
+7. Resource library for patient education
+8. Contact information and office location/hours`;
+    }
+    
+    if (lowerPrompt.includes('restaurant') || lowerPrompt.includes('cafe') || lowerPrompt.includes('bakery')) {
+      return `Design an appealing website for ${subject}.` +
+             ' Include sections for menu, location information, opening hours, photo gallery of food and ambiance, ' +
+             'customer reviews, and an online reservation system.';
+    }
+    
+    return `Design a professional website for ${subject}.` +
+           ' Include sections for services, about us information, contact details, testimonials/reviews, and a ' +
+           'clean modern design that reflects the brand identity.';
+  }
+  
+  // Writing domain
+  if (lowerPrompt.includes('write') || lowerPrompt.includes('essay') || lowerPrompt.includes('article')) {
+    return `${prompt} with a clear structure including introduction, main points with supporting evidence, and a strong conclusion. ` +
+           'Ensure the content is well-researched, engaging, and tailored to the target audience.';
+  }
+  
+  // Default - return empty to let the caller add generic enhancements
+  return '';
+}
+
+// Enhanced local enhancement with intelligent analysis
+function enhanceLocally(prompt: string, context?: string, options: EnhancementOptions = { env: {} }): EnhancementResponse {
+  const startTime = Date.now();
+  
+  // Check if prompt is already refined
+  if (!options.isRefinement && isAlreadyRefined(prompt)) {
+    console.log('Prompt appears already refined, applying minimal enhancement');
+    const enhanced = minimalEnhance(prompt, context);
+    return {
+      enhancedPrompt: enhanced,
+      source: 'local',
+      metadata: { 
+        processingTime: Date.now() - startTime,
+        enhancementType: 'minimal',
+        alreadyRefined: true
+      }
+    };
+  }
+  
+  // Try domain-specific enhancement first
+  const domainEnhanced = enhanceByDomain(prompt);
+  if (domainEnhanced) {
+    let enhanced = domainEnhanced;
+    
+    // Add context if provided
+    if (context && context.trim()) {
+      enhanced = `Context: ${context}\n\nPrompt: ${enhanced}`;
+    }
+    
+    return {
+      enhancedPrompt: enhanced,
+      source: 'local',
+      metadata: { 
+        processingTime: Date.now() - startTime,
+        enhancementType: 'domain-specific'
+      }
+    };
+  }
+  
+  // Generic enhancement fallback
   let enhanced = prompt;
   
   // Basic improvements
@@ -15,11 +228,7 @@ function enhanceLocally(prompt: string, context?: string, options: any = {}): En
     enhanced += '.';
   }
   
-  // Add some basic enhancement based on options
-  if (options.isRefinement) {
-    enhanced = `Refined: ${enhanced}`;
-  }
-  
+  // Add expansion if requested
   if (options.isExpansion) {
     enhanced = `${enhanced} Please provide detailed analysis and comprehensive coverage of this topic.`;
   }
@@ -32,7 +241,10 @@ function enhanceLocally(prompt: string, context?: string, options: any = {}): En
   return {
     enhancedPrompt: enhanced,
     source: 'local',
-    metadata: { processingTime: 1 }
+    metadata: { 
+      processingTime: Date.now() - startTime,
+      enhancementType: 'generic'
+    }
   };
 }
 
@@ -336,5 +548,5 @@ export async function enhancePrompt(
 
   // Fallback to local enhancement if all providers fail
   console.log('🔄 All external providers failed, using local enhancement');
-  return enhanceLocally(prompt, context, options);
+  return enhanceLocally(prompt, context, { ...options, env: options.env || {} });
 }
