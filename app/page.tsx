@@ -1,4 +1,5 @@
 import PromptEngineer from "../components/prompt-engineer"
+import ErrorBoundary from "../components/ErrorBoundary"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <main className="min-h-screen bg-white-pure flex items-center justify-center p-4">
-      <PromptEngineer />
+      <ErrorBoundary>
+        <PromptEngineer />
+      </ErrorBoundary>
     </main>
   )
 }

@@ -307,7 +307,26 @@ export default function PromptEngineer() {
       if (response.ok) {
         const data = await response.json();
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-          dispatch({ type: 'SET_PROMPT_HISTORY', payload: data.items });
+          // Convert timestamp strings to Date objects with error handling
+          const itemsWithDates = data.items.map((item: any) => {
+            try {
+              const timestamp = item.timestamp instanceof Date 
+                ? item.timestamp 
+                : new Date(item.timestamp);
+              
+              // Validate the timestamp
+              if (isNaN(timestamp.getTime())) {
+                console.warn('Invalid timestamp in API data:', item.timestamp);
+                return { ...item, timestamp: new Date() };
+              }
+              
+              return { ...item, timestamp };
+            } catch (error) {
+              console.error('Error converting timestamp:', error, item);
+              return { ...item, timestamp: new Date() };
+            }
+          });
+          dispatch({ type: 'SET_PROMPT_HISTORY', payload: itemsWithDates });
           dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: true });
           console.log(`Loaded ${data.items.length} history items`);
         }
@@ -328,10 +347,24 @@ export default function PromptEngineer() {
         const savedHistory = localStorage.getItem('promptHistory');
         if (savedHistory) {
           const parsedHistory = JSON.parse(savedHistory);
-          const historyWithDates = parsedHistory.map((item: any) => ({
-            ...item,
-            timestamp: new Date(item.timestamp)
-          }));
+          const historyWithDates = parsedHistory.map((item: any) => {
+            try {
+              const timestamp = item.timestamp instanceof Date 
+                ? item.timestamp 
+                : new Date(item.timestamp);
+              
+              // Validate the timestamp
+              if (isNaN(timestamp.getTime())) {
+                console.warn('Invalid timestamp in localStorage:', item.timestamp);
+                return { ...item, timestamp: new Date() };
+              }
+              
+              return { ...item, timestamp };
+            } catch (error) {
+              console.error('Error converting localStorage timestamp:', error, item);
+              return { ...item, timestamp: new Date() };
+            }
+          });
           dispatch({ type: 'SET_PROMPT_HISTORY', payload: historyWithDates });
           
           if (historyWithDates.length > 0) {
@@ -698,18 +731,32 @@ export default function PromptEngineer() {
               </tr>
             </thead>
             <tbody>
-              {state.promptHistory.map((item, index) => (
-                <HistoryRow
-                  key={`${item.timestamp.getTime()}-${index}`}
+              {state.promptHistory.map((item, index) => {
+                // Defensive timestamp handling for React key
+                const getTimestampKey = (timestamp: any): number => {
+                  if (timestamp instanceof Date) {
+                    return timestamp.getTime();
+                  } else if (typeof timestamp === 'string') {
+                    return new Date(timestamp).getTime();
+                  } else if (typeof timestamp === 'number') {
+                    return timestamp;
+                  }
+                  return Date.now(); // Fallback
+                };
+                
+                return (
+                  <HistoryRow
+                    key={`${getTimestampKey(item.timestamp)}-${index}`}
                   item={item}
                   index={index}
                   isExpanded={state.expandedItems.has(index)}
                   onToggleExpand={toggleExpandItem}
                   onUsePrompt={handleUsePromptFromHistory}
                   onCopyToClipboard={copyToClipboard}
-                  formatTime={formatTime}
-                />
-              ))}
+                    formatTime={formatTime}
+                  />
+                );
+              })}
             </tbody>
           </table>
         </div>

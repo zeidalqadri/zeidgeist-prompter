@@ -8,3 +8,14 @@ compatibility_flags = ["nodejs_compat"]
 # Environment variables
 [vars]
 NODE_ENV = "production"
+
+# Scheduled triggers for learning cycles
+[[triggers.crons]]
+# Run learning cycle every 24 hours at 2 AM UTC
+crons = ["0 2 * * *"]
+
+# Alternative: Run every 6 hours for more frequent learning
+# crons = ["0 */6 * * *"]
+
+# For testing: Run every 5 minutes
+# crons = ["*/5 * * * *"]

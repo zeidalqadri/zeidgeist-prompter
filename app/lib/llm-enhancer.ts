@@ -3,6 +3,10 @@
 
 import { trainingExamples } from './training-data';
 import { enhancePrompt as localEnhance } from './prompt-enhancer-v2';
+import { db, enhancementLogs, feedback } from './db';
+import { AdaptiveEnhancer } from './learning/adaptive-enhancer';
+import { LearningService } from './learning/learning-service';
+import { eq, desc } from 'drizzle-orm';
 
 // Interface for API configuration
 interface LLMConfig {
@@ -319,6 +323,20 @@ export async function enhancePrompt(
       return '';
     }
     
+    // Try adaptive enhancer first (uses learned patterns)
+    const adaptiveEnhancer = new AdaptiveEnhancer();
+    const adaptiveResult = await adaptiveEnhancer.enhance(promptString);
+    
+    if (adaptiveResult.source === 'learned' && adaptiveResult.confidence >= 0.8) {
+      console.log('Using learned pattern enhancement with high confidence:', adaptiveResult.confidence);
+      // Store this as a successful local enhancement
+      await storeEnhancementExample(promptString, contextString, adaptiveResult.enhanced, 'local');
+      return adaptiveResult.enhanced;
+    } else if (adaptiveResult.source === 'hybrid' && adaptiveResult.confidence >= 0.6) {
+      console.log('Using hybrid enhancement with moderate confidence:', adaptiveResult.confidence);
+      return adaptiveResult.enhanced;
+    }
+    
     // Check if this is already a refined prompt (to prevent re-refinement issues)
     // Skip this check if isRefinement is true - we always want to enhance on repeat
     if (!isRefinement && isAlreadyRefined(promptString)) {
@@ -346,7 +364,7 @@ export async function enhancePrompt(
         }
         
         // Store this result for training our own engine
-        storeEnhancementExample(promptString, contextString, result.enhancedPrompt);
+        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'deepseek');
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('DeepSeek API failed, falling back to Mistral:', error);
@@ -364,7 +382,7 @@ export async function enhancePrompt(
         }
         
         // Store this result for training our own engine
-        storeEnhancementExample(promptString, contextString, result.enhancedPrompt);
+        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'mistral');
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('Mistral API failed, falling back to Gemini:', error);
@@ -382,7 +400,7 @@ export async function enhancePrompt(
         }
         
         // Store this result for training our own engine
-        storeEnhancementExample(promptString, contextString, result.enhancedPrompt);
+        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'gemini');
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('Gemini API failed, falling back to local engine:', error);
@@ -662,22 +680,46 @@ const enhancementExamples: Array<{
 /**
  * Store enhancement examples from external APIs for training
  */
-function storeEnhancementExample(
+async function storeEnhancementExample(
   rawPrompt: string,
   context: string | undefined,
-  enhancedPrompt: string
-): void {
-  enhancementExamples.push({
-    rawPrompt,
-    context,
-    enhancedPrompt,
-    timestamp: new Date()
-  });
-  
-  // If we have a lot of examples, we might want to save them to a file or database
-  if (enhancementExamples.length >= 10) {
-    console.log(`Collected ${enhancementExamples.length} enhancement examples for training`);
-    // In a production system, you would save these to a persistent storage
+  enhancedPrompt: string,
+  source: string = 'external'
+): Promise<void> {
+  try {
+    // Store in database
+    await db.insert(enhancementLogs).values({
+      originalPrompt: rawPrompt,
+      enhancedPrompt: enhancedPrompt,
+      promptLength: rawPrompt.length,
+      hasContext: !!context,
+      isRefinement: false,
+      isExpansion: false,
+      source: source,
+      enhancementModel: source,
+      responseTime: 0, // Will be updated by the caller
+      context: JSON.stringify({ context }),
+      createdAt: new Date(),
+    });
+
+    // Also store in memory for immediate access
+    enhancementExamples.push({
+      rawPrompt,
+      context,
+      enhancedPrompt,
+      timestamp: new Date()
+    });
+    
+    // Trigger learning cycle if we have enough examples
+    if (enhancementExamples.length >= 50) {
+      console.log(`Collected ${enhancementExamples.length} enhancement examples, triggering learning cycle`);
+      const learningService = new LearningService();
+      learningService.runLearningCycle().catch(console.error);
+      // Clear memory after learning
+      enhancementExamples.length = 0;
+    }
+  } catch (error) {
+    console.error('Error storing enhancement example:', error);
   }
 }
 
@@ -688,16 +730,45 @@ export async function processEnhancementFeedback(
   originalPrompt: string,
   enhancedPrompt: string,
   wasSuccessful: boolean,
-  feedback?: string
+  feedbackText?: string,
+  score: number = wasSuccessful ? 5 : 1
 ): Promise<void> {
-  // Store feedback for learning
-  console.log('Enhancement feedback:', {
-    originalPrompt,
-    enhancedPrompt,
-    wasSuccessful,
-    feedback
-  });
-  
-  // In a production system, this would be stored in a database
-  // and used for model fine-tuning or rule adjustments
+  try {
+    // Find the enhancement log entry
+    const logs = await db
+      .select()
+      .from(enhancementLogs)
+      .where(eq(enhancementLogs.originalPrompt, originalPrompt))
+      .orderBy(desc(enhancementLogs.createdAt))
+      .limit(1);
+
+    if (logs.length > 0) {
+      // Store feedback in database
+      await db.insert(feedback).values({
+        enhancementId: logs[0].id,
+        originalPrompt: originalPrompt,
+        enhancedPrompt: enhancedPrompt,
+        wasSuccessful: wasSuccessful,
+        score: score,
+        feedbackText: feedbackText,
+        createdAt: new Date(),
+      });
+
+      // If positive feedback, trigger immediate pattern extraction
+      if (wasSuccessful && score >= 4) {
+        const learningService = new LearningService();
+        // Extract pattern from this specific enhancement
+        await learningService.runLearningCycle();
+      }
+    }
+    
+    console.log('Enhancement feedback stored:', {
+      originalPrompt,
+      wasSuccessful,
+      score,
+      feedback: feedbackText
+    });
+  } catch (error) {
+    console.error('Error processing enhancement feedback:', error);
+  }
 } 
