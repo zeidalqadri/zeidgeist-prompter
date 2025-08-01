@@ -1,14 +1,15 @@
 import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
 import { enhancePrompt } from "../_shared/llm-enhancer"
+import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
     },
   })
 }
@@ -17,22 +18,20 @@ export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context
   const startTime = Date.now()
   
-  // Debug: Check API key values
-  console.log('🔍 API Key debugging:', {
-    claudeLength: env.CLAUDE_API_KEY?.length || 0,
-    openaiLength: env.OPENAI_API_KEY?.length || 0,
-    claudeExists: !!env.CLAUDE_API_KEY,
-    openaiExists: !!env.OPENAI_API_KEY,
-    claudeType: typeof env.CLAUDE_API_KEY,
-    openaiType: typeof env.OPENAI_API_KEY
-  })
+  // Removed debug logging for security
   
   // Add CORS headers
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
     'Content-Type': 'application/json'
+  }
+
+  // Validate authentication and rate limiting
+  const authResult = validateRequest(request, env, '/api/engineer');
+  if (!authResult.success) {
+    return createAuthErrorResponse(authResult.error!, corsHeaders);
   }
   
   try {
@@ -70,7 +69,6 @@ export async function onRequestPost(context: any): Promise<Response> {
     // Process the prompt using our LLM-based enhancer
     try {
       console.log('🔧 Calling enhancePrompt function...');
-      console.log('🔍 Environment keys available:', Object.keys(env));
       const enhancementResponse = await enhancePrompt(
         trimmedPrompt, 
         context || "", 
@@ -107,22 +105,7 @@ export async function onRequestPost(context: any): Promise<Response> {
           processingTime,
           originalLength: trimmedPrompt.length,
           enhancedLength: enhancementResponse.enhancedPrompt.length,
-          debugEnvKeys: Object.keys(env),
-          debugHasKeys: {
-            claude: !!env.CLAUDE_API_KEY,
-            openai: !!env.OPENAI_API_KEY,
-            deepseek: !!env.DEEPSEEK_API_KEY,
-            mistral: !!env.MISTRAL_API_KEY,
-            moonshot: !!env.MOONSHOT_API_KEY
-          },
-          debugKeyDetails: {
-            claudeLength: env.CLAUDE_API_KEY?.length || 0,
-            openaiLength: env.OPENAI_API_KEY?.length || 0,
-            claudeType: typeof env.CLAUDE_API_KEY,
-            openaiType: typeof env.OPENAI_API_KEY,
-            claudeFirstChar: env.CLAUDE_API_KEY?.[0] || 'none',
-            openaiFirstChar: env.OPENAI_API_KEY?.[0] || 'none'
-          }
+          // Debug information removed for security
         }
       }), {
         headers: corsHeaders
@@ -130,7 +113,6 @@ export async function onRequestPost(context: any): Promise<Response> {
     } catch (enhancementError) {
       console.error("❌ Error enhancing prompt:", {
         message: enhancementError instanceof Error ? enhancementError.message : String(enhancementError),
-        stack: enhancementError instanceof Error ? enhancementError.stack : undefined,
         name: enhancementError instanceof Error ? enhancementError.name : 'Unknown'
       })
       
@@ -150,9 +132,7 @@ export async function onRequestPost(context: any): Promise<Response> {
         metadata: {
           source: 'fallback-error',
           processingTime,
-          hadError: true,
-          errorMessage: enhancementError instanceof Error ? enhancementError.message : String(enhancementError),
-          errorName: enhancementError instanceof Error ? enhancementError.name : 'Unknown'
+          hadError: true
         }
       }), {
         headers: corsHeaders
@@ -162,7 +142,6 @@ export async function onRequestPost(context: any): Promise<Response> {
     console.error("Critical error processing request:", error)
     console.error("Error details:", {
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
       name: error instanceof Error ? error.name : 'Unknown'
     })
     
@@ -174,8 +153,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       metadata: {
         source: 'error-handler',
         processingTime,
-        hadCriticalError: true,
-        errorMessage: error instanceof Error ? error.message : String(error)
+        hadCriticalError: true
       }
     }), {
       status: 200, // Use 200 to avoid showing error UI
