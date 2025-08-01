@@ -42,7 +42,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
       },
     });
   } catch (error) {
@@ -51,14 +51,14 @@ export async function onRequestPost(context: any): Promise<Response> {
     const errorResponse = {
       success: false,
       error: 'Failed to trigger learning cycle',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      // Error details removed for security
     };
 
     return new Response(JSON.stringify(errorResponse), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
       },
     });
   }
