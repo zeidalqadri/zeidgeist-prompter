@@ -307,7 +307,12 @@ export default function PromptEngineer() {
       if (response.ok) {
         const data = await response.json();
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-          dispatch({ type: 'SET_PROMPT_HISTORY', payload: data.items });
+          // Convert timestamp strings to Date objects
+          const itemsWithDates = data.items.map((item: any) => ({
+            ...item,
+            timestamp: new Date(item.timestamp)
+          }));
+          dispatch({ type: 'SET_PROMPT_HISTORY', payload: itemsWithDates });
           dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: true });
           console.log(`Loaded ${data.items.length} history items`);
         }
