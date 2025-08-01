@@ -1,5 +1,4 @@
-import { db } from '@/lib/db/drizzle';
-import { trainingExamples, enhancementLogs } from '@/lib/db/schema';
+import { db, trainingExamples, enhancementLogs } from '../db';
 import { LearningService } from './learning-service';
 import { and, gte, desc, eq } from 'drizzle-orm';
 
@@ -36,7 +35,7 @@ export class AdaptiveEnhancer {
 
     // Check if we should use hybrid approach
     const bestPattern = await this.learningService.getBestPattern(prompt);
-    if (bestPattern && bestPattern.qualityScore >= this.HYBRID_THRESHOLD) {
+    if (bestPattern && bestPattern.quality >= this.HYBRID_THRESHOLD) {
       return await this.hybridEnhance(prompt, bestPattern);
     }
 
@@ -84,7 +83,7 @@ export class AdaptiveEnhancer {
           appliedPatterns.push({
             id: pattern.id,
             transformation: `${transformation.from} → ${transformation.to}`,
-            confidence: pattern.qualityScore,
+            confidence: pattern.quality,
           });
         } else if (transformation.type === 'addition') {
           // Add contextual additions
@@ -92,7 +91,7 @@ export class AdaptiveEnhancer {
           appliedPatterns.push({
             id: pattern.id,
             transformation: `+ ${transformation.to}`,
-            confidence: pattern.qualityScore,
+            confidence: pattern.quality,
           });
         }
       }
@@ -102,7 +101,7 @@ export class AdaptiveEnhancer {
     enhanced = this.applyStructuralImprovements(enhanced, patterns);
 
     // Calculate overall confidence
-    const avgConfidence = patterns.reduce((sum, p) => sum + p.qualityScore, 0) / patterns.length;
+    const avgConfidence = patterns.reduce((sum, p) => sum + p.quality, 0) / patterns.length;
 
     // Log the enhancement
     await this.logEnhancement(prompt, enhanced, 'local', appliedPatterns);
@@ -131,7 +130,7 @@ export class AdaptiveEnhancer {
 
     return {
       enhanced,
-      confidence: (localResult.confidence + bestPattern.qualityScore) / 2,
+      confidence: (localResult.confidence + bestPattern.quality) / 2,
       source: 'hybrid',
       patterns: localResult.patterns,
     };
@@ -147,8 +146,8 @@ export class AdaptiveEnhancer {
     const patterns = await db
       .select()
       .from(trainingExamples)
-      .where(gte(trainingExamples.qualityScore, this.MIN_CONFIDENCE_FOR_LOCAL))
-      .orderBy(desc(trainingExamples.qualityScore))
+      .where(gte(trainingExamples.quality, this.MIN_CONFIDENCE_FOR_LOCAL))
+      .orderBy(desc(trainingExamples.quality))
       .limit(10);
 
     // Filter by keyword relevance
@@ -305,6 +304,10 @@ export class AdaptiveEnhancer {
     await db.insert(enhancementLogs).values({
       originalPrompt: original,
       enhancedPrompt: enhanced,
+      promptLength: original.length,
+      hasContext: false,
+      isRefinement: false,
+      isExpansion: false,
       source: source,
       enhancementModel: 'adaptive-local',
       responseTime: 50, // Local enhancement is fast
@@ -343,7 +346,7 @@ export class AdaptiveEnhancer {
       totalEnhancements: enhancements.length,
       localEnhancements: localEnhancements.length,
       averageConfidence: 
-        topPatterns.reduce((sum, p) => sum + p.qualityScore, 0) / topPatterns.length,
+        topPatterns.reduce((sum, p) => sum + (p.quality || 0), 0) / topPatterns.length,
       topPatterns,
     };
   }

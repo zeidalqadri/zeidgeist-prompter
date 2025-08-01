@@ -1,5 +1,4 @@
-import { db } from '@/lib/db/drizzle';
-import { trainingExamples, enhancementLogs, feedback } from '@/lib/db/schema';
+import { db, trainingExamples, enhancementLogs, feedback } from '../db';
 import { PatternExtractor, EnhancementPattern } from './pattern-extractor';
 import { eq, desc, and, gte } from 'drizzle-orm';
 
@@ -63,17 +62,12 @@ export class LearningService {
       } else {
         // Create new pattern
         await db.insert(trainingExamples).values({
-          originalPrompt: pattern.originalText,
+          rawPrompt: pattern.originalText,
           enhancedPrompt: pattern.enhancedText,
-          category: this.categorizePattern(pattern),
-          keywords: pattern.keywords.join(', '),
-          qualityScore: pattern.confidence,
+          context: pattern.context,
+          source: 'learning',
+          quality: Math.round(pattern.confidence * 100), // Convert to integer scale
           usageCount: 1,
-          metadata: {
-            transformations: pattern.transformations,
-            context: pattern.context,
-            learnedAt: new Date().toISOString(),
-          },
         });
         newPatternsCount++;
       }
@@ -93,18 +87,19 @@ export class LearningService {
     const existingPatterns = await db
       .select()
       .from(trainingExamples)
-      .where(eq(trainingExamples.category, this.categorizePattern(pattern)));
+      .where(eq(trainingExamples.source, 'learning'));
 
     for (const existing of existingPatterns) {
-      const existingKeywords = new Set(
-        existing.keywords?.split(', ') || []
+      // Simple similarity check based on prompt text overlap
+      const existingWords = new Set(
+        existing.rawPrompt.toLowerCase().split(/\s+/)
       );
-      const patternKeywords = new Set(pattern.keywords);
+      const patternWords = new Set(pattern.originalText.toLowerCase().split(/\s+/));
       
       const intersection = new Set(
-        [...existingKeywords].filter(x => patternKeywords.has(x))
+        [...existingWords].filter(x => patternWords.has(x))
       );
-      const overlap = intersection.size / patternKeywords.size;
+      const overlap = intersection.size / patternWords.size;
 
       if (overlap >= keywordOverlapThreshold) {
         return existing;
@@ -118,7 +113,7 @@ export class LearningService {
    * Update existing pattern with new information
    */
   private async updatePattern(
-    patternId: number,
+    patternId: string,
     newPattern: EnhancementPattern
   ): Promise<void> {
     const existing = await db
@@ -130,16 +125,16 @@ export class LearningService {
     if (existing.length === 0) return;
 
     const currentPattern = existing[0];
-    const updatedQuality =
-      (currentPattern.qualityScore + newPattern.confidence) / 2;
-    const updatedUsageCount = currentPattern.usageCount + 1;
+    const updatedQuality = Math.round(
+      ((currentPattern.quality || 0) + newPattern.confidence * 100) / 2
+    );
+    const updatedUsageCount = (currentPattern.usageCount || 0) + 1;
 
     await db
       .update(trainingExamples)
       .set({
-        qualityScore: updatedQuality,
+        quality: updatedQuality,
         usageCount: updatedUsageCount,
-        updatedAt: new Date(),
       })
       .where(eq(trainingExamples.id, patternId));
   }
@@ -152,7 +147,7 @@ export class LearningService {
       .select({
         enhancementId: feedback.enhancementId,
         score: feedback.score,
-        successful: feedback.successful,
+        successful: feedback.wasSuccessful,
       })
       .from(feedback)
       .where(
@@ -178,17 +173,17 @@ export class LearningService {
 
       for (const pattern of relatedPatterns) {
         const qualityAdjustment = fb.successful
-          ? (fb.score - 3) * 0.1 // Positive adjustment for scores > 3
+          ? ((fb.score || 3) - 3) * 0.1 // Positive adjustment for scores > 3
           : -0.2; // Negative adjustment for unsuccessful
 
         const newQuality = Math.max(
           0,
-          Math.min(1, pattern.qualityScore + qualityAdjustment)
+          Math.min(100, (pattern.quality || 0) + qualityAdjustment * 10)
         );
 
         await db
           .update(trainingExamples)
-          .set({ qualityScore: newQuality })
+          .set({ quality: newQuality })
           .where(eq(trainingExamples.id, pattern.id));
       }
     }
@@ -206,13 +201,13 @@ export class LearningService {
     const patterns = await db
       .select()
       .from(trainingExamples)
-      .where(gte(trainingExamples.qualityScore, 0.5));
+      .where(gte(trainingExamples.quality, 0.5));
 
     return patterns.filter(pattern => {
-      const patternKeywords = new Set(
-        pattern.keywords?.split(', ') || []
+      const patternWords = new Set(
+        pattern.rawPrompt.toLowerCase().split(/\s+/)
       );
-      return promptKeywords.some(k => patternKeywords.has(k));
+      return promptKeywords.some(k => patternWords.has(k));
     });
   }
 
@@ -240,7 +235,7 @@ export class LearningService {
   /**
    * Calculate learning metrics
    */
-  private async calculateMetrics(
+  async calculateMetrics(
     newPatterns: number
   ): Promise<LearningMetrics> {
     // Get total patterns
@@ -296,7 +291,7 @@ export class LearningService {
     // Get local enhancements with feedback
     const localEnhancementsWithFeedback = await db
       .select({
-        successful: feedback.successful,
+        successful: feedback.wasSuccessful,
         score: feedback.score,
       })
       .from(enhancementLogs)
@@ -327,7 +322,7 @@ export class LearningService {
 
     // Calculate average quality of related patterns
     const avgQuality =
-      relatedPatterns.reduce((sum, p) => sum + p.qualityScore, 0) /
+      relatedPatterns.reduce((sum, p) => sum + p.quality, 0) /
       relatedPatterns.length;
 
     return avgQuality >= this.LLM_FALLBACK_THRESHOLD;
@@ -343,8 +338,8 @@ export class LearningService {
 
     // Sort by quality score and usage count
     relatedPatterns.sort((a, b) => {
-      const scoreA = a.qualityScore * 0.7 + (a.usageCount / 100) * 0.3;
-      const scoreB = b.qualityScore * 0.7 + (b.usageCount / 100) * 0.3;
+      const scoreA = a.quality * 0.7 + (a.usageCount / 100) * 0.3;
+      const scoreB = b.quality * 0.7 + (b.usageCount / 100) * 0.3;
       return scoreB - scoreA;
     });
 
