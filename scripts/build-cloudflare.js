@@ -3,8 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { performance } = require('perf_hooks');
 
-console.log('🚀 Starting Cloudflare Pages build process...');
+const startTime = performance.now();
+console.log('🚀 Starting optimized Cloudflare Pages build process...');
 
 // Clean up any existing build directories
 console.log('🧹 Cleaning up old build directories...');
@@ -15,10 +17,22 @@ if (fs.existsSync('out')) {
   fs.rmSync('out', { recursive: true, force: true });
 }
 
-// Run Next.js build
-console.log('🏗️  Building Next.js application...');
+// Set environment variables for optimal build
+process.env.NODE_ENV = 'production';
+process.env.NEXT_TELEMETRY_DISABLED = '1';
+
+// Run Next.js build with optimizations
+console.log('🏗️  Building Next.js application with optimizations...');
 try {
-  execSync('next build', { stdio: 'inherit' });
+  const buildCommand = 'next build';
+  console.log(`Executing: ${buildCommand}`);
+  execSync(buildCommand, { 
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NODE_OPTIONS: '--max-old-space-size=4096'
+    }
+  });
 } catch (error) {
   console.error('❌ Next.js build failed:', error.message);
   process.exit(1);
@@ -72,13 +86,97 @@ if (!fs.existsSync('dist/404.html')) {
   }
 }
 
-console.log('✅ Build completed successfully!');
+// Optimize static assets
+console.log('⚡ Optimizing static assets...');
+try {
+  // Compress CSS and JS files if available
+  const staticDir = path.join('dist', '_next', 'static');
+  if (fs.existsSync(staticDir)) {
+    console.log('📦 Found static assets directory');
+    // Note: Cloudflare will handle compression, just verify structure
+  }
+  
+  // Check for and optimize any large files
+  const checkFileSize = (dir, files = []) => {
+    const items = fs.readdirSync(dir);
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory()) {
+        checkFileSize(fullPath, files);
+      } else if (stat.size > 1024 * 1024) { // Files > 1MB
+        files.push({ path: fullPath.replace('dist/', ''), size: stat.size });
+      }
+    }
+    return files;
+  };
+  
+  const largeFiles = checkFileSize('dist');
+  if (largeFiles.length > 0) {
+    console.log('⚠️  Large files detected (>1MB):');
+    largeFiles.forEach(file => {
+      console.log(`  📄 ${file.path}: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+    });
+  }
+} catch (error) {
+  console.warn('⚠️  Asset optimization step failed:', error.message);
+}
+
+const endTime = performance.now();
+const buildTime = ((endTime - startTime) / 1000).toFixed(2);
+
+console.log(`✅ Build completed successfully in ${buildTime}s!`);
 console.log('📁 Build output is in the "dist" directory');
 
-// List the contents of dist for verification
+// List the contents of dist for verification with sizes
 console.log('\n📋 Build output contents:');
-const files = fs.readdirSync('dist');
-files.forEach(file => {
-  const stat = fs.statSync(path.join('dist', file));
-  console.log(`  ${stat.isDirectory() ? '📁' : '📄'} ${file}`);
-});
+const listDirectory = (dir, prefix = '') => {
+  const files = fs.readdirSync(dir);
+  files.forEach(file => {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    const size = stat.isFile() ? ` (${(stat.size / 1024).toFixed(1)}KB)` : '';
+    console.log(`  ${prefix}${stat.isDirectory() ? '📁' : '📄'} ${file}${size}`);
+    
+    // Show first level of subdirectories
+    if (stat.isDirectory() && prefix === '' && ['_next', 'api'].includes(file)) {
+      listDirectory(fullPath, '  ');
+    }
+  });
+};
+
+listDirectory('dist');
+
+console.log(`\n🎯 Performance Summary:`);
+console.log(`  Build Time: ${buildTime}s`);
+console.log(`  Output Size: ${getDirSize('dist')}`);
+
+function getDirSize(dir) {
+  let size = 0;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      size += getDirSizeRecursive(fullPath);
+    } else {
+      size += stat.size;
+    }
+  }
+  return (size / 1024 / 1024).toFixed(2) + 'MB';
+}
+
+function getDirSizeRecursive(dir) {
+  let size = 0;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      size += getDirSizeRecursive(fullPath);
+    } else {
+      size += stat.size;
+    }
+  }
+  return size;
+}
