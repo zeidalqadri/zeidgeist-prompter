@@ -6,7 +6,7 @@ export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -28,9 +28,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   }
 
   try {
-    console.log("Debug: Environment variables available:", Object.keys(env || {}))
-    console.log("Debug: DATABASE_URL present:", !!env?.DATABASE_URL)
-    console.log("Debug: DATABASE_URL length:", env?.DATABASE_URL?.length || 0)
+    // Database connection validation
     
     if (!env?.DATABASE_URL) {
       console.error("Debug: DATABASE_URL not found in environment")
@@ -40,11 +38,11 @@ export async function onRequestGet(context: any): Promise<Response> {
       })
     }
 
-    console.log("Debug: Creating database connection...")
+    // Creating database connection
     const db = createDb(env)
-    console.log("Debug: Database connection created successfully")
+    // Database connection successful
     
-    console.log("Debug: Executing database query with pagination...", { page, limit, offset })
+    // Executing database query with pagination
     // Fetch recent history from database with pagination and optimized query
     const [history, totalCountResult] = await Promise.all([
       db
@@ -64,13 +62,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     const hasMore = offset + history.length < totalCount
     const totalPages = Math.ceil(totalCount / limit)
     
-    console.log("Debug: Query executed successfully", { 
-      recordsFound: history.length, 
-      totalCount, 
-      page, 
-      totalPages,
-      hasMore 
-    })
+    // Query executed successfully
 
     // Transform to match existing frontend format
     const items = history.map(item => ({
@@ -81,7 +73,7 @@ export async function onRequestGet(context: any): Promise<Response> {
       metadata: item.metadata ? JSON.parse(item.metadata) : undefined
     }))
 
-    console.log("Debug: Data transformation completed, returning", items.length, "items")
+    // Data transformation completed
     return new Response(JSON.stringify({ 
       items,
       pagination: {
@@ -97,9 +89,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     })
   } catch (error) {
     console.error("Error fetching history:", error)
-    console.error("Error type:", error instanceof Error ? error.constructor.name : typeof error)
-    console.error("Error message:", error instanceof Error ? error.message : String(error))
-    console.error("Error stack:", error instanceof Error ? error.stack : undefined)
+    // Error details logged for debugging
     
     let errorMessage = "Failed to fetch history"
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -113,7 +103,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     
     return new Response(JSON.stringify({ 
       error: errorMessage,
-      details: error instanceof Error ? error.message : String(error) 
+      // Error details removed for security 
     }), {
       status: 500,
       headers: corsHeaders
