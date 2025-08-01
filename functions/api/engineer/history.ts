@@ -21,7 +21,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   const offset = page * limit
   
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json'
@@ -69,7 +69,7 @@ export async function onRequestGet(context: any): Promise<Response> {
       original: item.original,
       refined: item.refined,
       context: item.context || undefined,
-      timestamp: item.timestamp,
+      timestamp: item.timestamp ? item.timestamp.toISOString() : new Date().toISOString(),
       metadata: item.metadata ? JSON.parse(item.metadata) : undefined
     }))
 
@@ -114,7 +114,7 @@ export async function onRequestGet(context: any): Promise<Response> {
 export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json'
