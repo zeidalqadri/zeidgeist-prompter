@@ -39,11 +39,11 @@ export async function onRequestPost(context: any): Promise<Response> {
                      request.headers.get('x-real-ip') || 
                      'unknown'
 
-    // Create new feedback record
+    // Create new feedback record with aligned schema
     const newFeedback: NewFeedback = {
-      original,
-      refined,
-      wasSuccessful: wasSuccessful ? 'yes' : 'no',
+      originalPrompt: original,
+      enhancedPrompt: refined,
+      wasSuccessful: wasSuccessful,
       feedbackText: feedbackText || null,
       userAgent,
       ipAddress
