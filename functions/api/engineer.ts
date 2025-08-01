@@ -81,14 +81,19 @@ export async function onRequestPost(context: any): Promise<Response> {
       const processingTime = Date.now() - startTime
       console.log('Enhancement completed successfully')
       
-      // Log enhancement to database for analytics
+      // Log enhancement to database for analytics with aligned schema
       try {
         const db = createDb(env)
         const enhancementLog: NewEnhancementLog = {
-          original: trimmedPrompt,
-          enhanced: enhancementResponse.enhancedPrompt,
+          promptLength: trimmedPrompt.length,
+          hasContext: !!(context && context.trim()),
+          isRefinement: !!isRefinement,
+          isExpansion: !!isExpansion,
+          repeatCount: repeatCount || 0,
           source: enhancementResponse.source,
-          processingTime: processingTime.toString()
+          processingTime: processingTime,
+          wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
+          hadError: false
         }
         await db.insert(enhancementLogs).values(enhancementLog)
       } catch (logError) {
