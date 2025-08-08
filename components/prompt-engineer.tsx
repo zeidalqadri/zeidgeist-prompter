@@ -54,9 +54,9 @@ const HistoryRow = memo(({
         className={index % 2 === 0 ? "bg-white hover:bg-gray-50 border-b border-gray-200" : "bg-gray-50 hover:bg-gray-100 border-b border-gray-200"}
         onClick={handleToggle}
       >
-        <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
+        <td className="px-3 py-2 align-top whitespace-nowrap text-black">{formatTime(item.timestamp)}</td>
         <td className="px-3 py-2 align-top">
-          <div className="max-w-[150px] truncate cursor-help" title={item.original}>
+          <div className="max-w-[150px] truncate cursor-help text-black" title={item.original}>
             {item.original.substring(0, 50)}
             {item.original.length > 50 ? "..." : ""}
           </div>
@@ -68,7 +68,7 @@ const HistoryRow = memo(({
           )}
         </td>
         <td className="px-3 py-2 align-top">
-          <div className="max-w-[200px] truncate cursor-help" title={item.refined}>
+          <div className="max-w-[200px] truncate cursor-help text-black" title={item.refined}>
             {item.refined.substring(0, 70)}
             {item.refined.length > 70 ? "..." : ""}
           </div>
