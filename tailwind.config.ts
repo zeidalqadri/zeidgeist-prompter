@@ -11,14 +11,14 @@ export default {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        // Custom colors used in components
+        // Custom colors used in components - enhanced for accessibility
         'white-pure': '#ffffff',
-        'white-soft': '#f8fafc',
+        'white-soft': '#f5f5f5', /* Slightly darker for better contrast */
         'black-primary': '#000000',
-        'black-rich': '#1a1a1a',
-        'gray-10': '#f1f5f9',
-        'gray-30': '#cbd5e1',
-        'gray-60': '#64748b',
+        'black-rich': '#0a0a0a', /* Darker for better contrast */
+        'gray-10': '#e8e8e8', /* Darker gray for better borders */
+        'gray-30': '#9a9a9a', /* Much darker for WCAG compliance */
+        'gray-60': '#4a4a4a', /* Much darker for WCAG AA compliance */
       },
     },
   },
