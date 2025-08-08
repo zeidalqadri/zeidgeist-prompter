@@ -65,42 +65,42 @@ class ErrorBoundary extends Component<Props, State> {
                   />
                 </svg>
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Something went wrong
+              <h2 className="text-xl font-bold text-black mb-2">
+                Runtime Error
               </h2>
-              <p className="text-gray-600 mb-4">
-                The application encountered an unexpected error. Please try refreshing the page.
+              <p className="text-black font-medium mb-4">
+                Runtime error encountered. Refresh to restore functionality.
               </p>
               <div className="space-y-2">
                 <button
                   onClick={() => window.location.reload()}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="w-full bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors font-semibold"
                 >
-                  Refresh Page
+                  Reload
                 </button>
                 <button
                   onClick={() => this.setState({ hasError: false })}
-                  className="w-full bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-semibold"
                 >
-                  Try Again
+                  Retry
                 </button>
               </div>
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <details className="mt-4 text-left">
-                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-                    Error Details (Development Only)
+                  <summary className="cursor-pointer text-sm text-black font-semibold hover:text-gray-800">
+                    Review Error Details
                   </summary>
                   <div className="mt-2 p-3 bg-gray-100 rounded text-xs font-mono">
-                    <div className="text-red-600 font-semibold mb-2">
+                    <div className="text-red-700 font-bold mb-2">
                       {this.state.error.message}
                     </div>
-                    <pre className="whitespace-pre-wrap text-gray-700">
+                    <pre className="whitespace-pre-wrap text-black font-medium">
                       {this.state.error.stack}
                     </pre>
                     {this.state.errorInfo && (
                       <div className="mt-2 pt-2 border-t border-gray-300">
-                        <div className="text-gray-600 font-semibold mb-1">Component Stack:</div>
-                        <pre className="whitespace-pre-wrap text-gray-600">
+                        <div className="text-black font-bold mb-1">Runtime Stack:</div>
+                        <pre className="whitespace-pre-wrap text-black font-medium">
                           {this.state.errorInfo.componentStack}
                         </pre>
                       </div>
