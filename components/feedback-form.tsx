@@ -60,7 +60,7 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
       <div className="bg-green-50 border border-green-200 rounded-md p-4">
         <div className="flex items-center gap-2 text-green-700">
           <Check size={16} />
-          <span className="text-sm font-medium">Thank you for your feedback!</span>
+          <span className="text-sm font-semibold text-black">Received - thank you for your response!</span>
         </div>
       </div>
     )
@@ -69,7 +69,7 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
   return (
     <div className="bg-white border border-gray-200 rounded-md p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium">How was this refinement?</h3>
+        <h3 className="text-sm font-semibold text-black">Rate this refinement</h3>
         <Button
           variant="ghost"
           size="icon"
@@ -90,7 +90,7 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
             className="flex-1"
           >
             <ThumbsUp size={14} className="mr-1" />
-            Helpful
+            Remarkable
           </Button>
           <Button
             type="button"
@@ -100,12 +100,12 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
             className="flex-1"
           >
             <ThumbsDown size={14} className="mr-1" />
-            Not Helpful
+            Requires Improvement
           </Button>
         </div>
 
         <Textarea
-          placeholder="Any additional feedback? (optional)"
+          placeholder="Remarks or recommendations? (optional)" aria-label="Remarks input"
           className="resize-none h-16 text-xs"
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
@@ -118,7 +118,7 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
             size="sm"
             onClick={onClose}
           >
-            Cancel
+            Retract
           </Button>
           <Button
             type="submit"
@@ -131,7 +131,7 @@ export default function FeedbackForm({ originalPrompt, enhancedPrompt, onClose }
             ) : (
               <Send size={12} className="mr-1" />
             )}
-            Submit
+            Register
           </Button>
         </div>
       </form>

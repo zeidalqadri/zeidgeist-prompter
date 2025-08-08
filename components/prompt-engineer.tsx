@@ -61,8 +61,8 @@ const HistoryRow = memo(({
             {item.original.length > 50 ? "..." : ""}
           </div>
           {item.context && (
-            <div className="mt-1 text-gray-500 italic max-w-[150px] truncate cursor-help" title={item.context}>
-              Context: {item.context.substring(0, 30)}
+            <div className="mt-1 text-black font-medium italic max-w-[150px] truncate cursor-help" title={item.context}>
+              Related: {item.context.substring(0, 30)}
               {item.context.length > 30 ? "..." : ""}
             </div>
           )}
@@ -80,7 +80,7 @@ const HistoryRow = memo(({
               size="sm"
               className="h-6 w-6 hover:bg-gray-200"
               onClick={handleUse}
-              title="Use this prompt"
+              title="Reuse this prompt"
             >
               <RotateCw size={12} />
             </Button>
@@ -89,7 +89,7 @@ const HistoryRow = memo(({
               size="sm"
               className="h-6 w-6 hover:bg-gray-200"
               onClick={handleCopy}
-              title="Copy to clipboard"
+              title="Replicate to clipboard"
             >
               <Copy size={12} />
             </Button>
@@ -98,7 +98,7 @@ const HistoryRow = memo(({
               size="sm"
               className="h-6 w-6 hover:bg-gray-200"
               onClick={handleToggle}
-              title={isExpanded ? "Collapse" : "Expand"}
+              title={isExpanded ? "Retract" : "Reveal"}
             >
               {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </Button>
@@ -110,13 +110,13 @@ const HistoryRow = memo(({
           <td colSpan={4} className="px-4 py-3 bg-white">
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
-                <div className="font-medium mb-1 text-gray-600">Original:</div>
+                <div className="font-semibold mb-1 text-black">Raw:</div>
                 <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
                   {item.original}
                 </div>
                 {item.context && (
                   <>
-                    <div className="font-medium mt-2 mb-1 text-gray-600">Context:</div>
+                    <div className="font-semibold mt-2 mb-1 text-black">Related:</div>
                     <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
                       {item.context}
                     </div>
@@ -124,7 +124,7 @@ const HistoryRow = memo(({
                 )}
               </div>
               <div>
-                <div className="font-medium mb-1 text-gray-600">Refined:</div>
+                <div className="font-semibold mb-1 text-black">Refined:</div>
                 <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap">
                   {item.refined}
                 </div>
@@ -713,7 +713,7 @@ export default function PromptEngineer() {
     if (state.promptHistory.length === 0) {
       return (
         <div className="text-center p-4 bg-gray-50 rounded-md border border-dashed border-gray-200">
-          <div className="text-gray-500">No prompt history yet</div>
+          <div className="text-black font-semibold">No refinement records yet</div>
         </div>
       );
     }
@@ -724,10 +724,10 @@ export default function PromptEngineer() {
           <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Recency</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Raw</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Refined</th>
-                <th className="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
+                <th className="px-3 py-2 text-left font-semibold text-black">Recency</th>
+                <th className="px-3 py-2 text-left font-semibold text-black">Raw</th>
+                <th className="px-3 py-2 text-left font-semibold text-black">Refined</th>
+                <th className="px-3 py-2 text-left font-semibold text-black">Responses</th>
               </tr>
             </thead>
             <tbody>
@@ -840,14 +840,14 @@ export default function PromptEngineer() {
           <a href="https://zeidgeist.vercel.app" className="text-black hover:text-gray-700 transition-colors">
             mstprmpt<sub className="text-xs">.zeidgeist.com</sub>
           </a>
-          <span className="text-gray-400 text-sm ml-2">v0.6.8</span>
+          <span className="text-black font-medium text-sm ml-2">v0.6.8</span>
         </h1>
       </div>
 
       <div className="grid gap-6">
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-medium">Raw</h2>
+            <h2 className="text-base font-semibold text-black">Raw</h2>
             {(state.prompt || state.context || state.result || state.refinedWithContext) && (
               <Button
                 variant="ghost"
@@ -866,7 +866,7 @@ export default function PromptEngineer() {
             <div>
               <Textarea
                 id="promptTextarea"
-                placeholder="Ramble..."
+                placeholder="Ramble..." aria-label="Raw prompt input"
                 className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
                 value={state.prompt}
                 onChange={(e) => dispatch({ type: 'SET_PROMPT', payload: e.target.value })}
@@ -875,7 +875,7 @@ export default function PromptEngineer() {
             </div>
 
             <div className="flex justify-between items-center">
-              <div className="text-xs text-gray-500">Press {navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'} to refine</div>
+              <div className="text-xs text-black font-medium">Press {navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'} to refine</div>
               <Button
                 type="submit"
                 size="sm"
@@ -884,7 +884,7 @@ export default function PromptEngineer() {
                 title={`${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'}`}
               >
                 {state.isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                <span className="ml-1">Refactor</span>
+                <span className="ml-1 font-semibold">Refactor</span>
               </Button>
             </div>
           </form>
@@ -898,7 +898,7 @@ export default function PromptEngineer() {
           {state.result && !state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-medium">Refined</h2>
+                <h2 className="text-base font-semibold text-black">Refined</h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -912,7 +912,7 @@ export default function PromptEngineer() {
               
               {/* Enhancement metadata display */}
               {(state.enhancementSource || state.enhancementTime !== null) && (
-                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                <div className="mt-2 flex items-center gap-4 text-xs text-black">
                   {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
@@ -938,7 +938,7 @@ export default function PromptEngineer() {
                     className="text-gray-60 hover:text-black-primary"
                   >
                     <Info size={14} className="mr-1" />
-                    Add Context
+                    Relate Context
                     {state.showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
                   </Button>
                   
@@ -966,7 +966,7 @@ export default function PromptEngineer() {
                 {state.showContext && (
                   <div className="mt-3 space-y-3">
                     <Textarea
-                      placeholder="Add contextual information..."
+                      placeholder="Relevant contextual information..." aria-label="Relevant context input"
                       className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary"
                       value={state.context}
                       onChange={(e) => dispatch({ type: 'SET_CONTEXT', payload: e.target.value })}
@@ -979,7 +979,7 @@ export default function PromptEngineer() {
                         disabled={state.isLoadingContext || !state.context.trim()}
                       >
                         {state.isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                        <span className="ml-1">Refine+</span>
+                        <span className="ml-1 font-semibold">Refine+</span>
                       </Button>
                     </div>
                   </div>
@@ -1001,7 +1001,7 @@ export default function PromptEngineer() {
           {state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-medium">Refined+ (with context)</h2>
+                <h2 className="text-base font-semibold text-black">Refined+ (with context)</h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1017,7 +1017,7 @@ export default function PromptEngineer() {
               
               {/* Enhancement metadata display for context refinement */}
               {(state.enhancementSource || state.enhancementTime !== null) && (
-                <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                <div className="mt-2 flex items-center gap-4 text-xs text-black">
                   {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
@@ -1069,14 +1069,14 @@ export default function PromptEngineer() {
           {state.hasRefinedPrompt && (
             <div className="mt-8">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-medium">Receipt{state.promptHistory.length === 1 ? '' : 's'} ({state.promptHistory.length} record{state.promptHistory.length === 1 ? '' : 's'})</h2>
+                <h2 className="text-base font-semibold text-black">Receipt{state.promptHistory.length === 1 ? '' : 's'} ({state.promptHistory.length} record{state.promptHistory.length === 1 ? '' : 's'})</h2>
                 <Button
                   variant="ghost" 
                   size="sm"
                   onClick={() => dispatch({ type: 'SET_SHOW_HISTORY', payload: !state.showHistory })}
                   className="h-7"
                 >
-                  {state.showHistory ? "Hide" : "Show"}
+                  {state.showHistory ? "Retract" : "Reveal"}
                 </Button>
               </div>
               
