@@ -51,7 +51,7 @@ const HistoryRow = memo(({
   return (
     <React.Fragment>
       <tr 
-        className={index % 2 === 0 ? "bg-gray-200 hover:bg-gray-300 border-b border-gray-300" : "bg-gray-300 hover:bg-gray-400 border-b border-gray-400"}
+        className={index % 2 === 0 ? "bg-white hover:bg-gray-50 border-b border-gray-200" : "bg-gray-50 hover:bg-gray-100 border-b border-gray-200"}
         onClick={handleToggle}
       >
         <td className="px-3 py-2 align-top whitespace-nowrap">{formatTime(item.timestamp)}</td>
@@ -78,7 +78,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-200"
+              className="h-6 w-6 hover:bg-gray-100"
               onClick={handleUse}
               title="Reuse this prompt"
             >
@@ -87,7 +87,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-200"
+              className="h-6 w-6 hover:bg-gray-100"
               onClick={handleCopy}
               title="Replicate to clipboard"
             >
@@ -96,7 +96,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-200"
+              className="h-6 w-6 hover:bg-gray-100"
               onClick={handleToggle}
               title={isExpanded ? "Retract" : "Reveal"}
             >
@@ -106,18 +106,18 @@ const HistoryRow = memo(({
         </td>
       </tr>
       {isExpanded && (
-        <tr className="border-t border-gray-300">
-          <td colSpan={4} className="px-4 py-3 bg-gray-100">
+        <tr className="border-t border-gray-200">
+          <td colSpan={4} className="px-4 py-3 bg-white">
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <div className="font-semibold mb-1 text-black">Raw:</div>
-                <div className="bg-gray-200 p-2 rounded border border-gray-400 whitespace-pre-wrap text-black font-medium">
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
                   {item.original}
                 </div>
                 {item.context && (
                   <>
                     <div className="font-semibold mt-2 mb-1 text-black">Related:</div>
-                    <div className="bg-gray-200 p-2 rounded border border-gray-400 whitespace-pre-wrap text-black font-medium">
+                    <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
                       {item.context}
                     </div>
                   </>
@@ -125,7 +125,7 @@ const HistoryRow = memo(({
               </div>
               <div>
                 <div className="font-semibold mb-1 text-black">Refined:</div>
-                <div className="bg-gray-200 p-2 rounded border border-gray-400 whitespace-pre-wrap text-black font-medium">
+                <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
                   {item.refined}
                 </div>
               </div>
@@ -719,10 +719,10 @@ export default function PromptEngineer() {
     }
 
     return (
-      <div className="border border-gray-300 rounded-md overflow-hidden shadow-sm">
+      <div className="border border-gray-200 rounded-md overflow-hidden shadow-sm">
         <div className="max-h-[400px] overflow-y-auto">
           <table className="w-full text-xs">
-            <thead className="bg-gray-300 border-b border-gray-400 sticky top-0 z-10">
+            <thead className="bg-white border-b border-gray-200 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-black">Recency</th>
                 <th className="px-3 py-2 text-left font-semibold text-black">Raw</th>
@@ -880,11 +880,10 @@ export default function PromptEngineer() {
                 size="sm"
                 className="bg-black-primary hover:bg-black-rich text-white-pure flex items-center gap-2"
                 disabled={state.isLoading || !state.prompt.trim()}
-                title={`${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'}`}
+                title={`Refactor prompt (${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'})`}
               >
                 {state.isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                 <span className="font-semibold">Refactor</span>
-                <span className="text-xs opacity-75">{navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'}</span>
               </Button>
             </div>
           </form>
