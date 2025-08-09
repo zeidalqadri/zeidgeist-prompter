@@ -987,7 +987,7 @@ export default function PromptEngineer() {
                   <div className="mt-3 space-y-3">
                     <Textarea
                       placeholder="Relevant contextual information..." aria-label="Relevant context input"
-                      className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary"
+                      className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary text-black"
                       value={state.context}
                       onChange={(e) => dispatch({ type: 'SET_CONTEXT', payload: e.target.value })}
                     />
