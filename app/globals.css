@@ -69,7 +69,7 @@ input, textarea {
 
 @media (prefers-color-scheme: dark) {
   input, textarea {
-    color: #ffffff !important; /* Pure white in dark mode */
+    color: #000000 !important; /* Force black text - app doesn't implement full dark mode backgrounds */
   }
 }
 
