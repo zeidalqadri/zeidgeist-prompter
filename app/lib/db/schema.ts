@@ -49,6 +49,32 @@ export const enhancementLogs = pgTable('enhancement_logs', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
 
+// Centralized prompts repository tables
+export const prompts = pgTable('prompts', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  originalText: text('original_text').notNull(),
+  textHash: text('text_hash').notNull(),
+  categoryId: uuid('category_id'),
+  latestVersion: integer('latest_version').notNull().default(1),
+  totalUses: integer('total_uses').notNull().default(0),
+  avgQualityScore: integer('avg_quality_score'),
+  isPublic: boolean('is_public').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
+export const promptVersions = pgTable('prompt_versions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  promptId: uuid('prompt_id').notNull(),
+  versionNumber: integer('version_number').notNull(),
+  enhancedText: text('enhanced_text').notNull(),
+  enhancementSource: text('enhancement_source').notNull(),
+  qualityScore: integer('quality_score'),
+  metricsData: text('metrics_data'), // JSON
+  isBaseline: boolean('is_baseline').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
 // Training examples storage for dynamic learning
 export const trainingExamples = pgTable('training_examples', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
