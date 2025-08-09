@@ -19,10 +19,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     }
     
     const sizeClasses = {
-      default: "h-10 px-4 py-2",
-      sm: "h-8 rounded-md px-3 text-xs",
-      lg: "h-11 rounded-md px-8",
-      icon: "h-10 w-10",
+      default: "h-11 px-4 py-2",
+      sm: "h-11 rounded-md px-3 text-sm",
+      lg: "h-12 rounded-md px-8",
+      icon: "h-11 w-11",
     }
     
     const classes = `${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className || ''}`
