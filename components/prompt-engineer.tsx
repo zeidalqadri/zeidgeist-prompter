@@ -12,7 +12,11 @@ import FeedbackForm from "./feedback-form"
 const SimpleToast = memo(({ show, message }: { show: boolean, message: string }) => {
   if (!show) return null;
   return (
-    <div className="fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded-md shadow-lg transition-opacity duration-300">
+    <div 
+      role="status" 
+      aria-live="polite" 
+      className="fixed bottom-4 right-4 bg-gray-800 text-white py-2 px-4 rounded-md shadow-lg transition-opacity duration-300"
+    >
       {message}
     </div>
   );
@@ -47,12 +51,24 @@ const HistoryRow = memo(({
     e.stopPropagation();
     onCopyToClipboard(item.refined);
   }, [onCopyToClipboard, item.refined]);
+  
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleToggle();
+    }
+  }, [handleToggle]);
 
   return (
     <React.Fragment>
       <tr 
         className={index % 2 === 0 ? "bg-white hover:bg-gray-50 border-b border-gray-200" : "bg-gray-50 hover:bg-gray-100 border-b border-gray-200"}
         onClick={handleToggle}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="button"
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} history item from ${formatTime(item.timestamp)}`}
       >
         <td className="px-3 py-2 align-top whitespace-nowrap text-black">{formatTime(item.timestamp)}</td>
         <td className="px-3 py-2 align-top">
@@ -721,13 +737,16 @@ export default function PromptEngineer() {
     return (
       <div className="border border-gray-200 rounded-md overflow-hidden shadow-sm">
         <div className="max-h-[400px] overflow-y-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs" aria-label="Prompt refinement history">
+            <caption className="sr-only">
+              History of prompt refinements with timestamps, original prompts, refined versions, and available actions
+            </caption>
             <thead className="bg-white border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold text-black">Recency</th>
-                <th className="px-3 py-2 text-left font-semibold text-black">Raw</th>
-                <th className="px-3 py-2 text-left font-semibold text-black">Refined</th>
-                <th className="px-3 py-2 text-left font-semibold text-black">Responses</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Recency</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Raw</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refined</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Responses</th>
               </tr>
             </thead>
             <tbody>
@@ -866,7 +885,9 @@ export default function PromptEngineer() {
             <div>
               <Textarea
                 id="promptTextarea"
-                placeholder="Ramble..." aria-label="Raw prompt input"
+                placeholder="Ramble..." 
+                aria-label="Raw prompt input"
+                aria-describedby={state.error ? "prompt-error" : undefined}
                 className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
                 value={state.prompt}
                 onChange={(e) => dispatch({ type: 'SET_PROMPT', payload: e.target.value })}
@@ -882,14 +903,14 @@ export default function PromptEngineer() {
                 disabled={state.isLoading || !state.prompt.trim()}
                 title={`Refactor prompt (${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'})`}
               >
-                {state.isLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                {state.isLoading ? <Loader2 size={14} className="animate-spin" aria-label="Processing prompt" /> : <Send size={14} />}
                 <span className="font-semibold">Refactor</span>
               </Button>
             </div>
           </form>
 
           {state.error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+            <div id="prompt-error" className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm" role="alert">
               {state.error}
             </div>
           )}
@@ -977,7 +998,7 @@ export default function PromptEngineer() {
                         onClick={handleRefineWithContext}
                         disabled={state.isLoadingContext || !state.context.trim()}
                       >
-                        {state.isLoadingContext ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                        {state.isLoadingContext ? <Loader2 size={14} className="animate-spin" aria-label="Processing with context" /> : <Zap size={14} />}
                         <span className="ml-1 font-semibold">Refine+</span>
                       </Button>
                     </div>

@@ -6,6 +6,10 @@ import { enhancePrompt as localEnhance } from './prompt-enhancer-v2';
 import { db, enhancementLogs, feedback } from './db';
 import { AdaptiveEnhancer } from './learning/adaptive-enhancer';
 import { LearningService } from './learning/learning-service';
+import { PromptRepository } from './enhanced-architecture/prompt-repository';
+import { AdvancedContextManager } from './enhanced-architecture/context-manager';
+import { SafetyValidator } from './enhanced-architecture/safety-validator';
+import { MetricsCalculator } from './enhanced-architecture/metrics-calculator';
 import { eq, desc } from 'drizzle-orm';
 
 // Interface for API configuration
@@ -230,31 +234,57 @@ async function enhanceWithGemini(
 }
 
 /**
- * Build the messages array for prompt enhancement
+ * Build the messages array for prompt enhancement with Chain-of-Thought reasoning
  */
 function buildPromptEnhancementMessages(
   prompt: string,
   context?: string,
   isRefinement: boolean = false
 ): Array<{ role: string, content: string }> {
+  // Use enhanced system prompt from repository
+  const promptRepo = PromptRepository.getInstance();
+  const systemPromptTemplate = promptRepo.getSystemPrompt('enhancement', 'chain-of-thought');
+  
   const baseSystemPrompt = `You are an expert prompt engineer that enhances prompts to make them clearer and more effective. 
-Your task is to refine the given prompt to provide better instructions and context.
+
+CHAIN-OF-THOUGHT PROCESS:
+Think through your enhancement step-by-step:
+
+1. ANALYSIS: First, analyze the prompt's current state
+   - What is the core intent and domain?
+   - What specific information is missing?
+   - What ambiguities exist?
+   - How clear are the success criteria?
+
+2. PLANNING: Plan your enhancements
+   - What specific details should be added?
+   - What structure would improve clarity?
+   - What domain-specific requirements apply?
+   - How can you make it more actionable?
+
+3. ENHANCEMENT: Apply systematic improvements
+   - Add missing context and specifications
+   - Improve organization and flow
+   - Include success criteria and constraints
+   - Ensure completeness without redundancy
 
 Follow these guidelines:
 1. Identify the core purpose and domain of the prompt
 2. Add specific details and clarity without changing the original intent
 3. Remove redundancies and improve organization
 4. Add relevant specifications for structure or format if appropriate
-5. DO NOT add "You are..." or role descriptions unless specifically needed
-6. The output should be ONLY the enhanced prompt text, nothing else
-7. NEVER include phrases like "Here's the refined prompt:" or explanations
-8. Keep your response concise and focused on improving the prompt content only
-9. If the prompt appears to be already enhanced, BUILD UPON IT - add detail, clarity, or structure
-10. Each refinement should be better than the previous one, never just repeat the input
+5. Include measurable success criteria where appropriate
+6. Consider edge cases and potential misunderstandings
+7. DO NOT add "You are..." or role descriptions unless specifically needed
+8. The output should be ONLY the enhanced prompt text, nothing else
+9. NEVER include phrases like "Here's the refined prompt:" or explanations
+10. Keep your response concise and focused on improving the prompt content only
+11. If the prompt appears to be already enhanced, BUILD UPON IT - add detail, clarity, or structure
+12. Each refinement should be better than the previous one, never just repeat the input
 
 Examples of good enhancements:
-- "website for a doctor" → "Design a professional website for a medical practitioner. Include sections for services, patient resources, credentials, and appointment scheduling."
-- "write about climate change" → "Write a comprehensive analysis of climate change, covering its causes, current impacts, future projections, and potential solutions. Include supporting data and scientific consensus."`;
+- "website for a doctor" → "Design a professional website for a medical practitioner. Include sections for services offered, patient resources and education, professional credentials and certifications, appointment scheduling system, insurance information, and contact details. Ensure mobile responsiveness and accessibility compliance."
+- "write about climate change" → "Write a comprehensive analysis of climate change, covering its primary causes (greenhouse gas emissions, deforestation), current global impacts (rising temperatures, extreme weather), future projections based on IPCC models, and evidence-based mitigation and adaptation solutions. Include supporting data from peer-reviewed sources and scientific consensus statements."`;
 
   // Add extra instructions for refinement iterations
   const refinementAddition = isRefinement ? `
@@ -315,13 +345,48 @@ export async function enhancePrompt(
     }
     
     // Convert any input to string to ensure it works
-    const promptString = String(rawPrompt).trim();
+    let promptString = String(rawPrompt).trim();
     const contextString = context ? String(context).trim() : "";
     
     // Don't proceed with enhancement if the prompt is empty
     if (!promptString) {
       return '';
     }
+
+    // Safety validation first
+    const safetyValidator = new SafetyValidator();
+    const safetyResult = safetyValidator.validateSafety(promptString, contextString);
+    
+    if (!safetyResult.isSafe) {
+      console.warn('Safety validation failed:', safetyResult.checks);
+      if (safetyResult.requiresHumanReview) {
+        throw new Error('Prompt requires human review due to safety concerns');
+      }
+      // Use sanitized prompt if available
+      if (safetyResult.sanitizedPrompt) {
+        console.log('Using sanitized prompt');
+        promptString = safetyResult.sanitizedPrompt;
+      }
+    }
+
+    // Use the new ContextManager for intelligent context processing
+    const contextManager = new AdvancedContextManager();
+    
+    // Create context chunks
+    const contextChunks = [];
+    if (contextString) {
+      contextChunks.push({
+        id: 'user-context',
+        content: contextString,
+        type: 'context' as const,
+        priority: 0.8,
+        tokens: contextString.split(' ').length,
+        metadata: { source: 'user-provided' }
+      });
+    }
+    
+    const optimizedContext = await contextManager.optimizeContext(contextChunks);
+    const processedContext = optimizedContext.chunks.map(c => c.content).join(' ');
     
     // Try adaptive enhancer first (uses learned patterns)
     const adaptiveEnhancer = new AdaptiveEnhancer();
@@ -330,7 +395,7 @@ export async function enhancePrompt(
     if (adaptiveResult.source === 'learned' && adaptiveResult.confidence >= 0.8) {
       console.log('Using learned pattern enhancement with high confidence:', adaptiveResult.confidence);
       // Store this as a successful local enhancement
-      await storeEnhancementExample(promptString, contextString, adaptiveResult.enhanced, 'local');
+      await storeEnhancementExample(promptString, processedContext, adaptiveResult.enhanced, 'local');
       return adaptiveResult.enhanced;
     } else if (adaptiveResult.source === 'hybrid' && adaptiveResult.confidence >= 0.6) {
       console.log('Using hybrid enhancement with moderate confidence:', adaptiveResult.confidence);
@@ -343,7 +408,7 @@ export async function enhancePrompt(
       console.log('Prompt appears to be already refined, applying minimal enhancements');
       // Apply only minimal formatting improvements for already refined prompts
       // But still make SOME changes so it's not identical
-      const minimallyEnhanced = minimalEnhance(promptString, contextString);
+      const minimallyEnhanced = minimalEnhance(promptString, processedContext);
       if (minimallyEnhanced === promptString) {
         // If even minimal enhancement returned the same prompt, add something generic
         return `${promptString}. Include comprehensive information and well-organized sections.`;
@@ -356,15 +421,23 @@ export async function enhancePrompt(
     // Try DeepSeek API first if configured
     if (deepseekConfig.enabled) {
       try {
-        result = await enhanceWithDeepseek(promptString, contextString, isRefinement);
+        result = await enhanceWithDeepseek(promptString, processedContext, isRefinement);
         
         // Verify the result is actually different from the input
         if (result.enhancedPrompt === promptString) {
           throw new Error('DeepSeek returned identical prompt');
         }
         
+        // Calculate quality metrics and store result for training
+        const metricsCalculator = new MetricsCalculator();
+        const enhancementMetrics = metricsCalculator.comparePrompts(promptString, result.enhancedPrompt);
+        
         // Store this result for training our own engine
-        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'deepseek');
+        await storeEnhancementExample(promptString, processedContext, result.enhancedPrompt, 'deepseek');
+        
+        // Log quality improvement
+        console.log(`DeepSeek enhancement quality: ${enhancementMetrics.enhancementType} improvement (${enhancementMetrics.improvementScore}% better)`);
+        
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('DeepSeek API failed, falling back to Mistral:', error);
@@ -374,15 +447,23 @@ export async function enhancePrompt(
     // Try Mistral API if DeepSeek fails or is not configured
     if (mistralConfig.enabled) {
       try {
-        result = await enhanceWithMistral(promptString, contextString, isRefinement);
+        result = await enhanceWithMistral(promptString, processedContext, isRefinement);
         
         // Verify the result is actually different from the input
         if (result.enhancedPrompt === promptString) {
           throw new Error('Mistral returned identical prompt');
         }
         
+        // Calculate quality metrics and store result for training
+        const metricsCalculator = new MetricsCalculator();
+        const enhancementMetrics = metricsCalculator.comparePrompts(promptString, result.enhancedPrompt);
+        
         // Store this result for training our own engine
-        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'mistral');
+        await storeEnhancementExample(promptString, processedContext, result.enhancedPrompt, 'mistral');
+        
+        // Log quality improvement
+        console.log(`Mistral enhancement quality: ${enhancementMetrics.enhancementType} improvement (${enhancementMetrics.improvementScore}% better)`);
+        
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('Mistral API failed, falling back to Gemini:', error);
@@ -392,15 +473,23 @@ export async function enhancePrompt(
     // Try Gemini API if both DeepSeek and Mistral fail
     if (geminiConfig.enabled) {
       try {
-        result = await enhanceWithGemini(promptString, contextString, isRefinement);
+        result = await enhanceWithGemini(promptString, processedContext, isRefinement);
         
         // Verify the result is actually different from the input
         if (result.enhancedPrompt === promptString) {
           throw new Error('Gemini returned identical prompt');
         }
         
+        // Calculate quality metrics and store result for training
+        const metricsCalculator = new MetricsCalculator();
+        const enhancementMetrics = metricsCalculator.comparePrompts(promptString, result.enhancedPrompt);
+        
         // Store this result for training our own engine
-        await storeEnhancementExample(promptString, contextString, result.enhancedPrompt, 'gemini');
+        await storeEnhancementExample(promptString, processedContext, result.enhancedPrompt, 'gemini');
+        
+        // Log quality improvement
+        console.log(`Gemini enhancement quality: ${enhancementMetrics.enhancementType} improvement (${enhancementMetrics.improvementScore}% better)`);
+        
         return result.enhancedPrompt;
       } catch (error) {
         console.warn('Gemini API failed, falling back to local engine:', error);
@@ -408,7 +497,7 @@ export async function enhancePrompt(
     }
     
     // Fall back to local enhancement engine if all APIs fail or aren't configured
-    const localResult = await localEnhance(promptString, contextString);
+    const localResult = await localEnhance(promptString, processedContext);
     
     // Final check - if even local enhancement returned the original, add something
     if (localResult === promptString) {
