@@ -928,7 +928,7 @@ export default function PromptEngineer() {
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
               </div>
-              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">{state.result}</div>
+              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm text-black whitespace-pre-wrap">{state.result}</div>
               
               {/* Enhancement metadata display */}
               {(state.enhancementSource || state.enhancementTime !== null) && (
@@ -1031,7 +1031,7 @@ export default function PromptEngineer() {
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
               </div>
-              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm whitespace-pre-wrap">
+              <div className="bg-white-soft p-3 rounded border border-gray-10 text-sm text-black whitespace-pre-wrap">
                 {state.refinedWithContext}
               </div>
               
