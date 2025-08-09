@@ -5,6 +5,7 @@ import React from "react"
 import { useState, useEffect, useCallback, useReducer, useMemo, memo } from "react"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
+import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import FeedbackForm from "./feedback-form"
 
@@ -883,12 +884,12 @@ export default function PromptEngineer() {
 
           <form onSubmit={handleSubmit}>
             <div>
-              <Textarea
+              <VisibleTextarea
                 id="promptTextarea"
                 placeholder="Ramble..." 
                 aria-label="Raw prompt input"
                 aria-describedby={state.error ? "prompt-error" : undefined}
-                className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary text-black"
+                style={{ height: '96px' }}
                 value={state.prompt}
                 onChange={(e) => dispatch({ type: 'SET_PROMPT', payload: e.target.value })}
                 required
@@ -985,9 +986,10 @@ export default function PromptEngineer() {
                 
                 {state.showContext && (
                   <div className="mt-3 space-y-3">
-                    <Textarea
-                      placeholder="Relevant contextual information..." aria-label="Relevant context input"
-                      className="resize-none h-20 border-gray-30 focus-visible:ring-black-primary text-black"
+                    <VisibleTextarea
+                      placeholder="Relevant contextual information..." 
+                      aria-label="Relevant context input"
+                      style={{ height: '80px' }}
                       value={state.context}
                       onChange={(e) => dispatch({ type: 'SET_CONTEXT', payload: e.target.value })}
                     />
