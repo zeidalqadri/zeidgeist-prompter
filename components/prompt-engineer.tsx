@@ -888,7 +888,7 @@ export default function PromptEngineer() {
                 placeholder="Ramble..." 
                 aria-label="Raw prompt input"
                 aria-describedby={state.error ? "prompt-error" : undefined}
-                className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary"
+                className="resize-none h-24 border-gray-30 focus-visible:ring-black-primary text-black"
                 value={state.prompt}
                 onChange={(e) => dispatch({ type: 'SET_PROMPT', payload: e.target.value })}
                 required
