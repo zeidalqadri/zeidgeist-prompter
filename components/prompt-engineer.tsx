@@ -95,7 +95,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleUse}
               title="Reuse this prompt"
             >
@@ -104,7 +104,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleCopy}
               title="Replicate to clipboard"
             >
@@ -113,7 +113,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleToggle}
               title={isExpanded ? "Retract" : "Reveal"}
             >
@@ -924,7 +924,7 @@ export default function PromptEngineer() {
                   variant="ghost"
                   size="sm"
                   onClick={() => copyToClipboard(state.result)}
-                  className="h-7 text-gray-60 hover:text-black-primary"
+                  className="h-7 text-black"
                 >
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
@@ -956,7 +956,7 @@ export default function PromptEngineer() {
                     variant={state.showContext ? "default" : "outline"}
                     size="sm"
                     onClick={() => dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext })}
-                    className="text-gray-60 hover:text-black-primary"
+                    className="text-black"
                   >
                     <Info size={14} className="mr-1" />
                     Relate Context
@@ -1028,7 +1028,7 @@ export default function PromptEngineer() {
                   variant="ghost"
                   size="sm"
                   onClick={() => copyToClipboard(state.refinedWithContext)}
-                  className="h-7 text-gray-60 hover:text-black-primary"
+                  className="h-7 text-black"
                 >
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
