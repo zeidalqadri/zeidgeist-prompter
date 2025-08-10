@@ -3,7 +3,7 @@ import ErrorBoundary from "../components/ErrorBoundary"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Raw → Refined | mstprmpt.zeidgeist.com",
+  title: "Raw → Refactored | mstprmpt.zeidgeist.com",
   description: "Prompt engineering service",
 }
 
