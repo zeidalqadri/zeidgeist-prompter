@@ -95,7 +95,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleUse}
               title="Reuse this prompt"
             >
@@ -104,7 +104,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleCopy}
               title="Replicate to clipboard"
             >
@@ -113,7 +113,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-black"
               onClick={handleToggle}
               title={isExpanded ? "Retract" : "Reveal"}
             >
@@ -141,7 +141,7 @@ const HistoryRow = memo(({
                 )}
               </div>
               <div>
-                <div className="font-semibold mb-1 text-black">Refined:</div>
+                <div className="font-semibold mb-1 text-black">Refactored:</div>
                 <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
                   {item.refined}
                 </div>
@@ -746,8 +746,8 @@ export default function PromptEngineer() {
               <tr>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Recency</th>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Raw</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refined</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Responses</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refactored</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Revolve</th>
               </tr>
             </thead>
             <tbody>
@@ -919,12 +919,12 @@ export default function PromptEngineer() {
           {state.result && !state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-semibold text-black">Refined</h2>
+                <h2 className="text-base font-semibold text-black">Refactored</h2>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => copyToClipboard(state.result)}
-                  className="h-7 text-gray-60 hover:text-black-primary"
+                  className="h-7 text-black"
                 >
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
@@ -956,7 +956,7 @@ export default function PromptEngineer() {
                     variant={state.showContext ? "default" : "outline"}
                     size="sm"
                     onClick={() => dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext })}
-                    className="text-gray-60 hover:text-black-primary"
+                    className="text-black"
                   >
                     <Info size={14} className="mr-1" />
                     Relate Context
@@ -975,7 +975,7 @@ export default function PromptEngineer() {
                     )}
                     <Button 
                       size="sm" 
-                      className="bg-black-primary hover:bg-black-rich text-white-pure" 
+                      className="bg-white border border-gray-300 hover:bg-gray-50 text-black" 
                       onClick={handleExpand}
                     >
                       <RotateCw size={14} className="mr-1" />
@@ -1023,12 +1023,12 @@ export default function PromptEngineer() {
           {state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-semibold text-black">Refined+ (with context)</h2>
+                <h2 className="text-base font-semibold text-black">Refactored+ (with context)</h2>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => copyToClipboard(state.refinedWithContext)}
-                  className="h-7 text-gray-60 hover:text-black-primary"
+                  className="h-7 text-black"
                 >
                   {state.copied ? <Check size={14} /> : <Copy size={14} />}
                 </Button>
@@ -1067,7 +1067,7 @@ export default function PromptEngineer() {
                 )}
                 <Button 
                   size="sm" 
-                  className="bg-black-primary hover:bg-black-rich text-white-pure" 
+                  className="bg-white border border-gray-300 hover:bg-gray-50 text-black" 
                   onClick={handleExpand}
                 >
                   <RotateCw size={14} className="mr-1" />
