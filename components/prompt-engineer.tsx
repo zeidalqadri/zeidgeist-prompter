@@ -141,7 +141,7 @@ const HistoryRow = memo(({
                 )}
               </div>
               <div>
-                <div className="font-semibold mb-1 text-black">Refined:</div>
+                <div className="font-semibold mb-1 text-black">Refactored:</div>
                 <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
                   {item.refined}
                 </div>
@@ -746,8 +746,8 @@ export default function PromptEngineer() {
               <tr>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Recency</th>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Raw</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refined</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Responses</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refactored</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -919,7 +919,7 @@ export default function PromptEngineer() {
           {state.result && !state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-semibold text-black">Refined</h2>
+                <h2 className="text-base font-semibold text-black">Refactored</h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -975,7 +975,7 @@ export default function PromptEngineer() {
                     )}
                     <Button 
                       size="sm" 
-                      className="bg-black-primary hover:bg-black-rich text-white-pure" 
+                      className="bg-white border border-gray-300 hover:bg-gray-50 text-black" 
                       onClick={handleExpand}
                     >
                       <RotateCw size={14} className="mr-1" />
@@ -1023,7 +1023,7 @@ export default function PromptEngineer() {
           {state.refinedWithContext && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-base font-semibold text-black">Refined+ (with context)</h2>
+                <h2 className="text-base font-semibold text-black">Refactored+ (with context)</h2>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1067,7 +1067,7 @@ export default function PromptEngineer() {
                 )}
                 <Button 
                   size="sm" 
-                  className="bg-black-primary hover:bg-black-rich text-white-pure" 
+                  className="bg-white border border-gray-300 hover:bg-gray-50 text-black" 
                   onClick={handleExpand}
                 >
                   <RotateCw size={14} className="mr-1" />
