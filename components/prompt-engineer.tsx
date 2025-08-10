@@ -95,7 +95,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
               onClick={handleUse}
               title="Reuse this prompt"
             >
@@ -104,7 +104,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
               onClick={handleCopy}
               title="Replicate to clipboard"
             >
@@ -113,7 +113,7 @@ const HistoryRow = memo(({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 hover:bg-gray-100"
+              className="h-6 w-6 hover:bg-gray-100 text-gray-600 hover:text-black"
               onClick={handleToggle}
               title={isExpanded ? "Retract" : "Reveal"}
             >
@@ -747,7 +747,7 @@ export default function PromptEngineer() {
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Recency</th>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Raw</th>
                 <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refactored</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Actions</th>
+                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Revolve</th>
               </tr>
             </thead>
             <tbody>
