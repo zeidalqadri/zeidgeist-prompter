@@ -354,6 +354,14 @@ function cleanEnhancedPrompt(text: string): string {
     /^Here's an enhanced,.*?version of your prompt:?\s*/i,
     /^Here is an enhanced,.*?version of your prompt:?\s*/i,
     
+    // Enhanced prompt specific patterns (user requested)
+    /^Here's the enhanced prompt:?\s*/i,
+    /^Here is the enhanced prompt:?\s*/i,
+    /^The enhanced prompt is:?\s*/i,
+    /^Your enhanced prompt:?\s*/i,
+    /^Below is the enhanced prompt:?\s*/i,
+    /^This enhanced prompt:?\s*/i,
+    
     // Comprehensive patterns for any descriptive intro
     /^Here's an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
     /^Here is an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
@@ -411,11 +419,19 @@ function cleanEnhancedPrompt(text: string): string {
 
 // Test function to verify cleaning works (for development)
 function testCleanEnhancedPrompt() {
-  const testText = "Here's an enhanced, more specific, and actionable version of your prompt:\n\n---\n\n**Prompt:**\nExplain the step-by-step process...";
-  const cleaned = cleanEnhancedPrompt(testText);
-  console.log('TEST - Original:', testText.substring(0, 100) + '...');
-  console.log('TEST - Cleaned:', cleaned.substring(0, 100) + '...');
-  return cleaned;
+  const testTexts = [
+    "Here's an enhanced, more specific, and actionable version of your prompt:\n\n---\n\n**Prompt:**\nExplain the step-by-step process...",
+    "Here's the enhanced prompt:\n\nExplain the step-by-step process...",
+    "The enhanced prompt is:\n\nExplain the step-by-step process...",
+    "Your enhanced prompt:\n\nExplain the step-by-step process..."
+  ];
+  
+  testTexts.forEach((testText, i) => {
+    const cleaned = cleanEnhancedPrompt(testText);
+    console.log(`TEST ${i+1} - Original:`, testText.substring(0, 50) + '...');
+    console.log(`TEST ${i+1} - Cleaned:`, cleaned.substring(0, 50) + '...');
+    console.log('---');
+  });
 }
 
 // DeepSeek enhancement
