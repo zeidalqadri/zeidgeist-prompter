@@ -722,7 +722,7 @@ export async function enhancePrompt(
   console.log('Available env keys:', Object.keys(env));
   console.log('Claude key:', !!env.CLAUDE_API_KEY);
   console.log('OpenAI key:', !!env.OPENAI_API_KEY);
-  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY);
+  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY, '(DISABLED - too much intro/outro text)');
   console.log('Mistral key:', !!env.MISTRAL_API_KEY);
   console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
   
@@ -732,9 +732,10 @@ export async function enhancePrompt(
   if (env.OPENAI_API_KEY) {
     availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean) => enhanceWithOpenAI(p, c, r, env) });
   }
-  if (env.DEEPSEEK_API_KEY) {
-    availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
-  }
+  // DeepSeek disabled - too stubborn with intro/outro text despite XML constraints
+  // if (env.DEEPSEEK_API_KEY) {
+  //   availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
+  // }
   if (env.MISTRAL_API_KEY) {
     availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean) => enhanceWithMistral(p, c, r, env) });
   }
@@ -753,7 +754,7 @@ export async function enhancePrompt(
         keysChecked: {
           claude: !!env.CLAUDE_API_KEY,
           openai: !!env.OPENAI_API_KEY,
-          deepseek: !!env.DEEPSEEK_API_KEY,
+          deepseek: `${!!env.DEEPSEEK_API_KEY} (DISABLED)`,
           mistral: !!env.MISTRAL_API_KEY,
           moonshot: !!env.MOONSHOT_API_KEY
         }
