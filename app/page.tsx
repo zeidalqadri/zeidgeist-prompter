@@ -1,5 +1,6 @@
 import PromptEngineer from "../components/prompt-engineer"
 import ErrorBoundary from "../components/ErrorBoundary"
+import PerformanceMonitor from "../components/performance-monitor"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -13,6 +14,8 @@ export default function Home() {
       <ErrorBoundary>
         <PromptEngineer />
       </ErrorBoundary>
+      {/* Performance monitoring only in development/testing */}
+      {process.env.NODE_ENV !== 'production' && <PerformanceMonitor />}
     </main>
   )
 }
