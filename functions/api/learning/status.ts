@@ -42,7 +42,7 @@ export async function onRequestGet(context: any): Promise<Response> {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+        'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
       },
     });
   } catch (error) {
@@ -58,7 +58,7 @@ export async function onRequestGet(context: any): Promise<Response> {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+        'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
       },
     });
   }
