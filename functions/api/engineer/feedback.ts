@@ -5,7 +5,7 @@ export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+      'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },

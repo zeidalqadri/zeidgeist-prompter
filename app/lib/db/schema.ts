@@ -9,6 +9,7 @@ export const promptHistory = pgTable('prompt_history', {
   context: text('context'),
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   metadata: text('metadata'), // JSON string for source, processing time, etc.
+  ipAddress: text('ip_address'), // Store user's IP for history isolation
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
