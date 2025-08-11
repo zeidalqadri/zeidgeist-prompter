@@ -17,14 +17,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ffffff; /* Pure white for maximum contrast */
-    --muted-foreground: #d4d4d4; /* Lighter gray for better contrast */
-    --secondary-foreground: #f0f0f0; /* Enhanced contrast */
-    --border: #4a4a4a; /* Slightly lighter border */
-    --input: #1f1f1f; /* Slightly lighter input background */
-    --primary: #5e9eff; /* Lighter blue for better contrast */
-    --secondary: #8a8a8a; /* Lighter secondary */
+    --background: #ffffff; /* Keep light background - app doesn't support full dark mode */
+    --foreground: #0a0a0a; /* Keep dark text for light backgrounds */
+    --muted-foreground: #2e2e2e; /* Keep dark gray for readability */
+    --secondary-foreground: #1a1a1a; /* Keep dark text */
+    --border: #d1d1d1; /* Keep light border */
+    --input: #f0f0f0; /* Keep light input background */
+    --primary: #0052cc; /* Keep dark blue for contrast on light */
+    --secondary: #2e2e2e; /* Keep dark secondary */
   }
 }
 
@@ -90,4 +90,15 @@ label, .text-sm {
   color: var(--foreground) !important; /* Use main foreground for better contrast */
   font-weight: 600; /* Bolder for better readability */
   letter-spacing: 0.02em; /* Improved spacing */
+}
+
+/* Force black text in output areas to prevent visibility issues */
+.whitespace-pre-wrap {
+  color: #000000 !important; /* Force black text in output areas */
+  font-weight: 500 !important; /* Medium weight for better readability */
+}
+
+/* Ensure all content text is readable */
+div, p, span:not(.bg-black-primary):not(.bg-indigo-600) {
+  color: #000000 !important; /* Force black text except on dark backgrounds */
 }
