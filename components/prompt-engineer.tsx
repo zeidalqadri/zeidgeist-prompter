@@ -2,12 +2,22 @@
 
 import React from "react"
 
-import { useState, useEffect, useCallback, useReducer, useMemo, memo } from "react"
+import { useState, useEffect, useCallback, useReducer, useMemo, memo, lazy, Suspense } from "react"
 import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
 import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
-import FeedbackForm from "./feedback-form"
+
+// Lazy load FeedbackForm since it's not immediately needed
+const FeedbackForm = lazy(() => import("./feedback-form"))
+
+// Feedback form loading component
+const FeedbackFormLoader = () => (
+  <div className="flex items-center justify-center py-4">
+    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+    <span className="ml-2 text-gray-600">Loading feedback form...</span>
+  </div>
+)
 
 // Create a simple inline toast component
 const SimpleToast = memo(({ show, message }: { show: boolean, message: string }) => {
@@ -1010,11 +1020,13 @@ export default function PromptEngineer() {
               
               {state.showFeedback && (
                 <div className="mt-4">
-                  <FeedbackForm 
-                    originalPrompt={state.prompt}
-                    enhancedPrompt={state.result}
-                    onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
-                  />
+                  <Suspense fallback={<FeedbackFormLoader />}>
+                    <FeedbackForm 
+                      originalPrompt={state.prompt}
+                      enhancedPrompt={state.result}
+                      onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>
@@ -1077,11 +1089,13 @@ export default function PromptEngineer() {
               
               {state.showFeedback && (
                 <div className="mt-4">
-                  <FeedbackForm 
-                    originalPrompt={state.prompt}
-                    enhancedPrompt={state.refinedWithContext}
-                    onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
-                  />
+                  <Suspense fallback={<FeedbackFormLoader />}>
+                    <FeedbackForm 
+                      originalPrompt={state.prompt}
+                      enhancedPrompt={state.refinedWithContext}
+                      onClose={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: false })}
+                    />
+                  </Suspense>
                 </div>
               )}
             </div>

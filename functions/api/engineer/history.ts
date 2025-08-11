@@ -1,4 +1,5 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
+import { getOptimizedDb, executeWithRetry } from "../../_shared/db-pool"
 import { desc, sql } from "drizzle-orm"
 
 // Handle CORS preflight requests
@@ -20,11 +21,16 @@ export async function onRequestGet(context: any): Promise<Response> {
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100) // Max 100 per page
   const offset = page * limit
   
+  // Generate cache key for this specific request
+  const cacheKey = `history_${page}_${limit}`
+  
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=60, s-maxage=60', // Cache for 1 minute
+    'ETag': `W/"${cacheKey}"`
   }
 
   try {
@@ -38,25 +44,26 @@ export async function onRequestGet(context: any): Promise<Response> {
       })
     }
 
-    // Creating database connection
-    const db = createDb(env)
+    // Creating optimized database connection with pooling
+    const db = getOptimizedDb(env)
     // Database connection successful
     
-    // Executing database query with pagination
-    // Fetch recent history from database with pagination and optimized query
-    const [history, totalCountResult] = await Promise.all([
-      db
-        .select()
-        .from(promptHistory)
-        .orderBy(desc(promptHistory.timestamp))
-        .limit(limit)
-        .offset(offset),
-      
-      // Get total count for pagination info
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(promptHistory)
-    ])
+    // Executing database query with pagination and retry logic
+    const [history, totalCountResult] = await executeWithRetry(async () => {
+      return Promise.all([
+        db
+          .select()
+          .from(promptHistory)
+          .orderBy(desc(promptHistory.timestamp))
+          .limit(limit)
+          .offset(offset),
+        
+        // Get total count for pagination info
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(promptHistory)
+      ])
+    })
 
     const totalCount = totalCountResult[0]?.count || 0
     const hasMore = offset + history.length < totalCount
@@ -65,7 +72,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     // Query executed successfully
 
     // Transform to match existing frontend format
-    const items = history.map(item => ({
+    const items = history.map((item: any) => ({
       original: item.original,
       refined: item.refined,
       context: item.context || undefined,
