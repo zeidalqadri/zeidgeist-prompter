@@ -263,7 +263,7 @@ function buildPromptEnhancementMessages(prompt: string, context?: string, isRefi
   
   <absolute_constraint>
     OUTPUT = refined_prompt_text_only
-    NO_PHRASES = ["Here's", "Here is", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have"]
+    NO_PHRASES = ["Here's", "Here is", "Here's an", "Here is an", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have", "version of your prompt", "enhanced prompt", "refined version"]
     DIRECT_OUTPUT = true
   </absolute_constraint>
   
@@ -350,6 +350,17 @@ function buildPromptEnhancementMessages(prompt: string, context?: string, isRefi
 function cleanEnhancedPrompt(text: string): string {
   // Remove common intro phrases
   const introPatterns = [
+    // Exact pattern from screenshot
+    /^Here's an enhanced,.*?version of your prompt:?\s*/i,
+    /^Here is an enhanced,.*?version of your prompt:?\s*/i,
+    
+    // Comprehensive patterns for any descriptive intro
+    /^Here's an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
+    /^Here is an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
+    /^Here's the (?:enhanced|refined|improved).*?(?:prompt|version):?\s*/i,
+    /^Here is the (?:enhanced|refined|improved).*?(?:prompt|version):?\s*/i,
+    
+    // Original patterns
     /^Here's the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
     /^Here is the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
     /^This is the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
@@ -396,6 +407,15 @@ function cleanEnhancedPrompt(text: string): string {
   }
   
   return cleaned.trim();
+}
+
+// Test function to verify cleaning works (for development)
+function testCleanEnhancedPrompt() {
+  const testText = "Here's an enhanced, more specific, and actionable version of your prompt:\n\n---\n\n**Prompt:**\nExplain the step-by-step process...";
+  const cleaned = cleanEnhancedPrompt(testText);
+  console.log('TEST - Original:', testText.substring(0, 100) + '...');
+  console.log('TEST - Cleaned:', cleaned.substring(0, 100) + '...');
+  return cleaned;
 }
 
 // DeepSeek enhancement
@@ -490,7 +510,7 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
   
   <absolute_constraint>
     OUTPUT = refined_prompt_text_only
-    NO_PHRASES = ["Here's", "Here is", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have"]
+    NO_PHRASES = ["Here's", "Here is", "Here's an", "Here is an", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have", "version of your prompt", "enhanced prompt", "refined version"]
     DIRECT_OUTPUT = true
   </absolute_constraint>
   
