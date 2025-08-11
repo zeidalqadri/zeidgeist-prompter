@@ -7,6 +7,15 @@ const nextConfig = {
   // Performance optimizations
   compress: true,
   
+  // Additional performance optimizations
+  poweredByHeader: false,
+  generateEtags: false,
+  
+  // Compiler optimizations
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  
   // Images must be unoptimized for Cloudflare Pages static export
   images: {
     unoptimized: true, // Required for static export
@@ -38,6 +47,39 @@ const nextConfig = {
         },
       }
       
+      // Advanced webpack optimizations
+      config.optimization = {
+        ...config.optimization,
+        usedExports: true,
+        sideEffects: false,
+        moduleIds: 'deterministic',
+        chunkIds: 'deterministic',
+        splitChunks: {
+          chunks: 'all',
+          minSize: 20000,
+          maxSize: 244000,
+          cacheGroups: {
+            default: {
+              minChunks: 2,
+              priority: -20,
+              reuseExistingChunk: true,
+            },
+            vendor: {
+              test: /[\/]node_modules[\/]/,
+              name: 'vendors',
+              priority: -10,
+              chunks: 'all',
+            },
+            react: {
+              test: /[\/]node_modules[\/](react|react-dom)[\/]/,
+              name: 'react',
+              priority: 20,
+              chunks: 'all',
+            },
+          },
+        },
+      }
+      
       // Bundle analyzer in development
       if (process.env.ANALYZE === 'true') {
         const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer')
@@ -57,6 +99,8 @@ const nextConfig = {
   experimental: {
     optimizeCss: true,
     webVitalsAttribution: ['CLS', 'LCP'],
+    scrollRestoration: true,
+    optimizePackageImports: ['lucide-react'],
   },
   
   // Headers for better caching

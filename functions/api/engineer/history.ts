@@ -1,4 +1,5 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
+import { getOptimizedDb, executeWithRetry } from "../../_shared/db-pool"
 import { desc, sql, eq } from "drizzle-orm"
 
 // Handle CORS preflight requests
@@ -26,11 +27,16 @@ export async function onRequestGet(context: any): Promise<Response> {
                    request.headers.get('x-real-ip') || 
                    'unknown'
   
+  // Generate cache key for this specific request (including IP for isolation)
+  const cacheKey = `history_${clientIP}_${page}_${limit}`
+  
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=60, s-maxage=60', // Cache for 1 minute
+    'ETag': `W/"${cacheKey}"`
   }
 
   try {
@@ -44,27 +50,28 @@ export async function onRequestGet(context: any): Promise<Response> {
       })
     }
 
-    // Creating database connection
-    const db = createDb(env)
+    // Creating optimized database connection with pooling
+    const db = getOptimizedDb(env)
     // Database connection successful
     
-    // Executing database query with pagination
-    // Fetch recent history from database with pagination and IP filtering
-    const [history, totalCountResult] = await Promise.all([
-      db
-        .select()
-        .from(promptHistory)
-        .where(eq(promptHistory.ipAddress, clientIP))
-        .orderBy(desc(promptHistory.timestamp))
-        .limit(limit)
-        .offset(offset),
-      
-      // Get total count for pagination info (filtered by IP)
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(promptHistory)
-        .where(eq(promptHistory.ipAddress, clientIP))
-    ])
+    // Executing database query with pagination, IP filtering, and retry logic
+    const [history, totalCountResult] = await executeWithRetry(async () => {
+      return Promise.all([
+        db
+          .select()
+          .from(promptHistory)
+          .where(eq(promptHistory.ipAddress, clientIP))
+          .orderBy(desc(promptHistory.timestamp))
+          .limit(limit)
+          .offset(offset),
+        
+        // Get total count for pagination info (filtered by IP)
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(promptHistory)
+          .where(eq(promptHistory.ipAddress, clientIP))
+      ])
+    })
 
     const totalCount = totalCountResult[0]?.count || 0
     const hasMore = offset + history.length < totalCount
@@ -73,7 +80,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     // Query executed successfully
 
     // Transform to match existing frontend format
-    const items = history.map(item => ({
+    const items = history.map((item: any) => ({
       original: item.original,
       refined: item.refined,
       context: item.context || undefined,
