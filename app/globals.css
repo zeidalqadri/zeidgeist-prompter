@@ -98,7 +98,20 @@ label, .text-sm {
   font-weight: 500 !important; /* Medium weight for better readability */
 }
 
-/* Ensure all content text is readable */
-div, p, span:not(.bg-black-primary):not(.bg-indigo-600) {
-  color: #000000 !important; /* Force black text except on dark backgrounds */
+/* Specific fixes for light background areas only */
+.bg-gray-50, .bg-white-soft, .bg-gray-100, .bg-gray-200 {
+  color: #000000 !important; /* Force black text on light backgrounds */
+}
+
+.bg-gray-50 *, .bg-white-soft *, .bg-gray-100 *, .bg-gray-200 * {
+  color: #000000 !important; /* Force black text inside light background containers */
+}
+
+/* Ensure buttons with dark backgrounds keep white text */
+.bg-black-primary, .bg-black-primary *, 
+.bg-black-rich, .bg-black-rich *,
+.bg-indigo-600, .bg-indigo-600 *,
+.bg-indigo-700, .bg-indigo-700 *,
+.text-white-pure {
+  color: #ffffff !important; /* Keep white text on dark backgrounds */
 }
