@@ -251,8 +251,85 @@ function enhanceLocally(prompt: string, context?: string, options: EnhancementOp
 // Build enhancement messages
 function buildPromptEnhancementMessages(prompt: string, context?: string, isRefinement: boolean = false) {
   const systemPrompt = isRefinement 
-    ? "You are an expert at refining and improving prompts. Take the given prompt and make it more clear, specific, and effective while preserving the original intent."
-    : "You are an expert prompt engineer. Enhance the given prompt to be more specific, clear, and effective for getting better AI responses.";
+    ? `<prompt_enhancement_system version="3.0">
+  <role expertise="maximum">Elite Prompt Refinement Specialist</role>
+  
+  <prime_directive>
+    OUTPUT_MODE: REFINED_TEXT_ONLY
+    META_TEXT: FORBIDDEN
+    EXPLANATIONS: FORBIDDEN
+    FORMAT: DIRECT_PROMPT_OUTPUT
+  </prime_directive>
+  
+  <absolute_constraint>
+    OUTPUT = refined_prompt_text_only
+    NO_PHRASES = ["Here's", "Here is", "Here's an", "Here is an", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have", "version of your prompt", "enhanced prompt", "refined version"]
+    DIRECT_OUTPUT = true
+  </absolute_constraint>
+  
+  <refinement_strategy>
+    <analyze>Identify gaps in current prompt</analyze>
+    <enhance>Add missing edge cases and specifications</enhance>
+    <optimize>Remove redundancy while preserving clarity</optimize>
+    <structure>Improve logical flow and hierarchy</structure>
+    <validate>Ensure all ambiguity eliminated</validate>
+  </refinement_strategy>
+  
+  <enhancement_checklist>
+    □ Has clear success criteria?
+    □ Includes failure handling?
+    □ Specifies exact format?
+    □ Contains examples?
+    □ Defines constraints?
+    □ Sets quality bar?
+    □ Actionable steps?
+  </enhancement_checklist>
+  
+  <output_validator>
+    if response.contains(["Here's", "This is", "The enhanced", "Below"]):
+      REJECT_AND_RETRY
+    else:
+      RETURN enhanced_text_only
+  </output_validator>
+</prompt_enhancement_system>`
+    : `<prompt_enhancement_system version="3.0">
+  <role expertise="maximum">Elite Prompt Engineering Specialist</role>
+  
+  <prime_directive>
+    OUTPUT_MODE: ENHANCED_TEXT_ONLY
+    META_TEXT: FORBIDDEN
+    EXPLANATIONS: FORBIDDEN
+    FORMAT: DIRECT_PROMPT_OUTPUT
+  </prime_directive>
+  
+  <critical_rules>
+    <rule priority="ABSOLUTE">Output ONLY the enhanced prompt text</rule>
+    <rule priority="ABSOLUTE">No meta-text, introductions, or explanations</rule>
+    <rule priority="ABSOLUTE">Response = enhanced_prompt_only</rule>
+    <rule priority="ABSOLUTE">Never use phrases like "Here's", "This is", "Below", etc.</rule>
+  </critical_rules>
+  
+  <enhancement_pipeline>
+    <stage_1>Intent extraction with semantic analysis</stage_1>
+    <stage_2>Gap identification using completeness matrix</stage_2>
+    <stage_3>Structure optimization with hierarchy design</stage_3>
+    <stage_4>Specificity injection with examples where needed</stage_4>
+    <stage_5>Token optimization without clarity loss</stage_5>
+    <stage_6>Output validation against rules</stage_6>
+  </enhancement_pipeline>
+  
+  <quality_gates>
+    <gate_1>Specificity ≥ 90%</gate_1>
+    <gate_2>Ambiguity = 0</gate_2>
+    <gate_3>Actionability = 100%</gate_3>
+  </quality_gates>
+  
+  <output_validator>
+    <regex_check pattern="^(?!.*Here's|.*Here is|.*This is|.*Below).*$"/>
+    <format_check type="direct_text_only"/>
+    <quality_check minimum_score="85"/>
+  </output_validator>
+</prompt_enhancement_system>`;
 
   const messages = [
     { role: "system", content: systemPrompt }
@@ -260,11 +337,101 @@ function buildPromptEnhancementMessages(prompt: string, context?: string, isRefi
 
   let userMessage = prompt;
   if (context && context.trim()) {
-    userMessage = `Context: ${context}\n\nPrompt to enhance: ${prompt}`;
+    userMessage = `<input_data>\n<context>${context}</context>\n<prompt_to_enhance>${prompt}</prompt_to_enhance>\n</input_data>`;
+  } else {
+    userMessage = `<prompt_to_enhance>${prompt}</prompt_to_enhance>`;
   }
 
   messages.push({ role: "user", content: userMessage });
   return messages;
+}
+
+// Post-process enhanced prompts to remove any intro/outro text
+function cleanEnhancedPrompt(text: string): string {
+  // Remove common intro phrases
+  const introPatterns = [
+    // Exact pattern from screenshot
+    /^Here's an enhanced,.*?version of your prompt:?\s*/i,
+    /^Here is an enhanced,.*?version of your prompt:?\s*/i,
+    
+    // Enhanced prompt specific patterns (user requested)
+    /^Here's the enhanced prompt:?\s*/i,
+    /^Here is the enhanced prompt:?\s*/i,
+    /^The enhanced prompt is:?\s*/i,
+    /^Your enhanced prompt:?\s*/i,
+    /^Below is the enhanced prompt:?\s*/i,
+    /^This enhanced prompt:?\s*/i,
+    
+    // Comprehensive patterns for any descriptive intro
+    /^Here's an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
+    /^Here is an? (?:enhanced|refined|improved|better|more specific|detailed).*?(?:prompt|version):?\s*/i,
+    /^Here's the (?:enhanced|refined|improved).*?(?:prompt|version):?\s*/i,
+    /^Here is the (?:enhanced|refined|improved).*?(?:prompt|version):?\s*/i,
+    
+    // Original patterns
+    /^Here's the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
+    /^Here is the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
+    /^This is the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
+    /^The (?:enhanced|refined|improved) (?:prompt|version) is:?\s*/i,
+    /^I've (?:enhanced|refined|improved) (?:the|your) prompt:?\s*/i,
+    /^I have (?:enhanced|refined|improved) (?:the|your) prompt:?\s*/i,
+    /^Below is the (?:enhanced|refined|improved) (?:prompt|version):?\s*/i,
+    /^Your (?:enhanced|refined|improved) prompt:?\s*/i,
+    /^Enhanced prompt:?\s*/i,
+    /^Refined prompt:?\s*/i,
+    /^Improved prompt:?\s*/i,
+    /^\*\*Enhanced Prompt\*\*:?\s*/i,
+    /^\*\*Refined Prompt\*\*:?\s*/i,
+  ];
+  
+  let cleaned = text.trim();
+  
+  // Remove intro patterns
+  for (const pattern of introPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  // Remove quotes if the entire prompt is wrapped in them
+  if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || 
+      (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
+    cleaned = cleaned.slice(1, -1);
+  }
+  
+  // Remove markdown code block if present
+  if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+  }
+  
+  // Remove outro phrases
+  const outroPatterns = [
+    /\n+(?:This|The above) (?:enhanced|refined|improved) prompt.*$/i,
+    /\n+I hope this (?:enhanced|refined|improved) version.*$/i,
+    /\n+Feel free to (?:use|modify|adjust).*$/i,
+    /\n+Let me know if you.*$/i,
+  ];
+  
+  for (const pattern of outroPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  return cleaned.trim();
+}
+
+// Test function to verify cleaning works (for development)
+function testCleanEnhancedPrompt() {
+  const testTexts = [
+    "Here's an enhanced, more specific, and actionable version of your prompt:\n\n---\n\n**Prompt:**\nExplain the step-by-step process...",
+    "Here's the enhanced prompt:\n\nExplain the step-by-step process...",
+    "The enhanced prompt is:\n\nExplain the step-by-step process...",
+    "Your enhanced prompt:\n\nExplain the step-by-step process..."
+  ];
+  
+  testTexts.forEach((testText, i) => {
+    const cleaned = cleanEnhancedPrompt(testText);
+    console.log(`TEST ${i+1} - Original:`, testText.substring(0, 50) + '...');
+    console.log(`TEST ${i+1} - Cleaned:`, cleaned.substring(0, 50) + '...');
+    console.log('---');
+  });
 }
 
 // DeepSeek enhancement
@@ -297,7 +464,7 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
 
   const data = await response.json();
   return {
-    enhancedPrompt: data.choices[0].message.content,
+    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'deepseek',
     metadata: { model: 'deepseek-chat', usage: data.usage }
   };
@@ -333,7 +500,7 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
 
   const data = await response.json();
   return {
-    enhancedPrompt: data.choices[0].message.content,
+    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'mistral',
     metadata: { model: 'mistral-large-latest', usage: data.usage }
   };
@@ -347,12 +514,81 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
   }
 
   const systemPrompt = isRefinement 
-    ? "You are an expert at refining and improving prompts. Take the given prompt and make it more clear, specific, and effective while preserving the original intent."
-    : "You are an expert prompt engineer. Enhance the given prompt to be more specific, clear, and effective for getting better AI responses.";
+    ? `<prompt_enhancement_system version="3.0">
+  <role expertise="maximum">Elite Prompt Refinement Specialist</role>
+  
+  <prime_directive>
+    OUTPUT_MODE: REFINED_TEXT_ONLY
+    META_TEXT: FORBIDDEN
+    EXPLANATIONS: FORBIDDEN
+    FORMAT: DIRECT_PROMPT_OUTPUT
+  </prime_directive>
+  
+  <absolute_constraint>
+    OUTPUT = refined_prompt_text_only
+    NO_PHRASES = ["Here's", "Here is", "Here's an", "Here is an", "This is", "The enhanced", "The refined", "Below", "I've improved", "I have", "version of your prompt", "enhanced prompt", "refined version"]
+    DIRECT_OUTPUT = true
+  </absolute_constraint>
+  
+  <refinement_strategy>
+    <analyze>Identify gaps in current prompt</analyze>
+    <enhance>Add missing edge cases and specifications</enhance>
+    <optimize>Remove redundancy while preserving clarity</optimize>
+    <structure>Improve logical flow and hierarchy</structure>
+    <validate>Ensure all ambiguity eliminated</validate>
+  </refinement_strategy>
+  
+  <output_validator>
+    if response.contains(["Here's", "This is", "The enhanced", "Below"]):
+      REJECT_AND_RETRY
+    else:
+      RETURN enhanced_text_only
+  </output_validator>
+</prompt_enhancement_system>`
+    : `<prompt_enhancement_system version="3.0">
+  <role expertise="maximum">Elite Prompt Engineering Specialist</role>
+  
+  <prime_directive>
+    OUTPUT_MODE: ENHANCED_TEXT_ONLY
+    META_TEXT: FORBIDDEN
+    EXPLANATIONS: FORBIDDEN
+    FORMAT: DIRECT_PROMPT_OUTPUT
+  </prime_directive>
+  
+  <critical_rules>
+    <rule priority="ABSOLUTE">Output ONLY the enhanced prompt text</rule>
+    <rule priority="ABSOLUTE">No meta-text, introductions, or explanations</rule>
+    <rule priority="ABSOLUTE">Response = enhanced_prompt_only</rule>
+    <rule priority="ABSOLUTE">Never use phrases like "Here's", "This is", "Below", etc.</rule>
+  </critical_rules>
+  
+  <enhancement_pipeline>
+    <stage_1>Intent extraction with semantic analysis</stage_1>
+    <stage_2>Gap identification using completeness matrix</stage_2>
+    <stage_3>Structure optimization with hierarchy design</stage_3>
+    <stage_4>Specificity injection with examples where needed</stage_4>
+    <stage_5>Token optimization without clarity loss</stage_5>
+    <stage_6>Output validation against rules</stage_6>
+  </enhancement_pipeline>
+  
+  <quality_gates>
+    <gate_1>Specificity ≥ 90%</gate_1>
+    <gate_2>Ambiguity = 0</gate_2>
+    <gate_3>Actionability = 100%</gate_3>
+  </quality_gates>
+  
+  <output_validator>
+    <regex_check pattern="^(?!.*Here's|.*Here is|.*This is|.*Below).*$"/>
+    <format_check type="direct_text_only"/>
+    <quality_check minimum_score="85"/>
+  </output_validator>
+</prompt_enhancement_system>`;
 
   let userMessage = prompt;
   if (context && context.trim()) {
-    userMessage = `Context: ${context}\n\nPrompt to enhance: ${prompt}`;
+    userMessage = `<input_data>\n<context>${context}</context>\n<prompt_to_enhance>${prompt}</prompt_to_enhance>\n</input_data>`;
+  } else {
+    userMessage = `<prompt_to_enhance>${prompt}</prompt_to_enhance>`;
   }
   
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -378,7 +614,7 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
 
   const data = await response.json();
   return {
-    enhancedPrompt: data.content[0].text,
+    enhancedPrompt: cleanEnhancedPrompt(data.content[0].text),
     source: 'claude',
     metadata: { model: 'claude-3-haiku', usage: data.usage }
   };
@@ -414,7 +650,7 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
 
   const data = await response.json();
   return {
-    enhancedPrompt: data.choices[0].message.content,
+    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'openai',
     metadata: { model: 'gpt-4o-mini', usage: data.usage }
   };
@@ -450,7 +686,7 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
 
   const data = await response.json();
   return {
-    enhancedPrompt: data.choices[0].message.content,
+    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'moonshot',
     metadata: { model: 'moonshot-v1-8k', usage: data.usage }
   };
@@ -486,7 +722,7 @@ export async function enhancePrompt(
   console.log('Available env keys:', Object.keys(env));
   console.log('Claude key:', !!env.CLAUDE_API_KEY);
   console.log('OpenAI key:', !!env.OPENAI_API_KEY);
-  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY);
+  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY, '(DISABLED - too much intro/outro text)');
   console.log('Mistral key:', !!env.MISTRAL_API_KEY);
   console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
   
@@ -496,9 +732,10 @@ export async function enhancePrompt(
   if (env.OPENAI_API_KEY) {
     availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean) => enhanceWithOpenAI(p, c, r, env) });
   }
-  if (env.DEEPSEEK_API_KEY) {
-    availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
-  }
+  // DeepSeek disabled - too stubborn with intro/outro text despite XML constraints
+  // if (env.DEEPSEEK_API_KEY) {
+  //   availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
+  // }
   if (env.MISTRAL_API_KEY) {
     availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean) => enhanceWithMistral(p, c, r, env) });
   }
@@ -517,7 +754,7 @@ export async function enhancePrompt(
         keysChecked: {
           claude: !!env.CLAUDE_API_KEY,
           openai: !!env.OPENAI_API_KEY,
-          deepseek: !!env.DEEPSEEK_API_KEY,
+          deepseek: `${!!env.DEEPSEEK_API_KEY} (DISABLED)`,
           mistral: !!env.MISTRAL_API_KEY,
           moonshot: !!env.MOONSHOT_API_KEY
         }

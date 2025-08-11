@@ -1,13 +1,13 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../../_shared/db-pool"
-import { desc, sql } from "drizzle-orm"
+import { desc, sql, eq } from "drizzle-orm"
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+      'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
@@ -21,11 +21,17 @@ export async function onRequestGet(context: any): Promise<Response> {
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100) // Max 100 per page
   const offset = page * limit
   
-  // Generate cache key for this specific request
-  const cacheKey = `history_${page}_${limit}`
+  // Get client IP address for filtering
+  const clientIP = request.headers.get('cf-connecting-ip') || 
+                   request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown'
+  
+  // Generate cache key for this specific request (including IP for isolation)
+  const cacheKey = `history_${clientIP}_${page}_${limit}`
   
   const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
@@ -48,20 +54,22 @@ export async function onRequestGet(context: any): Promise<Response> {
     const db = getOptimizedDb(env)
     // Database connection successful
     
-    // Executing database query with pagination and retry logic
+    // Executing database query with pagination, IP filtering, and retry logic
     const [history, totalCountResult] = await executeWithRetry(async () => {
       return Promise.all([
         db
           .select()
           .from(promptHistory)
+          .where(eq(promptHistory.ipAddress, clientIP))
           .orderBy(desc(promptHistory.timestamp))
           .limit(limit)
           .offset(offset),
         
-        // Get total count for pagination info
+        // Get total count for pagination info (filtered by IP)
         db
           .select({ count: sql<number>`count(*)` })
           .from(promptHistory)
+          .where(eq(promptHistory.ipAddress, clientIP))
       ])
     })
 
@@ -120,8 +128,15 @@ export async function onRequestGet(context: any): Promise<Response> {
 
 export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context
+  
+  // Get client IP address for storing with history
+  const clientIP = request.headers.get('cf-connecting-ip') || 
+                   request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown'
+  
   const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://aipromptise.pages.dev',
+    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json'
@@ -139,13 +154,14 @@ export async function onRequestPost(context: any): Promise<Response> {
       })
     }
 
-    // Create new history record
+    // Create new history record with IP address
     const newHistory: NewPromptHistory = {
       original,
       refined,
       context: context || null,
       timestamp: new Date(timestamp || Date.now()),
-      metadata: metadata ? JSON.stringify(metadata) : null
+      metadata: metadata ? JSON.stringify(metadata) : null,
+      ipAddress: clientIP
     }
 
     // Insert into database
@@ -156,7 +172,8 @@ export async function onRequestPost(context: any): Promise<Response> {
       originalLength: original.length,
       refinedLength: refined.length,
       hasContext: !!context,
-      timestamp: newHistory.timestamp?.toISOString() || new Date().toISOString()
+      timestamp: newHistory.timestamp?.toISOString() || new Date().toISOString(),
+      ipAddress: clientIP
     })
 
     return new Response(JSON.stringify({ 
