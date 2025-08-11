@@ -1,4 +1,5 @@
 import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
+import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 
@@ -20,12 +21,16 @@ export async function onRequestPost(context: any): Promise<Response> {
   
   // Removed debug logging for security
   
-  // Add CORS headers
+  // Add CORS headers with performance optimizations
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Content-Encoding': 'gzip', // Enable compression
+    'Cache-Control': 'no-cache, no-store, must-revalidate', // Prevent caching of sensitive data
+    'X-Content-Type-Options': 'nosniff',
+    'X-Response-Time': `${Date.now() - startTime}ms` // Add response time header
   }
 
   // Validate authentication and rate limiting
@@ -79,9 +84,9 @@ export async function onRequestPost(context: any): Promise<Response> {
       const processingTime = Date.now() - startTime
       console.log('Enhancement completed successfully')
       
-      // Log enhancement to database for analytics with aligned schema
+      // Log enhancement to database for analytics with optimized connection pool
       try {
-        const db = createDb(env)
+        const db = getOptimizedDb(env)
         const enhancementLog: NewEnhancementLog = {
           promptLength: trimmedPrompt.length,
           hasContext: !!(context && context.trim()),
@@ -93,7 +98,11 @@ export async function onRequestPost(context: any): Promise<Response> {
           wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
           hadError: false
         }
-        await db.insert(enhancementLogs).values(enhancementLog)
+        
+        // Execute database insert with retry logic
+        await executeWithRetry(async () => {
+          return db.insert(enhancementLogs).values(enhancementLog)
+        })
       } catch (logError) {
         console.error("Failed to log enhancement:", logError)
       }
