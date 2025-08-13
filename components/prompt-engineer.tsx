@@ -81,9 +81,9 @@ const HistoryRow = memo(({
         aria-expanded={isExpanded}
         aria-label={`${isExpanded ? 'Collapse' : 'Expand'} history item from ${formatTime(item.timestamp)}`}
       >
-        <td className="px-3 py-2 align-top whitespace-nowrap text-black">{formatTime(item.timestamp)}</td>
-        <td className="px-3 py-2 align-top">
-          <div className="max-w-[150px] truncate cursor-help text-black" title={item.original}>
+        <td className="px-2 sm:px-3 py-2 align-top whitespace-nowrap text-black text-xs sm:text-sm">{formatTime(item.timestamp)}</td>
+        <td className="px-2 sm:px-3 py-2 align-top hidden sm:table-cell">
+          <div className="max-w-[100px] sm:max-w-[150px] truncate cursor-help text-black text-xs sm:text-sm" title={item.original}>
             {item.original.substring(0, 50)}
             {item.original.length > 50 ? "..." : ""}
           </div>
@@ -94,14 +94,14 @@ const HistoryRow = memo(({
             </div>
           )}
         </td>
-        <td className="px-3 py-2 align-top">
-          <div className="max-w-[200px] truncate cursor-help text-black" title={item.refined}>
+        <td className="px-2 sm:px-3 py-2 align-top">
+          <div className="max-w-[120px] sm:max-w-[200px] truncate cursor-help text-black text-xs sm:text-sm" title={item.refined}>
             {item.refined.substring(0, 70)}
             {item.refined.length > 70 ? "..." : ""}
           </div>
         </td>
-        <td className="px-3 py-2 align-top whitespace-nowrap">
-          <div className="flex gap-1">
+        <td className="px-2 sm:px-3 py-2 align-top whitespace-nowrap">
+          <div className="flex gap-1 justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -135,7 +135,7 @@ const HistoryRow = memo(({
       {isExpanded && (
         <tr className="border-t border-gray-200">
           <td colSpan={4} className="px-4 py-3 bg-white">
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
                 <div className="font-semibold mb-1 text-black">Raw:</div>
                 <div className="bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-wrap text-black font-medium">
@@ -747,17 +747,17 @@ export default function PromptEngineer() {
 
     return (
       <div className="border border-gray-200 rounded-md overflow-hidden shadow-sm">
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className="max-h-[400px] overflow-x-auto overflow-y-auto">
           <table className="w-full text-xs" aria-label="Prompt refinement history">
             <caption className="sr-only">
               History of prompt refinements with timestamps, original prompts, refined versions, and available actions
             </caption>
             <thead className="bg-white border-b border-gray-200 sticky top-0 z-10">
               <tr>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Recency</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Raw</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Refactored</th>
-                <th scope="col" className="px-3 py-2 text-left font-semibold text-black">Revolve</th>
+                <th scope="col" className="px-2 sm:px-3 py-2 text-left font-semibold text-black text-xs sm:text-sm">Time</th>
+                <th scope="col" className="px-2 sm:px-3 py-2 text-left font-semibold text-black text-xs sm:text-sm hidden sm:table-cell">Raw</th>
+                <th scope="col" className="px-2 sm:px-3 py-2 text-left font-semibold text-black text-xs sm:text-sm">Refined</th>
+                <th scope="col" className="px-2 sm:px-3 py-2 text-left font-semibold text-black text-xs sm:text-sm">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -864,13 +864,14 @@ export default function PromptEngineer() {
   }, [state.prompt, state.result]);
 
   return (
-    <div className="w-full max-w-4xl">
+    <div className="w-full max-w-4xl px-4 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
           <a href="https://zeidgeist.vercel.app" className="text-black hover:text-gray-700 transition-colors">
-            mstprmpt<sub className="text-xs">.zeidgeist.com</sub>
+            <span className="inline sm:hidden">mstprmpt</span>
+            <span className="hidden sm:inline">mstprmpt<sub className="text-xs">.zeidgeist.com</sub></span>
           </a>
-          <span className="text-black font-medium text-sm ml-2">v0.6.8</span>
+          <span className="text-black font-medium text-xs sm:text-sm ml-2">v0.6.8</span>
         </h1>
       </div>
 
@@ -906,11 +907,11 @@ export default function PromptEngineer() {
               />
             </div>
 
-            <div className="flex justify-end items-center">
+            <div className="flex justify-end items-center mt-2">
               <Button
                 type="submit"
                 size="sm"
-                className="bg-black-primary hover:bg-black-rich text-white-pure flex items-center gap-2"
+                className="bg-black-primary hover:bg-black-rich text-white-pure flex items-center gap-2 w-full sm:w-auto"
                 disabled={state.isLoading || !state.prompt.trim()}
                 title={`Refactor prompt (${navigator.platform.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'})`}
               >
@@ -960,32 +961,34 @@ export default function PromptEngineer() {
               )}
               
               <div className="mt-3">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-between sm:items-center">
                   <Button
                     type="button"
                     variant={state.showContext ? "default" : "outline"}
                     size="sm"
                     onClick={() => dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext })}
-                    className="text-black"
+                    className="text-black w-full sm:w-auto"
                   >
                     <Info size={14} className="mr-1" />
-                    Relate Context
+                    <span className="sm:hidden">Context</span>
+                    <span className="hidden sm:inline">Relate Context</span>
                     {state.showContext ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />}
                   </Button>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full sm:w-auto">
                     {!state.showFeedback && (
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={() => dispatch({ type: 'SET_SHOW_FEEDBACK', payload: true })}
+                        className="flex-1 sm:flex-none"
                       >
                         Report
                       </Button>
                     )}
                     <Button 
                       size="sm" 
-                      className="bg-white border border-gray-300 hover:bg-gray-50 text-black" 
+                      className="bg-white border border-gray-300 hover:bg-gray-50 text-black flex-1 sm:flex-none" 
                       onClick={handleExpand}
                     >
                       <RotateCw size={14} className="mr-1" />

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <main id="main-content" role="main" className="min-h-screen bg-white-pure flex items-center justify-center p-4" aria-label="Prompt engineering interface">
+    <main id="main-content" role="main" className="min-h-screen bg-white-pure flex items-center justify-center p-2 sm:p-4 pb-safe-bottom pt-safe-top" aria-label="Prompt engineering interface">
       <ErrorBoundary>
         <PromptEngineer />
       </ErrorBoundary>
