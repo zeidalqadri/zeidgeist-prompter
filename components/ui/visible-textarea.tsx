@@ -12,8 +12,8 @@ const VisibleTextarea = React.forwardRef<HTMLTextAreaElement, VisibleTextareaPro
       backgroundColor: '#ffffff',
       border: '1px solid #d1d5db',
       borderRadius: '6px',
-      padding: '8px 12px',
-      fontSize: '14px',
+      padding: '12px',
+      fontSize: '16px', // Prevents zoom on iOS
       fontFamily: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
       fontWeight: '500',
       lineHeight: '1.5',
@@ -23,6 +23,11 @@ const VisibleTextarea = React.forwardRef<HTMLTextAreaElement, VisibleTextareaPro
       transition: 'border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
       // Override any possible CSS variables or computed styles
       WebkitTextFillColor: '#000000',
+      // Mobile-specific improvements
+      WebkitAppearance: 'none' as any,
+      MozAppearance: 'none' as any,
+      appearance: 'none' as any,
+      touchAction: 'manipulation' as any,
       ...style
     };
 
