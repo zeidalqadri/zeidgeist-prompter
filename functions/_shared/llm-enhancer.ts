@@ -453,7 +453,7 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
       model: 'deepseek-chat',
       messages,
       temperature: 0.2,
-      max_tokens: 1024
+      max_tokens: 4096
     })
   });
 
@@ -489,7 +489,7 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
       model: 'mistral-large-latest',
       messages,
       temperature: 0.2,
-      max_tokens: 1024
+      max_tokens: 4096
     })
   });
 
@@ -600,7 +600,7 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
     },
     body: JSON.stringify({
       model: 'claude-3-haiku-20240307',
-      max_tokens: 1024,
+      max_tokens: 4096,
       temperature: 0.2,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
@@ -639,7 +639,7 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.2,
-      max_tokens: 1024
+      max_tokens: 4096
     })
   });
 
@@ -675,7 +675,7 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
       model: 'moonshot-v1-8k',
       messages,
       temperature: 0.2,
-      max_tokens: 1024
+      max_tokens: 4096
     })
   });
 
