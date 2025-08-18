@@ -6,8 +6,9 @@ wrangler.toml
 # Exclude backend files from Pages deployment
 backend/
 
-# Exclude development and build artifacts
+# Exclude development and build artifacts (keep frontend/.next for Pages)
 .next/
+.wrangler/
 node_modules/
 .env*
 *.log
