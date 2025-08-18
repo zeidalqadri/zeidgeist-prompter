@@ -2,9 +2,8 @@
   "version": 1,
   "config": {
     "env": {},
-    "webpack": null,
     "eslint": {
-      "ignoreDuringBuilds": false
+      "ignoreDuringBuilds": true
     },
     "typescript": {
       "ignoreBuildErrors": false,
@@ -177,7 +176,7 @@
       "swcTraceProfiling": false,
       "forceSwcTransforms": false,
       "largePageDataBytes": 128000,
-      "typedRoutes": false,
+      "typedRoutes": true,
       "typedEnv": false,
       "parallelServerCompiles": false,
       "parallelServerBuildTraces": false,
