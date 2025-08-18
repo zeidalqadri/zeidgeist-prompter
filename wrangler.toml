@@ -9,9 +9,6 @@ account_id = "dce69acde9df39cfd032f942d9ff477c"
 workers_dev = true
 send_metrics = true
 
-# Cloudflare Pages Configuration
-pages_build_output_dir = "frontend/.next"
-
 # Global KV Namespaces
 kv_namespaces = [
   { binding = "CACHE", id = "79b60dc2e32e4cbb981c736710cf5b7c" },

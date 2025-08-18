@@ -3,6 +3,9 @@ workers/
 wrangler.toml
 .wrangler/
 
+# Exclude backend files from Pages deployment
+backend/
+
 # Exclude development and build artifacts
 .next/
 node_modules/
@@ -10,5 +13,15 @@ node_modules/
 *.log
 *.tsbuildinfo
 
-# Exclude validation reports
+# Exclude validation reports and test files
 validation-report-*.json
+test-interface.html
+
+# Exclude CL4R1T4S DI system files (backend only)
+app/lib/enhanced-architecture/
+
+# Exclude deployment scripts and configs
+scripts/
+database/
+cloudflare/
+*.md
