@@ -1,0 +1,109 @@
+# Cloudflare Workers Configuration for ZeidGeist Prompter Backend
+name = "zeidgeist-prompter-api"
+main = "workers/api/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+account_id = "dce69acde9df39cfd032f942d9ff477c"
+
+# 2025 Features
+workers_dev = true
+send_metrics = true
+
+# Global KV Namespaces
+kv_namespaces = [
+  { binding = "CACHE", id = "79b60dc2e32e4cbb981c736710cf5b7c" },
+  { binding = "SESSIONS", id = "9e2494017412485e9f4a5918267302e1" },
+  { binding = "PROMPT_HISTORY", id = "59b27a35e14942f581ad88cb526527ab" },
+  { binding = "LEARNED_PATTERNS", id = "4967314b4f8e4c51b63947eae1e46361" }
+]
+
+# Global D1 Database
+d1_databases = [
+  { binding = "DB", database_name = "zeidgeist-db", database_id = "40962752-aae2-4bcc-aa44-487c4190079c" }
+]
+
+# Global R2 Storage
+r2_buckets = [
+  { binding = "STORAGE", bucket_name = "zeidgeist-storage" },
+  { binding = "LOGS", bucket_name = "zeidgeist-logs" }
+]
+
+# Global Workers AI Integration
+ai = { binding = "AI" }
+
+# Global Vectorize for prompt embeddings
+vectorize = [
+  { binding = "VECTORIZE_INDEX", index_name = "prompt-embeddings" }
+]
+
+# Global Analytics Engine (disabled for now - needs manual activation)
+# analytics_engine_datasets = [
+#   { binding = "ANALYTICS", dataset = "zeidgeist-metrics" }
+# ]
+
+# Preview Environment
+[env.preview]
+name = "zeidgeist-prompter-api-preview"
+
+# Preview inherits all global bindings (KV, D1, R2, AI, Vectorize, Analytics)
+kv_namespaces = [
+  { binding = "CACHE", id = "79b60dc2e32e4cbb981c736710cf5b7c" },
+  { binding = "SESSIONS", id = "9e2494017412485e9f4a5918267302e1" },
+  { binding = "PROMPT_HISTORY", id = "59b27a35e14942f581ad88cb526527ab" },
+  { binding = "LEARNED_PATTERNS", id = "4967314b4f8e4c51b63947eae1e46361" }
+]
+
+d1_databases = [
+  { binding = "DB", database_name = "zeidgeist-db", database_id = "40962752-aae2-4bcc-aa44-487c4190079c" }
+]
+
+r2_buckets = [
+  { binding = "STORAGE", bucket_name = "zeidgeist-storage" },
+  { binding = "LOGS", bucket_name = "zeidgeist-logs" }
+]
+
+ai = { binding = "AI" }
+
+vectorize = [
+  { binding = "VECTORIZE_INDEX", index_name = "prompt-embeddings" }
+]
+
+# analytics_engine_datasets = [
+#   { binding = "ANALYTICS", dataset = "zeidgeist-metrics" }
+# ]
+
+[env.preview.vars]
+NODE_ENV = "staging"
+USE_EXTERNAL_APIS = "false"
+USE_WORKERS_AI = "true"
+ENABLE_ANALYTICS = "false"
+API_VERSION = "v2"
+BASE_PATH = "/api"
+ENABLE_VECTORIZE = "true"
+ENABLE_CL4R1T4S_DI = "true"
+
+# Production Environment
+[env.production]
+name = "zeidgeist-prompter-api-prod"
+gradual_rollouts = true
+
+[env.production.vars]
+NODE_ENV = "production"
+USE_EXTERNAL_APIS = "true"
+USE_WORKERS_AI = "true"
+ENABLE_ANALYTICS = "true"
+ENABLE_RATE_LIMITING = "true"
+API_VERSION = "v2"
+BASE_PATH = "/api"
+ENABLE_VECTORIZE = "true"
+ENABLE_CL4R1T4S_DI = "true"
+
+# Observability and monitoring
+[observability]
+enabled = true
+head_sampling_rate = 0.1
+
+# Rate limiting configuration (disabled - requires paid plan)
+# [limits]
+# cpu_ms = 50
+# memory_mb = 128

@@ -1,0 +1,227 @@
+# Cloudflare Zero Trust Configuration for ZeidGeist Prompter Preview
+# Deploy with: terraform apply or via Cloudflare Dashboard
+
+access_applications:
+  # Preview Environment Access
+  - name: "ZeidGeist Prompter Preview"
+    domain: "preview.zeidgeist-prompter.pages.dev"
+    type: "self_hosted"
+    session_duration: "24h"
+    enable_binding_cookie: true
+    app_launcher_visible: true
+    
+    # CORS configuration for SPA
+    cors_headers:
+      allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      allowed_origins: ["https://preview.zeidgeist-prompter.pages.dev"]
+      allow_credentials: true
+      max_age: 300
+    
+    # Security headers
+    custom_deny_message: "Access denied. Please contact your administrator."
+    
+  # Admin Dashboard (if applicable)
+  - name: "ZeidGeist Admin Dashboard"
+    domain: "admin.zeidgeist-prompter.pages.dev"
+    type: "self_hosted"
+    session_duration: "8h"
+    enable_binding_cookie: true
+    
+access_policies:
+  # Preview Environment - Development Team Access
+  - name: "Development Team Access"
+    application: "ZeidGeist Prompter Preview"
+    decision: "allow"
+    precedence: 1
+    
+    include:
+      - email_domain: ["company.com"]  # Replace with your domain
+      - email: ["developer@example.com"]  # Individual developer emails
+    
+    require:
+      # Optional: Add additional security requirements
+      # - device_posture: ["healthy-device"]
+      # - geo: ["US", "CA", "GB"]  # Geographic restrictions
+      # - group: ["developers"]  # AD/LDAP groups
+    
+    # Session controls
+    session_duration: "24h"
+    
+  # Admin Dashboard - Restricted Access
+  - name: "Admin Access Policy"
+    application: "ZeidGeist Admin Dashboard"
+    decision: "allow"
+    precedence: 1
+    
+    include:
+      - email: ["admin@example.com", "lead@example.com"]  # Admin emails
+    
+    require:
+      - mfa: true  # Require MFA for admin access
+      # - device_posture: ["healthy-device"]
+    
+    session_duration: "8h"
+
+# Cloudflare Tunnel Configuration
+tunnel_config:
+  tunnel_id: "your-tunnel-uuid"  # Replace with actual tunnel ID
+  
+  ingress_rules:
+    # API Workers (if using tunnel for internal services)
+    - hostname: "api-internal.zeidgeist.com"
+      service: "https://zeidgeist-prompter-api-preview.YOUR-SUBDOMAIN.workers.dev"
+      origin_request:
+        http_host_header: "api-internal.zeidgeist.com"
+        tls_timeout: 30
+        connect_timeout: 10
+        
+    # Database access (if using external MongoDB)
+    - hostname: "db-tunnel.zeidgeist.com"
+      service: "tcp://mongodb.example.com:27017"
+      origin_request:
+        tcp_keep_alive: 30
+        
+    # Catch-all
+    - service: "http_status:404"
+
+# Device Posture Rules (Optional)
+device_posture_rules:
+  - name: "Healthy Device"
+    type: "tanium"
+    input:
+      operating_system: "windows"
+      compliance_status: "compliant"
+      last_seen: "24h"
+      
+  - name: "Corporate Managed"
+    type: "workspace_one"
+    input:
+      compliance_status: "compliant"
+      connection_id: "your-workspace-one-connection-id"
+
+# Network Policies
+network_policies:
+  - name: "Allow Preview Environment"
+    enabled: true
+    precedence: 1000
+    action: "allow"
+    
+    filters:
+      - "http.host == 'preview.zeidgeist-prompter.pages.dev'"
+      - "cf.zone.name == 'pages.dev'"
+    
+    identity:
+      - email_domain: ["company.com"]
+    
+  - name: "Block Non-Corporate Traffic"
+    enabled: false  # Enable when ready for production
+    precedence: 2000
+    action: "block"
+    
+    filters:
+      - "not http.request.uri.path matches '^/api/health'"
+    
+    settings:
+      block_page_enabled: true
+      block_reason: "Corporate access required"
+
+# Gateway DNS Policies (Optional)
+dns_policies:
+  - name: "Block Malicious Domains"
+    enabled: true
+    precedence: 1
+    action: "block"
+    
+    filters:
+      - "any(dns.domains[*] in $malware)"
+      - "any(dns.domains[*] in $phishing)"
+    
+  - name: "Allow Development Domains"
+    enabled: true
+    precedence: 10
+    action: "allow"
+    
+    filters:
+      - "any(dns.domains[*] in {'*.pages.dev', '*.workers.dev', 'localhost'})"
+
+# Browser Isolation (Enterprise feature)
+browser_isolation:
+  enabled: false  # Set to true if you have Enterprise plan
+  
+  policies:
+    - name: "Isolate External Links"
+      enabled: false
+      precedence: 1
+      action: "isolate"
+      
+      filters:
+        - "not http.host in {'preview.zeidgeist-prompter.pages.dev', '*.workers.dev'}"
+      
+      identity:
+        - email_domain: ["company.com"]
+
+# Audit Logs Configuration
+audit_logs:
+  enabled: true
+  
+  destinations:
+    # Send to Cloudflare Analytics
+    - type: "cloudflare_analytics"
+      dataset: "zeidgeist_access_logs"
+      
+    # Optional: Send to external SIEM
+    # - type: "splunk"
+    #   endpoint: "https://your-splunk-instance.com/services/collector"
+    #   token: "your-splunk-token"
+
+# Rate Limiting for Zero Trust
+rate_limiting:
+  enabled: true
+  
+  rules:
+    - name: "Login Attempt Limiting"
+      threshold: 5
+      period: 60  # seconds
+      action: "challenge"
+      
+      characteristics:
+        - "cf.unique_visitor_id"
+        - "ip.src"
+      
+      matching_criteria:
+        - "http.request.uri.path == '/cdn-cgi/access/login'"
+    
+    - name: "API Rate Limiting"
+      threshold: 100
+      period: 60  # seconds
+      action: "block"
+      
+      characteristics:
+        - "cf.unique_visitor_id"
+      
+      matching_criteria:
+        - "http.request.uri.path matches '^/api/'"
+
+# Notification Settings
+notifications:
+  # Email alerts for security events
+  email_alerts:
+    enabled: true
+    recipients: ["security@example.com", "admin@example.com"]
+    
+    events:
+      - "access_denied"
+      - "policy_violation"
+      - "suspicious_activity"
+      - "device_posture_failure"
+  
+  # Webhook for external integrations
+  webhooks:
+    enabled: false
+    
+    endpoints:
+      - url: "https://your-slack-webhook.com"
+        events: ["access_denied", "policy_violation"]
+        
+      - url: "https://your-security-system.com/webhook"
+        events: ["suspicious_activity"]

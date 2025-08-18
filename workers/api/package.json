@@ -1,0 +1,27 @@
+{
+  "name": "zeidgeist-prompter-api",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers API for ZeidGeist Prompter with CL4R1T4S integration",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview",
+    "tail": "wrangler tail",
+    "test": "node test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "wrangler": "^4.30.0"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "api",
+    "ai",
+    "prompt-enhancement"
+  ],
+  "author": "ZeidGeist Team",
+  "license": "ISC"
+}
