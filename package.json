@@ -11,11 +11,12 @@
     "dev": "node scripts/run-monorepo.js",
     "frontend:dev": "cd frontend && npm run dev",
     "backend:dev": "cd backend && npm run dev",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace=frontend",
+    "build:all": "npm run build --workspaces",
     "start": "node backend/src/api.js"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=18.x"
   },
   "keywords": [
     "prompt",
