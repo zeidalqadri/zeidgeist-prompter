@@ -1,4 +1,4 @@
-// File: /Users/zeidalqadri/zeidgeist-prompter/frontend-new/app/layout.tsx
+// File: /Users/zeidalqadri/conductor/repo/zeidgeist-prompter/.conductor/babylon/frontend/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

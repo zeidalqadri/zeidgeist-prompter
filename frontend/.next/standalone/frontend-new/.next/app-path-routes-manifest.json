@@ -1,9 +1,0 @@
-{
-  "/_not-found/page": "/_not-found",
-  "/api/engineer/feedback/route": "/api/engineer/feedback",
-  "/api/engineer/export/route": "/api/engineer/export",
-  "/api/engineer/history/route": "/api/engineer/history",
-  "/favicon.ico/route": "/favicon.ico",
-  "/api/engineer/route": "/api/engineer",
-  "/page": "/"
-}

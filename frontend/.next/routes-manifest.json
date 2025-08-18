@@ -2,16 +2,8 @@
   "version": 3,
   "pages404": true,
   "caseSensitive": false,
-  "basePath": "/prompter",
+  "basePath": "",
   "redirects": [
-    {
-      "source": "/prompter/",
-      "destination": "/prompter",
-      "basePath": false,
-      "internal": true,
-      "statusCode": 308,
-      "regex": "^/prompter/$"
-    },
     {
       "source": "/:path+/",
       "destination": "/:path+",
@@ -21,6 +13,11 @@
     }
   ],
   "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
   "dynamicRoutes": [],
   "staticRoutes": [
     {
@@ -58,6 +55,5 @@
   "rewriteHeaders": {
     "pathHeader": "x-nextjs-rewritten-path",
     "queryHeader": "x-nextjs-rewritten-query"
-  },
-  "rewrites": []
+  }
 }

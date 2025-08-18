@@ -5,14 +5,18 @@
   "private": true,
   "workspaces": [
     "backend",
-    "frontend-new"
+    "frontend"
   ],
   "scripts": {
     "dev": "node scripts/run-monorepo.js",
-    "frontend:dev": "cd frontend-new && npm run dev",
+    "frontend:dev": "cd frontend && npm run dev",
     "backend:dev": "cd backend && npm run dev",
-    "build": "npm run build --workspaces",
-    "start": "npm run start --workspaces"
+    "build": "npm run build --workspace=frontend",
+    "build:all": "npm run build --workspaces",
+    "start": "node backend/src/api.js"
+  },
+  "engines": {
+    "node": ">=18.x"
   },
   "keywords": [
     "prompt",
@@ -20,5 +24,9 @@
     "ai"
   ],
   "author": "",
-  "license": "ISC"
-} 
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pg": "^8.14.1"
+  }
+}

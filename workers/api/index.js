@@ -845,8 +845,35 @@ class HealthMonitorService {
     try {
       if (!this.env.VECTORIZE_INDEX) return { status: 'disabled', message: 'Vectorize not configured' };
       
-      // Simple query to test Vectorize
-      await this.env.VECTORIZE_INDEX.query([0.1, 0.2, 0.3], { topK: 1 });
+      // Generate a proper test vector matching Vectorize index dimensions
+      let testVector;
+      try {
+        if (this.env.AI) {
+          // Try to get actual embedding dimensions from BGE model
+          const embeddings = await this.env.AI.run('@cf/baai/bge-large-en-v1.5', {
+            text: ['health check test']
+          });
+          const actualVector = embeddings.data[0];
+          
+          // If the vector is 1024 dimensions but index expects 768, truncate
+          if (actualVector.length === 1024) {
+            testVector = actualVector.slice(0, 768);
+          } else if (actualVector.length === 768) {
+            testVector = actualVector;
+          } else {
+            // Unknown dimension, use fallback
+            testVector = new Array(768).fill(0.1);
+          }
+        } else {
+          // Fallback: create a 768-dimensional test vector
+          testVector = new Array(768).fill(0.1);
+        }
+      } catch (aiError) {
+        // Fallback: create a 768-dimensional test vector
+        testVector = new Array(768).fill(0.1);
+      }
+      
+      await this.env.VECTORIZE_INDEX.query(testVector, { topK: 1 });
       
       return { status: 'healthy', message: 'Vectorize responding' };
     } catch (error) {
