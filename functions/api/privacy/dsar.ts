@@ -9,7 +9,7 @@
  * DELETE /api/privacy/dsar/delete - Request data deletion
  */
 
-import { createDb } from "../../_shared/db";
+import { createDb, dsarRequests, users, userSessions, promptHistory, feedback } from "../../_shared/db";
 import { CloudflareAuthService } from "../../_shared/auth-service-workers";
 import { getSecurityHeaders } from "../../_shared/privacy-guard";
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor";
@@ -129,11 +129,11 @@ export async function onRequestPost(context: any): Promise<Response> {
     // Check for existing pending requests
     const db = createDb(env);
     const existingRequest = await db.select()
-      .from('dsar_requests')
+      .from(dsarRequests)
       .where(and(
-        eq('dsar_requests.userId', user.id),
-        eq('dsar_requests.requestType', requestType),
-        eq('dsar_requests.status', 'pending')
+        eq(dsarRequests.userId, user.id),
+        eq(dsarRequests.requestType, requestType),
+        eq(dsarRequests.status, 'pending')
       ))
       .limit(1);
 
@@ -161,7 +161,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       requestData: additionalInfo ? JSON.stringify(additionalInfo) : null
     };
 
-    await db.insert('dsar_requests').values(dsarRequest);
+    await db.insert(dsarRequests).values(dsarRequest);
 
     // Log privacy event
     console.log(`DSAR request submitted: ${requestType} for user ${user.id}`);
@@ -261,10 +261,10 @@ export async function onRequestGet(context: any): Promise<Response> {
     // Get request status
     const db = createDb(env);
     const [dsarRequest] = await db.select()
-      .from('dsar_requests')
+      .from(dsarRequests)
       .where(and(
-        eq('dsar_requests.id', requestId),
-        eq('dsar_requests.userId', user.id)
+        eq(dsarRequests.id, requestId),
+        eq(dsarRequests.userId, user.id)
       ))
       .limit(1);
 
@@ -278,10 +278,10 @@ export async function onRequestGet(context: any): Promise<Response> {
     }
 
     // Check if request has expired
-    if (dsarRequest.status === 'pending' && new Date() > dsarRequest.expiresAt) {
-      await db.update('dsar_requests')
+    if (dsarRequest.status === 'pending' && dsarRequest.expiresAt && new Date() > dsarRequest.expiresAt) {
+      await db.update(dsarRequests)
         .set({ status: 'expired' })
-        .where(eq('dsar_requests.id', requestId));
+        .where(eq(dsarRequests.id, requestId));
       
       dsarRequest.status = 'expired';
     }
@@ -290,20 +290,20 @@ export async function onRequestGet(context: any): Promise<Response> {
       requestId: dsarRequest.id,
       requestType: dsarRequest.requestType,
       status: dsarRequest.status,
-      submittedAt: dsarRequest.submittedAt.toISOString(),
-      expiresAt: dsarRequest.expiresAt.toISOString()
+      submittedAt: dsarRequest.createdAt.toISOString(),
+      expiresAt: dsarRequest.expiresAt?.toISOString()
     };
 
-    if (dsarRequest.completedAt) {
-      response.completedAt = dsarRequest.completedAt.toISOString();
+    if (dsarRequest.processedAt) {
+      response.completedAt = dsarRequest.processedAt.toISOString();
     }
 
     if (dsarRequest.status === 'completed') {
       response.downloadUrl = `/api/privacy/dsar/download/${requestId}`;
     }
 
-    if (dsarRequest.status === 'denied' && dsarRequest.denialReason) {
-      response.denialReason = dsarRequest.denialReason;
+    if (dsarRequest.status === 'denied' && dsarRequest.adminNotes) {
+      response.denialReason = dsarRequest.adminNotes;
     }
 
     return new Response(JSON.stringify(response), {
@@ -354,11 +354,11 @@ export async function onRequestDownload(context: any): Promise<Response> {
     const db = createDb(env);
     
     const [dsarRequest] = await db.select()
-      .from('dsar_requests')
+      .from(dsarRequests)
       .where(and(
-        eq('dsar_requests.id', requestId),
-        eq('dsar_requests.userId', user.id),
-        eq('dsar_requests.status', 'completed')
+        eq(dsarRequests.id, requestId),
+        eq(dsarRequests.userId, user.id),
+        eq(dsarRequests.status, 'completed')
       ))
       .limit(1);
 
@@ -424,21 +424,21 @@ async function processAccessRequestAsync(requestId: string, userId: string, env:
     const db = createDb(env);
     
     // Update status to processing
-    await db.update('dsar_requests')
+    await db.update(dsarRequests)
       .set({ status: 'processing' })
-      .where(eq('dsar_requests.id', requestId));
+      .where(eq(dsarRequests.id, requestId));
 
     // Generate data export
     const exportData = await generatePersonalDataExport(userId, requestId, env);
     
     // Store export data and mark as completed
-    await db.update('dsar_requests')
+    await db.update(dsarRequests)
       .set({
         status: 'completed',
-        completedAt: new Date(),
+        processedAt: new Date(),
         responseData: JSON.stringify(exportData)
       })
-      .where(eq('dsar_requests.id', requestId));
+      .where(eq(dsarRequests.id, requestId));
 
     console.log(`DSAR access request completed: ${requestId}`);
     
@@ -446,12 +446,12 @@ async function processAccessRequestAsync(requestId: string, userId: string, env:
     console.error(`DSAR processing failed for ${requestId}:`, error);
     
     // Mark as failed
-    await createDb(env).update('dsar_requests')
+    await createDb(env).update(dsarRequests)
       .set({
         status: 'denied',
-        denialReason: 'Technical error during processing'
+        adminNotes: 'Technical error during processing'
       })
-      .where(eq('dsar_requests.id', requestId));
+      .where(eq(dsarRequests.id, requestId));
   }
 }
 
@@ -460,27 +460,26 @@ async function processDeletionRequestAsync(requestId: string, userId: string, en
     const db = createDb(env);
     
     // Update status to processing
-    await db.update('dsar_requests')
+    await db.update(dsarRequests)
       .set({ status: 'processing' })
-      .where(eq('dsar_requests.id', requestId));
+      .where(eq(dsarRequests.id, requestId));
 
     // Execute right to be forgotten
     await db.transaction(async (tx) => {
       // Delete user data
-      await tx.delete('prompt_history').where(eq('prompt_history.userId', userId));
-      await tx.delete('feedback').where(eq('feedback.userId', userId));
-      await tx.delete('oauth_sessions').where(eq('oauth_sessions.userId', userId));
-      await tx.delete('dsar_requests').where(eq('dsar_requests.userId', userId));
+      await tx.delete(promptHistory).where(eq(promptHistory.userId, userId));
+      await tx.delete(feedback).where(eq(feedback.userId, userId));
+      await tx.delete(userSessions).where(eq(userSessions.userId, userId));
+      await tx.delete(dsarRequests).where(eq(dsarRequests.userId, userId));
       
       // Pseudonymize user account (required for audit trails)
-      await tx.update('users')
+      await tx.update(users)
         .set({
           email: `deleted-${userId}@deleted.local`,
           username: `deleted-${userId}`,
-          isActive: false,
-          deletedAt: new Date()
+          isActive: false
         })
-        .where(eq('users.id', userId));
+        .where(eq(users.id, userId));
     });
 
     console.log(`DSAR deletion request completed: ${requestId}`);
@@ -489,12 +488,12 @@ async function processDeletionRequestAsync(requestId: string, userId: string, en
     console.error(`DSAR deletion failed for ${requestId}:`, error);
     
     // Mark as failed
-    await createDb(env).update('dsar_requests')
+    await createDb(env).update(dsarRequests)
       .set({
         status: 'denied',
-        denialReason: 'Technical error during deletion'
+        adminNotes: 'Technical error during deletion'
       })
-      .where(eq('dsar_requests.id', requestId));
+      .where(eq(dsarRequests.id, requestId));
   }
 }
 
@@ -503,31 +502,31 @@ async function generatePersonalDataExport(userId: string, requestId: string, env
   
   // Get user profile
   const [user] = await db.select()
-    .from('users')
-    .where(eq('users.id', userId))
+    .from(users)
+    .where(eq(users.id, userId))
     .limit(1);
 
   // Get prompt history
-  const promptHistory = await db.select()
-    .from('prompt_history')
-    .where(eq('prompt_history.userId', userId))
-    .orderBy(desc('prompt_history.timestamp'));
+  const userPromptHistory = await db.select()
+    .from(promptHistory)
+    .where(eq(promptHistory.userId, userId))
+    .orderBy(desc(promptHistory.timestamp));
 
   // Get feedback
-  const feedback = await db.select()
-    .from('feedback')
-    .where(eq('feedback.userId', userId))
-    .orderBy(desc('feedback.createdAt'));
+  const userFeedback = await db.select()
+    .from(feedback)
+    .where(eq(feedback.userId, userId))
+    .orderBy(desc(feedback.createdAt));
 
   // Get sessions
   const sessions = await db.select()
-    .from('oauth_sessions')
-    .where(eq('oauth_sessions.userId', userId))
-    .orderBy(desc('oauth_sessions.createdAt'))
+    .from(userSessions)
+    .where(eq(userSessions.userId, userId))
+    .orderBy(desc(userSessions.createdAt))
     .limit(10); // Last 10 sessions
 
   // Get consents (if implemented)
-  const consents = []; // Placeholder for consent records
+  const consents: any[] = []; // Placeholder for consent records
 
   return {
     requestId,
@@ -535,7 +534,7 @@ async function generatePersonalDataExport(userId: string, requestId: string, env
     dataSubject: {
       userId: user.id,
       email: user.email,
-      verificationStatus: user.emailVerified
+      verificationStatus: user.emailVerified ?? false
     },
     personalData: {
       profile: {
@@ -547,14 +546,14 @@ async function generatePersonalDataExport(userId: string, requestId: string, env
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       },
-      promptHistory: promptHistory.map(item => ({
+      promptHistory: userPromptHistory.map(item => ({
         original: item.original,
         refined: item.refined,
         context: item.context,
         timestamp: item.timestamp,
         metadata: item.metadata ? JSON.parse(item.metadata) : null
       })),
-      feedback,
+      feedback: userFeedback,
       sessions: sessions.map(session => ({
         createdAt: session.createdAt,
         lastAccessed: session.lastAccessed,

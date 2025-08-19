@@ -5,21 +5,21 @@
 
 import { eq, and, gt } from 'drizzle-orm';
 import { createDb } from './db';
+import { users, userSessions, type User, type NewUser, type UserSession, type NewUserSession } from '../../app/lib/db/schema';
 
 // Use Web Crypto API instead of Node.js crypto
 const crypto = globalThis.crypto;
 
-interface User {
+// User type is imported from schema
+
+interface SanitizedUser {
   id: string;
   email: string;
-  username?: string;
-  emailVerified: boolean;
-  mfaEnabled: boolean;
-  isActive: boolean;
-  lastLogin?: Date;
-  loginAttempts: number;
-  lockedUntil?: Date;
-  metadata?: any;
+  username?: string | null;
+  emailVerified: boolean | null;
+  mfaEnabled: boolean | null;
+  isActive: boolean | null;
+  lastLogin?: Date | null;
 }
 
 interface AuthSession {
@@ -34,11 +34,12 @@ interface AuthSession {
 
 interface AuthResult {
   success: boolean;
-  user?: User;
+  user?: SanitizedUser;
   session?: AuthSession;
   requiresMFA?: boolean;
   error?: string;
   mfaRequired?: boolean;
+  suggestions?: string[];
 }
 
 // Constants
@@ -306,8 +307,8 @@ export class CloudflareAuthService {
 
       // Check if user exists
       const existingUser = await this.db.select()
-        .from('users')
-        .where(eq('users.email', email.toLowerCase()))
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
         .limit(1);
 
       if (existingUser.length > 0) {
@@ -318,7 +319,7 @@ export class CloudflareAuthService {
       const passwordHash = await hashPassword(password);
 
       // Create user
-      const [newUser] = await this.db.insert('users').values({
+      const [newUser] = await this.db.insert(users).values({
         email: email.toLowerCase(),
         username: username?.toLowerCase(),
         passwordHash,
@@ -346,8 +347,8 @@ export class CloudflareAuthService {
     try {
       // Get user
       const [user] = await this.db.select()
-        .from('users')
-        .where(eq('users.email', email.toLowerCase()))
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()))
         .limit(1);
 
       if (!user) {
@@ -393,13 +394,13 @@ export class CloudflareAuthService {
       }
 
       // Reset login attempts
-      await this.db.update('users')
+      await this.db.update(users)
         .set({ 
           loginAttempts: 0, 
           lockedUntil: null, 
           lastLogin: new Date() 
         })
-        .where(eq('users.id', user.id));
+        .where(eq(users.id, user.id));
 
       // Create session
       const session = await this.createSession(user);
@@ -445,11 +446,10 @@ export class CloudflareAuthService {
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // Store session
-    await this.db.insert('oauth_sessions').values({
+    await this.db.insert(userSessions).values({
       id: sessionId,
       userId: user.id,
-      accessTokenHash: await this.hashToken(accessToken),
-      refreshTokenHash: await this.hashToken(refreshToken),
+      tokenHash: await this.hashToken(accessToken),
       expiresAt
     });
 
@@ -467,16 +467,16 @@ export class CloudflareAuthService {
   /**
    * Validate token
    */
-  async validateToken(token: string): Promise<User | null> {
+  async validateToken(token: string): Promise<SanitizedUser | null> {
     try {
       const payload = await verifyJWT(token, this.jwtSecret);
       if (!payload) return null;
 
       const [user] = await this.db.select()
-        .from('users')
+        .from(users)
         .where(and(
-          eq('users.id', payload.sub),
-          eq('users.isActive', true)
+          eq(users.id, payload.sub),
+          eq(users.isActive, true)
         ))
         .limit(1);
 
@@ -499,12 +499,12 @@ export class CloudflareAuthService {
         btoa(crypto.getRandomValues(new Uint8Array(4)).join('')).substring(0, 8).toUpperCase()
       );
 
-      await this.db.update('users')
+      await this.db.update(users)
         .set({ 
           totpSecret: secret,
           backupCodes: JSON.stringify(backupCodes)
         })
-        .where(eq('users.id', userId));
+        .where(eq(users.id, userId));
 
       return {
         secret,
@@ -514,6 +514,38 @@ export class CloudflareAuthService {
     } catch (error) {
       console.error('MFA setup error:', error);
       return null;
+    }
+  }
+
+  /**
+   * Enable MFA after verification
+   */
+  async enableMFA(userId: string, totpCode: string): Promise<boolean> {
+    try {
+      const [user] = await this.db.select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user || !user.mfaSecret) {
+        return false;
+      }
+
+      // Verify TOTP code
+      const isValid = await verifyTOTP(user.mfaSecret, totpCode);
+      if (!isValid) {
+        return false;
+      }
+
+      // Enable MFA
+      await this.db.update(users)
+        .set({ mfaEnabled: true })
+        .where(eq(users.id, userId));
+
+      return true;
+    } catch (error) {
+      console.error('MFA enable error:', error);
+      return false;
     }
   }
 
@@ -529,8 +561,8 @@ export class CloudflareAuthService {
 
   private async handleFailedLogin(userId: string): Promise<void> {
     const [user] = await this.db.select()
-      .from('users')
-      .where(eq('users.id', userId))
+      .from(users)
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (!user) return;
@@ -538,12 +570,12 @@ export class CloudflareAuthService {
     const attempts = user.loginAttempts + 1;
     const shouldLock = attempts >= MAX_LOGIN_ATTEMPTS;
 
-    await this.db.update('users')
+    await this.db.update(users)
       .set({
         loginAttempts: attempts,
         lockedUntil: shouldLock ? new Date(Date.now() + LOCKOUT_DURATION) : null
       })
-      .where(eq('users.id', userId));
+      .where(eq(users.id, userId));
   }
 
   private isValidEmail(email: string): boolean {
@@ -551,7 +583,7 @@ export class CloudflareAuthService {
     return emailRegex.test(email);
   }
 
-  private sanitizeUser(user: any): User {
+  private sanitizeUser(user: User): SanitizedUser {
     return {
       id: user.id,
       email: user.email,
@@ -559,10 +591,7 @@ export class CloudflareAuthService {
       emailVerified: user.emailVerified,
       mfaEnabled: user.mfaEnabled,
       isActive: user.isActive,
-      lastLogin: user.lastLogin,
-      loginAttempts: user.loginAttempts,
-      lockedUntil: user.lockedUntil,
-      metadata: user.metadata ? JSON.parse(user.metadata) : null
+      lastLogin: user.lastLogin
     };
   }
 }

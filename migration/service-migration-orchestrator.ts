@@ -3,7 +3,7 @@
  * Manages full-scale service-by-service migration from IP to User-based isolation
  */
 
-import { createDb } from '../functions/_shared/db';
+import { createDb, promptHistory, feedback, enhancementLogs, users, userSessions } from '../functions/_shared/db';
 import { eq, and, isNull, count, sql } from 'drizzle-orm';
 
 interface ServiceMigrationPlan {
@@ -312,10 +312,10 @@ export class ServiceMigrationOrchestrator {
     
     // Get all unique IPs with history but no user association
     const unmappedIPs = await this.db
-      .selectDistinct({ ipAddress: 'prompt_history.ip_address' })
-      .from('prompt_history')
+      .selectDistinct({ ipAddress: promptHistory.ipAddress })
+      .from(promptHistory)
       .where(and(
-        isNull('prompt_history.user_id'),
+        isNull(promptHistory.userId),
         sql`ip_address IS NOT NULL AND ip_address != 'unknown'`
       ));
 
@@ -330,8 +330,8 @@ export class ServiceMigrationOrchestrator {
             .update('prompt_history')
             .set({ user_id: existingUser.id })
             .where(and(
-              eq('prompt_history.ip_address', ipAddress),
-              isNull('prompt_history.user_id')
+              eq(promptHistory.ipAddress, ipAddress),
+              isNull(promptHistory.userId)
             ));
           
           totalMigrated += result.rowCount || 0;
@@ -344,8 +344,8 @@ export class ServiceMigrationOrchestrator {
             .update('prompt_history')
             .set({ user_id: anonymousUser.id })
             .where(and(
-              eq('prompt_history.ip_address', ipAddress),
-              isNull('prompt_history.user_id')
+              eq(promptHistory.ipAddress, ipAddress),
+              isNull(promptHistory.userId)
             ));
           
           totalMigrated += result.rowCount || 0;
@@ -368,9 +368,9 @@ export class ServiceMigrationOrchestrator {
     
     const unmappedFeedback = await this.db
       .selectDistinct({ ipAddress: 'feedback.ip_address' })
-      .from('feedback')
+      .from(feedback)
       .where(and(
-        isNull('feedback.user_id'),
+        isNull(feedback.userId),
         sql`ip_address IS NOT NULL`
       ));
 
@@ -382,8 +382,8 @@ export class ServiceMigrationOrchestrator {
         .update('feedback')
         .set({ user_id: user.id })
         .where(and(
-          eq('feedback.ip_address', ipAddress),
-          isNull('feedback.user_id')
+          eq(feedback.ipAddress, ipAddress),
+          isNull(feedback.userId)
         ));
       
       totalMigrated += result.rowCount || 0;
@@ -496,20 +496,20 @@ export class ServiceMigrationOrchestrator {
       // Test isolation
       const user1History = await this.db
         .select()
-        .from('prompt_history')
-        .where(eq('prompt_history.user_id', user1.id));
+        .from(promptHistory)
+        .where(eq(promptHistory.userId, user1.id));
       
       const user2History = await this.db
         .select()
-        .from('prompt_history')
-        .where(eq('prompt_history.user_id', user2.id));
+        .from(promptHistory)
+        .where(eq(promptHistory.userId, user2.id));
       
       // Verify no cross-contamination
-      const user1HasUser2Data = user1History.some(item => 
+      const user1HasUser2Data = user1History.some((item: any) => 
         item.original.includes('User 2')
       );
       
-      const user2HasUser1Data = user2History.some(item => 
+      const user2HasUser1Data = user2History.some((item: any) => 
         item.original.includes('User 1')
       );
       
@@ -521,10 +521,10 @@ export class ServiceMigrationOrchestrator {
       }
       
       // Cleanup test data
-      await this.db.delete('prompt_history').where(eq('prompt_history.user_id', user1.id));
-      await this.db.delete('prompt_history').where(eq('prompt_history.user_id', user2.id));
-      await this.db.delete('users').where(eq('users.id', user1.id));
-      await this.db.delete('users').where(eq('users.id', user2.id));
+      await this.db.delete(promptHistory).where(eq(promptHistory.userId, user1.id));
+      await this.db.delete(promptHistory).where(eq(promptHistory.userId, user2.id));
+      await this.db.delete(users).where(eq(users.id, user1.id));
+      await this.db.delete(users).where(eq(users.id, user2.id));
       
       return { passed: true };
       
@@ -544,11 +544,11 @@ export class ServiceMigrationOrchestrator {
       // Count records before and after migration
       const totalRecords = await this.db
         .select({ count: count() })
-        .from('prompt_history');
+        .from(promptHistory);
       
       const linkedRecords = await this.db
         .select({ count: count() })
-        .from('prompt_history')
+        .from(promptHistory)
         .where(sql`user_id IS NOT NULL`);
       
       const orphanedRecords = totalRecords[0].count - linkedRecords[0].count;
@@ -580,7 +580,7 @@ export class ServiceMigrationOrchestrator {
       // Simulate API call
       await this.db
         .select()
-        .from('prompt_history')
+        .from(promptHistory)
         .limit(50);
       
       const duration = Date.now() - start;
@@ -641,16 +641,16 @@ export class ServiceMigrationOrchestrator {
     // Try to find user by checking recent sessions with this IP
     const sessions = await this.db
       .select()
-      .from('oauth_sessions')
-      .where(eq('oauth_sessions.ip_address', ipAddress))
+      .from(userSessions)
+      .where(eq(userSessions.ipAddress, ipAddress))
       .orderBy('oauth_sessions.created_at DESC')
       .limit(1);
     
     if (sessions.length > 0) {
       return await this.db
         .select()
-        .from('users')
-        .where(eq('users.id', sessions[0].user_id))
+        .from(users)
+        .where(eq(users.id, sessions[0].userId))
         .limit(1);
     }
     
