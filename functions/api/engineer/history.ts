@@ -13,7 +13,7 @@ export async function onRequestOptions(): Promise<Response> {
   })
 }
 
-export async function onRequestGet(context: any): Response {
+export async function onRequestGet(context: any): Promise<Response> {
   // DEPRECATED: This endpoint has been replaced with /api/engineer/history-dual-mode for enhanced privacy protection
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
