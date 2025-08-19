@@ -23,7 +23,7 @@ describe('Privacy and Data Isolation Tests', () => {
         timestamp: new Date().toISOString()
       };
       
-      await fetch(`${API_BASE}/api/engineer/history`, {
+      await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ describe('Privacy and Data Isolation Tests', () => {
         timestamp: new Date().toISOString()
       };
       
-      await fetch(`${API_BASE}/api/engineer/history`, {
+      await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -49,7 +49,7 @@ describe('Privacy and Data Isolation Tests', () => {
       });
       
       // Fetch User 1's history
-      const user1Response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const user1Response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'cf-connecting-ip': user1IP
         }
@@ -57,7 +57,7 @@ describe('Privacy and Data Isolation Tests', () => {
       const user1Data = await user1Response.json();
       
       // Fetch User 2's history
-      const user2Response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const user2Response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'cf-connecting-ip': user2IP
         }
@@ -80,7 +80,7 @@ describe('Privacy and Data Isolation Tests', () => {
     });
     
     it('should handle missing IP gracefully', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`);
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`);
       const data = await response.json();
       
       expect(response.status).toBe(200);
@@ -94,7 +94,7 @@ describe('Privacy and Data Isolation Tests', () => {
       
       // Create 10 items for each user
       for (let i = 0; i < 10; i++) {
-        await fetch(`${API_BASE}/api/engineer/history`, {
+        await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -107,7 +107,7 @@ describe('Privacy and Data Isolation Tests', () => {
           })
         });
         
-        await fetch(`${API_BASE}/api/engineer/history`, {
+        await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -124,7 +124,7 @@ describe('Privacy and Data Isolation Tests', () => {
       // Test pagination for User 1
       let allUser1Items: any[] = [];
       for (let page = 0; page < 3; page++) {
-        const response = await fetch(`${API_BASE}/api/engineer/history?page=${page}&limit=5`, {
+        const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode?page=${page}&limit=5`, {
           headers: {
             'cf-connecting-ip': user1IP
           }
@@ -140,7 +140,7 @@ describe('Privacy and Data Isolation Tests', () => {
     });
     
     it('should validate security headers', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'cf-connecting-ip': '5.5.5.5'
         }
@@ -164,7 +164,7 @@ describe('Privacy and Data Isolation Tests', () => {
       // Make 25 requests rapidly (exceeding the 20/minute limit)
       for (let i = 0; i < 25; i++) {
         requests.push(
-          fetch(`${API_BASE}/api/engineer/history`, {
+          fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
             headers: {
               'cf-connecting-ip': testIP
             }
@@ -187,7 +187,7 @@ describe('Privacy and Data Isolation Tests', () => {
       const ip1Requests = [];
       for (let i = 0; i < 25; i++) {
         ip1Requests.push(
-          fetch(`${API_BASE}/api/engineer/history`, {
+          fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
             headers: { 'cf-connecting-ip': ip1 }
           })
         );
@@ -195,7 +195,7 @@ describe('Privacy and Data Isolation Tests', () => {
       await Promise.all(ip1Requests);
       
       // IP2 should still be able to make requests
-      const ip2Response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const ip2Response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: { 'cf-connecting-ip': ip2 }
       });
       
@@ -206,7 +206,7 @@ describe('Privacy and Data Isolation Tests', () => {
   describe('Cross-Site Request Protection', () => {
     
     it('should validate CORS headers', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'Origin': 'https://evil-site.com',
           'cf-connecting-ip': '9.9.9.9'
@@ -219,7 +219,7 @@ describe('Privacy and Data Isolation Tests', () => {
     });
     
     it('should handle preflight requests', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         method: 'OPTIONS',
         headers: {
           'Origin': 'https://mstprmpt.zeidgeist.com',
@@ -236,7 +236,7 @@ describe('Privacy and Data Isolation Tests', () => {
     
     it('should sanitize error messages', async () => {
       // Force an error by sending invalid data
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -257,7 +257,7 @@ describe('Privacy and Data Isolation Tests', () => {
     });
     
     it('should not expose internal paths in responses', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`);
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`);
       const responseText = await response.text();
       
       // Should not contain internal file paths
@@ -274,7 +274,7 @@ describe('Privacy and Data Isolation Tests', () => {
       // Test with private network IP
       const privateIP = '192.168.1.100';
       
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'cf-connecting-ip': privateIP
         }
