@@ -18,12 +18,14 @@ import {
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor"
 
 // Feature flags for migration control
-const FEATURES = {
-  USER_AUTH_ENABLED: process.env.USER_AUTH_ENABLED === 'true',
-  IP_FALLBACK_ENABLED: process.env.IP_FALLBACK_ENABLED !== 'false',
-  DUAL_MODE_ENABLED: process.env.DUAL_MODE_ENABLED === 'true',
-  FORCE_USER_AUTH: process.env.FORCE_USER_AUTH === 'true'
-};
+function getFeatures(env: any) {
+  return {
+    USER_AUTH_ENABLED: env.USER_AUTH_ENABLED === 'true',
+    IP_FALLBACK_ENABLED: env.IP_FALLBACK_ENABLED !== 'false',
+    DUAL_MODE_ENABLED: env.DUAL_MODE_ENABLED === 'true',
+    FORCE_USER_AUTH: env.FORCE_USER_AUTH === 'true'
+  };
+}
 
 interface RequestContext {
   userId?: string;
@@ -69,7 +71,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     'Content-Type': 'application/json',
     'Cache-Control': 'private, no-store',
     'X-Auth-Method': requestContext.authMethod,
-    'X-Dual-Mode': FEATURES.DUAL_MODE_ENABLED ? 'enabled' : 'disabled'
+    'X-Dual-Mode': getFeatures(env).DUAL_MODE_ENABLED ? 'enabled' : 'disabled'
   }
 
   try {
@@ -187,7 +189,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     }
 
     // Add migration prompt for IP-based users
-    if (requestContext.authMethod === 'IP' && FEATURES.USER_AUTH_ENABLED) {
+    if (requestContext.authMethod === 'IP' && getFeatures(env).USER_AUTH_ENABLED) {
       response.migrationPrompt = {
         message: "Create an account to secure your data and access from any device",
         benefits: [
@@ -312,7 +314,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     // Add migration prompt for IP users
-    if (requestContext.authMethod === 'IP' && FEATURES.USER_AUTH_ENABLED) {
+    if (requestContext.authMethod === 'IP' && getFeatures(env).USER_AUTH_ENABLED) {
       response.migrationPrompt = {
         message: "Your data is saved! Create an account to keep it secure.",
         action: { url: "/auth/register", text: "Secure My Data" }
@@ -349,7 +351,7 @@ async function extractRequestContext(request: Request, env: any): Promise<Reques
   
   // Try to authenticate user if token provided
   const authHeader = request.headers.get('Authorization')
-  if (authHeader && authHeader.startsWith('Bearer ') && FEATURES.USER_AUTH_ENABLED) {
+  if (authHeader && authHeader.startsWith('Bearer ') && getFeatures(env).USER_AUTH_ENABLED) {
     try {
       const token = authHeader.substring(7)
       const authService = new CloudflareAuthService(env)
@@ -398,8 +400,10 @@ async function determineIsolationStrategy(
     return { allowed: true }
   }
   
+  const features = getFeatures(env);
+  
   // If user auth is forced, require authentication
-  if (FEATURES.FORCE_USER_AUTH) {
+  if (features.FORCE_USER_AUTH) {
     return {
       allowed: false,
       reason: "User authentication is required. Please log in or create an account.",
@@ -408,7 +412,7 @@ async function determineIsolationStrategy(
   }
   
   // If dual mode is disabled and user auth is enabled, require auth
-  if (!FEATURES.DUAL_MODE_ENABLED && FEATURES.USER_AUTH_ENABLED) {
+  if (!features.DUAL_MODE_ENABLED && features.USER_AUTH_ENABLED) {
     return {
       allowed: false,
       reason: "Account required. IP-based access has been deprecated.",
@@ -418,7 +422,7 @@ async function determineIsolationStrategy(
   }
   
   // If IP fallback is disabled, require user auth
-  if (!FEATURES.IP_FALLBACK_ENABLED) {
+  if (!features.IP_FALLBACK_ENABLED) {
     return {
       allowed: false,
       reason: "User authentication is required.",
