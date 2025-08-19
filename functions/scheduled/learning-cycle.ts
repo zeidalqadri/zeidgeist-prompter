@@ -1,4 +1,5 @@
-import { LearningService } from '../../app/lib/learning/learning-service';
+// Note: LearningService requires Node.js environment with process.env.DATABASE_URL
+// For Cloudflare Workers, we'll need to temporarily set global for compatibility
 
 export interface Env {
   DATABASE_URL: string;
@@ -17,10 +18,14 @@ export default {
     console.log('Starting scheduled learning cycle...');
     
     try {
-      // Set up environment for database access
-      process.env.DATABASE_URL = env.DATABASE_URL;
+      // Set up environment for database access (compatibility for Node.js-style imports)
+      if (!globalThis.process) {
+        globalThis.process = { env: {} } as any;
+      }
+      globalThis.process.env.DATABASE_URL = env.DATABASE_URL;
       
-      // Run learning cycle
+      // Dynamic import to avoid issues with static imports expecting Node.js environment
+      const { LearningService } = await import('../../app/lib/learning/learning-service');
       const learningService = new LearningService();
       const metrics = await learningService.runLearningCycle();
       
