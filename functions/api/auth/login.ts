@@ -3,7 +3,7 @@
  * POST /api/auth/login
  */
 
-import AuthService from "../../_shared/auth-service";
+import { CloudflareAuthService } from "../../_shared/auth-service-workers";
 import { getSecurityHeaders } from "../../_shared/privacy-guard";
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor";
 
@@ -55,7 +55,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     // Initialize auth service
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     
     // Attempt login
     const result = await authService.login(email, password, totpCode);

@@ -7,7 +7,7 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../../_shared/db-pool"
 import { desc, sql, eq, and, isNull } from "drizzle-orm"
-import AuthService from "../../_shared/auth-service"
+import { CloudflareAuthService } from "../../_shared/auth-service-workers"
 import { 
   validatePrivacyAccess, 
   logPrivacyEvent, 
@@ -352,7 +352,7 @@ async function extractRequestContext(request: Request, env: any): Promise<Reques
   if (authHeader && authHeader.startsWith('Bearer ') && FEATURES.USER_AUTH_ENABLED) {
     try {
       const token = authHeader.substring(7)
-      const authService = new AuthService(env)
+      const authService = new CloudflareAuthService(env)
       const user = await authService.validateToken(token)
       
       if (user) {

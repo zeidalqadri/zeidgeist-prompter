@@ -10,11 +10,11 @@
  */
 
 import { createDb } from "../../_shared/db";
-import AuthService from "../../_shared/auth-service";
+import { CloudflareAuthService } from "../../_shared/auth-service-workers";
 import { getSecurityHeaders } from "../../_shared/privacy-guard";
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor";
 import { eq, and, desc } from "drizzle-orm";
-import { randomUUID } from "crypto";
+// Use Web Crypto API for UUID generation
 
 interface DSARRequest {
   id: string;
@@ -99,7 +99,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     const token = authHeader.substring(7);
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     const user = await authService.validateToken(token);
     
     if (!user) {
@@ -148,7 +148,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     // Create new DSAR request
-    const requestId = randomUUID();
+    const requestId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
     
     const dsarRequest: DSARRequest = {
@@ -236,7 +236,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     }
 
     const token = authHeader.substring(7);
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     const user = await authService.validateToken(token);
     
     if (!user) {
@@ -343,7 +343,7 @@ export async function onRequestDownload(context: any): Promise<Response> {
       return new Response('Authentication required', { status: 401 });
     }
 
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     const user = await authService.validateToken(token);
     
     if (!user) {

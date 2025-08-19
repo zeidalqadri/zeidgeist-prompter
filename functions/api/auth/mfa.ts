@@ -5,7 +5,7 @@
  * POST /api/auth/mfa/verify - Verify MFA code during login
  */
 
-import AuthService from "../../_shared/auth-service";
+import { CloudflareAuthService } from "../../_shared/auth-service-workers";
 import { getSecurityHeaders } from "../../_shared/privacy-guard";
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor";
 
@@ -49,7 +49,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     }
 
     const token = authHeader.substring(7);
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     
     // Validate token and get user
     const user = await authService.validateToken(token);
@@ -151,7 +151,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     const token = authHeader.substring(7);
-    const authService = new AuthService(env);
+    const authService = new CloudflareAuthService(env);
     
     // Validate token and get user
     const user = await authService.validateToken(token);
