@@ -318,7 +318,7 @@ describe('Authentication Flow Tests', () => {
     });
 
     it('should validate tokens when accessing protected resources', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'cf-connecting-ip': '10.0.0.1'
@@ -329,7 +329,7 @@ describe('Authentication Flow Tests', () => {
     });
 
     it('should reject invalid tokens', async () => {
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'Authorization': 'Bearer invalid-token-here',
           'cf-connecting-ip': '10.0.0.1'
@@ -352,7 +352,7 @@ describe('Authentication Flow Tests', () => {
 
       const expiredToken = jwt.sign(expiredPayload, 'test-secret');
 
-      const response = await fetch(`${API_BASE}/api/engineer/history`, {
+      const response = await fetch(`${API_BASE}/api/engineer/history-dual-mode`, {
         headers: {
           'Authorization': `Bearer ${expiredToken}`,
           'cf-connecting-ip': '10.0.0.1'
