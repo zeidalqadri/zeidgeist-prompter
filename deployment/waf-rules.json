@@ -1,0 +1,168 @@
+{
+  "waf_rules": {
+    "version": "2.0",
+    "description": "WAF Rules for Enhanced Privacy Protection",
+    "rules": [
+      {
+        "id": "PRIVACY_001",
+        "name": "Cross-User History Access Prevention",
+        "description": "Block attempts to access other users' history data",
+        "priority": 1,
+        "action": "BLOCK",
+        "conditions": [
+          {
+            "field": "REQUEST_URI",
+            "operator": "CONTAINS",
+            "value": "/api/engineer/history"
+          },
+          {
+            "field": "HEADER",
+            "name": "cf-connecting-ip",
+            "operator": "NOT_EQUALS",
+            "value": "${session.ip}"
+          }
+        ],
+        "rate_limit": {
+          "window": "60s",
+          "threshold": 3,
+          "action": "BLOCK_24H"
+        }
+      },
+      {
+        "id": "PRIVACY_002",
+        "name": "Rapid History Scanning Detection",
+        "description": "Detect and block rapid history enumeration attempts",
+        "priority": 2,
+        "action": "RATE_LIMIT",
+        "conditions": [
+          {
+            "field": "REQUEST_URI",
+            "operator": "REGEX",
+            "value": "/api/engineer/history\\?.*page=[0-9]+"
+          }
+        ],
+        "rate_limit": {
+          "window": "60s",
+          "threshold": 20,
+          "action": "TEMPORARY_BLOCK"
+        }
+      },
+      {
+        "id": "PRIVACY_003",
+        "name": "Suspicious User Agent Patterns",
+        "description": "Block automated tools and scrapers",
+        "priority": 3,
+        "action": "CHALLENGE",
+        "conditions": [
+          {
+            "field": "USER_AGENT",
+            "operator": "REGEX",
+            "value": "(curl|wget|python-requests|scrapy|bot|crawler)"
+          }
+        ]
+      },
+      {
+        "id": "PRIVACY_004",
+        "name": "Geographic Anomaly Detection",
+        "description": "Flag unusual geographic access patterns",
+        "priority": 4,
+        "action": "LOG",
+        "conditions": [
+          {
+            "field": "GEO_COUNTRY",
+            "operator": "NOT_IN",
+            "value": ["US", "CA", "GB", "AU", "DE", "FR"]
+          }
+        ],
+        "enhanced_logging": true
+      },
+      {
+        "id": "PRIVACY_005",
+        "name": "Tor Exit Node Detection",
+        "description": "Block or challenge Tor traffic for privacy-sensitive endpoints",
+        "priority": 5,
+        "action": "CHALLENGE",
+        "conditions": [
+          {
+            "field": "TOR_EXIT_NODE",
+            "operator": "EQUALS",
+            "value": "true"
+          },
+          {
+            "field": "REQUEST_URI",
+            "operator": "STARTS_WITH",
+            "value": "/api/engineer"
+          }
+        ]
+      }
+    ],
+    "global_settings": {
+      "default_action": "ALLOW",
+      "anomaly_threshold": 5,
+      "learning_mode": false,
+      "geo_blocking_enabled": false,
+      "ip_reputation_enabled": true,
+      "bot_protection_level": "medium"
+    },
+    "rate_limiting": {
+      "global_limits": [
+        {
+          "endpoint": "/api/engineer/history",
+          "method": "GET",
+          "window": "60s",
+          "limit": 20,
+          "per": "ip"
+        },
+        {
+          "endpoint": "/api/engineer/history",
+          "method": "POST",
+          "window": "60s",
+          "limit": 10,
+          "per": "ip"
+        },
+        {
+          "endpoint": "/api/engineer",
+          "method": "POST",
+          "window": "60s",
+          "limit": 10,
+          "per": "ip"
+        }
+      ],
+      "burst_protection": {
+        "enabled": true,
+        "threshold": 100,
+        "window": "10s",
+        "action": "DROP"
+      }
+    },
+    "anomaly_detection": {
+      "enabled": true,
+      "algorithms": [
+        {
+          "name": "unusual_access_patterns",
+          "threshold": 3.0,
+          "window": "1h",
+          "action": "LOG"
+        },
+        {
+          "name": "cross_user_attempts",
+          "threshold": 1.0,
+          "window": "5m",
+          "action": "BLOCK"
+        }
+      ]
+    },
+    "monitoring": {
+      "metrics_export": {
+        "enabled": true,
+        "endpoint": "/metrics/waf",
+        "format": "prometheus"
+      },
+      "alerting": {
+        "webhook_url": "${SECURITY_ALERT_WEBHOOK}",
+        "severity_threshold": "medium",
+        "aggregation_window": "5m"
+      }
+    }
+  }
+}
