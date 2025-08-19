@@ -35,11 +35,11 @@ export async function onRequestGet(context: any): Promise<Response> {
                    'unknown'
   
   // Enhanced privacy checks
-  const sessionFingerprint = generateSessionFingerprint(request)
+  const sessionFingerprint = await generateSessionFingerprint(request)
   const isFromSharedNetwork = isSharedNetwork(clientIP)
   
   // Log access attempt for audit
-  logPrivacyEvent({
+  await logPrivacyEvent({
     timestamp: new Date(),
     action: 'access',
     resource: '/api/engineer/history',

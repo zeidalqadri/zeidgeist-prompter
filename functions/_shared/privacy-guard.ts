@@ -3,7 +3,19 @@
  * Provides additional validation and monitoring for privacy-sensitive operations
  */
 
-import { createHash } from 'crypto';
+// Use Web Crypto API for Cloudflare Workers compatibility
+const crypto = globalThis.crypto;
+
+/**
+ * Helper function to create SHA-256 hash using Web Crypto API
+ */
+async function createSha256Hash(data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export interface PrivacyContext {
   userId: string;
@@ -26,7 +38,7 @@ const VIOLATION_WINDOW_MS = 3600000; // 1 hour
 /**
  * Generate a privacy token combining multiple factors
  */
-export function generatePrivacyToken(context: PrivacyContext): string {
+export async function generatePrivacyToken(context: PrivacyContext): Promise<string> {
   const components = [
     context.userId,
     context.ipAddress,
@@ -35,10 +47,8 @@ export function generatePrivacyToken(context: PrivacyContext): string {
     new Date().toISOString().split('T')[0] // Daily rotation
   ];
   
-  return createHash('sha256')
-    .update(components.join('|'))
-    .digest('hex')
-    .substring(0, 16);
+  const hash = await createSha256Hash(components.join('|'));
+  return hash.substring(0, 16);
 }
 
 /**
@@ -133,14 +143,12 @@ export function sanitizeUserData<T extends Record<string, any>>(
 /**
  * Generate anonymous identifier from IP for logging
  */
-export function anonymizeIP(ipAddress: string): string {
+export async function anonymizeIP(ipAddress: string): Promise<string> {
   if (!ipAddress || ipAddress === 'unknown') return 'anonymous';
   
   // Hash IP for privacy-preserving logging
-  return createHash('sha256')
-    .update(ipAddress)
-    .digest('hex')
-    .substring(0, 8);
+  const hash = await createSha256Hash(ipAddress);
+  return hash.substring(0, 8);
 }
 
 /**
@@ -158,12 +166,12 @@ export interface PrivacyAuditLog {
 /**
  * Log privacy-related events for audit trail
  */
-export function logPrivacyEvent(event: PrivacyAuditLog): void {
+export async function logPrivacyEvent(event: PrivacyAuditLog): Promise<void> {
   // In production, this would write to a secure audit log
   const logEntry = {
     ...event,
     timestamp: event.timestamp.toISOString(),
-    requesterId: anonymizeIP(event.requesterId)
+    requesterId: await anonymizeIP(event.requesterId)
   };
   
   if (event.action === 'violation' || event.action === 'denied') {
@@ -194,7 +202,7 @@ export function isSharedNetwork(ipAddress: string): boolean {
 /**
  * Generate a session fingerprint for additional validation
  */
-export function generateSessionFingerprint(request: Request): string {
+export async function generateSessionFingerprint(request: Request): Promise<string> {
   const components = [
     request.headers.get('user-agent') || 'unknown',
     request.headers.get('accept-language') || 'unknown',
@@ -202,10 +210,8 @@ export function generateSessionFingerprint(request: Request): string {
     // Add more entropy sources as needed
   ];
   
-  return createHash('sha256')
-    .update(components.join('|'))
-    .digest('hex')
-    .substring(0, 16);
+  const hash = await createSha256Hash(components.join('|'));
+  return hash.substring(0, 16);
 }
 
 /**

@@ -90,7 +90,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     
     if (!isolationResult.allowed) {
       // Log privacy violation attempt
-      logPrivacyEvent({
+      await logPrivacyEvent({
         timestamp: new Date(),
         action: 'denied',
         resource: '/api/engineer/history',
@@ -156,7 +156,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     const totalPages = Math.ceil(totalCount / limit)
     
     // Log successful access
-    logPrivacyEvent({
+    await logPrivacyEvent({
       timestamp: new Date(),
       action: 'access',
       resource: '/api/engineer/history',
@@ -297,7 +297,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     })
 
     // Log privacy event
-    logPrivacyEvent({
+    await logPrivacyEvent({
       timestamp: new Date(),
       action: 'access',
       resource: '/api/engineer/history',
@@ -345,7 +345,7 @@ async function extractRequestContext(request: Request, env: any): Promise<Reques
                    'unknown'
   
   const userAgent = request.headers.get('user-agent') || 'unknown'
-  const sessionFingerprint = generateSessionFingerprint(request)
+  const sessionFingerprint = await generateSessionFingerprint(request)
   
   // Try to authenticate user if token provided
   const authHeader = request.headers.get('Authorization')
