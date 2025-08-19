@@ -1,6 +1,13 @@
 import { createDb, promptHistory, NewPromptHistory } from "../../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../../_shared/db-pool"
 import { desc, sql, eq } from "drizzle-orm"
+import { 
+  validatePrivacyAccess, 
+  logPrivacyEvent, 
+  isSharedNetwork,
+  getSecurityHeaders,
+  generateSessionFingerprint 
+} from "../../_shared/privacy-guard"
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
@@ -27,15 +34,26 @@ export async function onRequestGet(context: any): Promise<Response> {
                    request.headers.get('x-real-ip') || 
                    'unknown'
   
-  // Generate cache key for this specific request (including IP for isolation)
-  const cacheKey = `history_${clientIP}_${page}_${limit}`
+  // Enhanced privacy checks
+  const sessionFingerprint = await generateSessionFingerprint(request)
+  const isFromSharedNetwork = isSharedNetwork(clientIP)
+  
+  // Log access attempt for audit
+  await logPrivacyEvent({
+    timestamp: new Date(),
+    action: 'access',
+    resource: '/api/engineer/history',
+    requesterId: clientIP,
+    reason: isFromSharedNetwork ? 'shared-network-detected' : undefined
+  })
+  
+  // Generate cache key for this specific request (including IP and session for isolation)
+  const cacheKey = `history_${clientIP}_${sessionFingerprint}_${page}_${limit}`
   
   const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    ...getSecurityHeaders(),
     'Content-Type': 'application/json',
-    'Cache-Control': 'public, max-age=60, s-maxage=60', // Cache for 1 minute
+    'Cache-Control': 'private, no-store', // Prevent caching of user data
     'ETag': `W/"${cacheKey}"`
   }
 
