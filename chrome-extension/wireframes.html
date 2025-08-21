@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mstprmpt chrome extension - ui wireframes</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      background-image: linear-gradient(rgba(240, 240, 245, 0.4) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(240, 240, 245, 0.4) 1px, transparent 1px);
+      background-size: 30px 30px;
+      padding: 40px 20px;
+      line-height: 1.6;
+      color: #000000;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 32px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 40px;
+      font-size: 16px;
+    }
+    
+    .wireframe-section {
+      margin-bottom: 60px;
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .section-title {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .section-description {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .wireframe-container {
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .wireframe {
+      background: white;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      position: relative;
+    }
+    
+    .state-label {
+      position: absolute;
+      top: -12px;
+      left: 20px;
+      background: white;
+      padding: 0 10px;
+      color: #667eea;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .popup-wireframe {
+      width: 400px;
+      min-height: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .overlay-wireframe {
+      width: 500px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    .injection-wireframe {
+      width: 600px;
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    
+    /* Wireframe Components */
+    .w-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      text-align: center;
+      border-radius: 6px 6px 0 0;
+      margin: -20px -20px 20px -20px;
+    }
+    
+    .w-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    
+    .w-tagline {
+      font-size: 11px;
+      opacity: 0.9;
+    }
+    
+    .w-textarea {
+      width: 100%;
+      height: 80px;
+      background: #f9f9f9;
+      border: 2px dashed #ddd;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 13px;
+    }
+    
+    .w-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      cursor: default;
+    }
+    
+    .w-button-secondary {
+      background: #f0f0f0;
+      color: #333;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: default;
+    }
+    
+    .w-metrics {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    .w-metric {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    
+    .w-metric-label {
+      font-size: 12px;
+      font-weight: 600;
+      width: 80px;
+      color: #666;
+    }
+    
+    .w-metric-bar {
+      flex: 1;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .w-metric-fill {
+      position: absolute;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 4px;
+    }
+    
+    .w-metric-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: #667eea;
+    }
+    
+    .w-history {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .w-history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .w-history-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .w-history-clear {
+      color: #667eea;
+      font-size: 12px;
+      text-decoration: underline;
+    }
+    
+    .w-history-item {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    
+    .w-history-time {
+      font-size: 10px;
+      color: #999;
+      margin-bottom: 4px;
+    }
+    
+    .w-history-text {
+      font-size: 12px;
+      color: #333;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .w-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-top: 2px dashed #e0e0e0;
+      margin-top: 20px;
+    }
+    
+    .w-icon-button {
+      width: 32px;
+      height: 32px;
+      background: #f0f0f0;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    
+    .w-link {
+      color: #667eea;
+      font-size: 13px;
+      text-decoration: underline;
+    }
+    
+    .w-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .w-checkbox input {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .w-enhanced-prompt {
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+      min-height: 100px;
+      font-size: 13px;
+      color: #333;
+      font-family: monospace;
+      line-height: 1.5;
+    }
+    
+    .w-improvements {
+      background: #e8f4fd;
+      border-left: 3px solid #667eea;
+      padding: 10px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    
+    .w-improvements-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 6px;
+    }
+    
+    .w-improvements-list {
+      font-size: 11px;
+      color: #555;
+      padding-left: 20px;
+    }
+    
+    .w-button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    .w-button-group > * {
+      flex: 1;
+    }
+    
+    .w-modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .w-modal {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 350px;
+      padding: 20px;
+    }
+    
+    .w-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px dashed #e0e0e0;
+    }
+    
+    .w-modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .w-close {
+      width: 24px;
+      height: 24px;
+      background: #f0f0f0;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+      font-size: 16px;
+    }
+    
+    .w-setting {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+    
+    .w-setting-label {
+      font-size: 13px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .w-injection-button {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .w-chatbox {
+      position: relative;
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 12px 50px 12px 12px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      color: #999;
+      font-size: 14px;
+    }
+    
+    .w-notification {
+      background: #4caf50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    
+    .flow-arrows {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+      font-size: 24px;
+      color: #667eea;
+    }
+    
+    .badge {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+    
+    .annotations {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px dashed #e0e0e0;
+    }
+    
+    .annotation {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .annotation-icon {
+      width: 20px;
+      height: 20px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>mstprmpt chrome extension</h1>
+    <p class="subtitle">Interactive UI Wireframes & User Flow Documentation</p>
+    
+    <!-- Popup Interface Wireframe -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        popup interface
+        <span class="badge">Primary UI</span>
+      </h2>
+      <p class="section-description">
+        The main extension popup that appears when users click the extension icon in the browser toolbar.
+        This is the primary interface for manual prompt enhancement.
+      </p>
+      
+      <div class="wireframe-container">
+        <!-- Default State -->
+        <div class="wireframe popup-wireframe">
+          <span class="state-label">Default State</span>
+          
+          <div class="w-header">
+            <div class="w-title">MstPrmpt</div>
+            <div class="w-tagline">Master Prompt Engineer</div>
+          </div>
+          
+          <div class="w-textarea">Enter your prompt here...</div>
+          
+          <div class="w-checkbox">
+            <input type="checkbox" checked>
+            <label>Include page context</label>
+          </div>
+          
+          <div class="w-button">⚡ Enhance Prompt</div>
+          
+          <div class="w-history">
+            <div class="w-history-header">
+              <div class="w-history-title">Recent History</div>
+              <div class="w-history-clear">Clear</div>
+            </div>
+            <div class="w-history-item">
+              <div class="w-history-time">2 min ago</div>
+              <div class="w-history-text">Explain how neural networks work...</div>
+            </div>
+            <div class="w-history-item">
+              <div class="w-history-time">15 min ago</div>
+              <div class="w-history-text">Write a Python function that...</div>
+            </div>
+            <div class="w-history-item">
+              <div class="w-history-time">1 hour ago</div>
+              <div class="w-history-text">What are the best practices for...</div>
+            </div>
+          </div>
+          
+          <div class="w-footer">
+            <div style="display: flex; gap: 10px;">
+              <div class="w-icon-button">⚙️</div>
+              <div class="w-icon-button">❓</div>
+            </div>
+            <div class="w-link">Open Web App</div>
+          </div>
+        </div>
+        
+        <!-- Enhanced State -->
+        <div class="wireframe popup-wireframe">
+          <span class="state-label">After Enhancement</span>
+          
+          <div class="w-header">
+            <div class="w-title">MstPrmpt</div>
+            <div class="w-tagline">Master Prompt Engineer</div>
+          </div>
+          
+          <div class="w-textarea" style="font-size: 12px; color: #666;">
+            How do transformers work in NLP?
+          </div>
+          
+          <div class="w-checkbox">
+            <input type="checkbox" checked>
+            <label>Include page context</label>
+          </div>
+          
+          <div class="w-button">⚡ Enhance Prompt</div>
+          
+          <div style="background: #f9f9f9; border-radius: 8px; padding: 16px; margin-top: 15px;">
+            <h3 style="font-size: 14px; margin-bottom: 10px; color: #667eea;">Enhanced Prompt</h3>
+            <div class="w-enhanced-prompt">
+              Explain the transformer architecture used in Natural Language Processing (NLP), including:<br>
+              1. The self-attention mechanism<br>
+              2. Multi-head attention<br>
+              3. Positional encoding<br>
+              4. Feed-forward networks<br>
+              Please provide examples and compare with RNN/LSTM approaches.
+            </div>
+            
+            <div class="w-metrics">
+              <div class="w-metric">
+                <span class="w-metric-label">Clarity</span>
+                <div class="w-metric-bar">
+                  <div class="w-metric-fill" style="width: 85%;"></div>
+                </div>
+                <span class="w-metric-value">85%</span>
+              </div>
+              <div class="w-metric">
+                <span class="w-metric-label">Specificity</span>
+                <div class="w-metric-bar">
+                  <div class="w-metric-fill" style="width: 92%;"></div>
+                </div>
+                <span class="w-metric-value">92%</span>
+              </div>
+              <div class="w-metric">
+                <span class="w-metric-label">Completeness</span>
+                <div class="w-metric-bar">
+                  <div class="w-metric-fill" style="width: 78%;"></div>
+                </div>
+                <span class="w-metric-value">78%</span>
+              </div>
+            </div>
+            
+            <div class="w-improvements">
+              <div class="w-improvements-title">Improvements Applied:</div>
+              <ul class="w-improvements-list">
+                <li>Added structure and clarity</li>
+                <li>Specified technical components</li>
+                <li>Requested comparison context</li>
+              </ul>
+            </div>
+            
+            <div class="w-button-group">
+              <div class="w-button-secondary">📋 Copy</div>
+              <div class="w-button-secondary">↩️ Insert</div>
+            </div>
+          </div>
+          
+          <div class="w-footer">
+            <div style="display: flex; gap: 10px;">
+              <div class="w-icon-button">⚙️</div>
+              <div class="w-icon-button">❓</div>
+            </div>
+            <div class="w-link">Open Web App</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Content Injection Wireframe -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        in-page enhancement
+        <span class="badge">Content Script</span>
+      </h2>
+      <p class="section-description">
+        Shows how the extension integrates directly into AI chat interfaces like ChatGPT, Claude, and others.
+        The enhancement button is injected next to text input fields.
+      </p>
+      
+      <div class="wireframe-container">
+        <div class="injection-wireframe">
+          <span class="state-label">ChatGPT Interface</span>
+          
+          <div style="margin-bottom: 20px;">
+            <div style="background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+              <div style="font-size: 13px; color: #666; margin-bottom: 8px;">You</div>
+              <div style="font-size: 14px; color: #333;">How can I optimize my React app?</div>
+            </div>
+            
+            <div style="background: #f7f7f8; border-radius: 8px; padding: 15px;">
+              <div style="font-size: 13px; color: #666; margin-bottom: 8px;">Assistant</div>
+              <div style="font-size: 14px; color: #333;">Here are several ways to optimize your React application...</div>
+            </div>
+          </div>
+          
+          <div class="w-chatbox">
+            <span>Message ChatGPT...</span>
+            <div class="w-injection-button">⚡</div>
+          </div>
+          
+          <div style="margin-top: 10px; font-size: 11px; color: #999; text-align: center;">
+            Press Ctrl+Shift+E to enhance with MstPrmpt
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Enhancement Overlay Wireframe -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        enhancement overlay
+        <span class="badge">Modal</span>
+      </h2>
+      <p class="section-description">
+        The overlay that appears when users trigger enhancement from within a webpage.
+        This provides a focused view for reviewing and using the enhanced prompt.
+      </p>
+      
+      <div class="wireframe-container">
+        <div class="wireframe overlay-wireframe">
+          <span class="state-label">Enhancement Result</span>
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="font-size: 18px; color: #333; margin: 0;">Enhanced Prompt</h3>
+            <div class="w-close">×</div>
+          </div>
+          
+          <div class="w-enhanced-prompt">
+            Objective:<br>
+            Create a comprehensive guide for React performance optimization<br><br>
+            
+            Requirements:<br>
+            - Include code-splitting techniques<br>
+            - Cover React.memo and useMemo usage<br>
+            - Explain virtual DOM optimization<br>
+            - Provide bundle size reduction strategies<br><br>
+            
+            Format:<br>
+            Please structure as a step-by-step guide with code examples
+          </div>
+          
+          <div class="w-button-group">
+            <div class="w-button">Use This Prompt</div>
+            <div class="w-button-secondary">Copy to Clipboard</div>
+          </div>
+          
+          <div class="w-improvements">
+            <div class="w-improvements-title">Improvements Applied:</div>
+            <ul class="w-improvements-list">
+              <li>Added structure with clear sections</li>
+              <li>Specified technical requirements</li>
+              <li>Clarified desired output format</li>
+              <li>Enhanced specificity of request</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Settings Modal Wireframe -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        settings modal
+        <span class="badge">Configuration</span>
+      </h2>
+      <p class="section-description">
+        The settings interface accessible from the popup, allowing users to customize extension behavior.
+      </p>
+      
+      <div class="wireframe-container">
+        <div class="wireframe popup-wireframe" style="position: relative; overflow: hidden;">
+          <span class="state-label">Settings View</span>
+          
+          <div class="w-modal-backdrop">
+            <div class="w-modal">
+              <div class="w-modal-header">
+                <div class="w-modal-title">Settings</div>
+                <div class="w-close">✕</div>
+              </div>
+              
+              <div class="w-setting">
+                <label class="w-setting-label">
+                  <input type="checkbox">
+                  Auto-enhance on selection
+                </label>
+              </div>
+              
+              <div class="w-setting">
+                <label class="w-setting-label">
+                  <input type="checkbox" checked>
+                  Show notifications
+                </label>
+              </div>
+              
+              <div class="w-setting">
+                <label class="w-setting-label">
+                  History limit
+                  <input type="number" value="50" style="width: 60px; margin-left: auto;">
+                </label>
+              </div>
+              
+              <div class="w-setting">
+                <label class="w-setting-label">
+                  Theme
+                  <select style="margin-left: auto;">
+                    <option>Light</option>
+                    <option>Dark</option>
+                    <option>Auto</option>
+                  </select>
+                </label>
+              </div>
+              
+              <div class="w-button" style="margin-top: 20px;">Save Settings</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Notification States -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        notification states
+        <span class="badge">Feedback</span>
+      </h2>
+      <p class="section-description">
+        Various notification styles for user feedback across different scenarios.
+      </p>
+      
+      <div class="wireframe-container" style="flex-direction: column; align-items: flex-start;">
+        <div class="w-notification" style="background: #4caf50;">
+          ✓ Enhanced prompt copied to clipboard!
+        </div>
+        <div class="w-notification" style="background: #2196f3;">
+          ⏳ Enhancing your prompt...
+        </div>
+        <div class="w-notification" style="background: #ff9800;">
+          ⚠️ Please enter some text to enhance
+        </div>
+        <div class="w-notification" style="background: #f44336;">
+          ✕ Enhancement failed. Using local rules.
+        </div>
+      </div>
+    </div>
+    
+    <!-- User Flow Diagram -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        user flow
+        <span class="badge">Interaction Map</span>
+      </h2>
+      <p class="section-description">
+        Complete user journey from installation to enhanced prompt usage.
+      </p>
+      
+      <div style="background: #f9f9f9; border-radius: 8px; padding: 30px; text-align: center;">
+        <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 20px;">
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">📥</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Install Extension</div>
+            <div style="font-size: 12px; color: #666;">From Chrome Web Store</div>
+          </div>
+          
+          <div class="flow-arrows">→</div>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">💬</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Navigate to AI Chat</div>
+            <div style="font-size: 12px; color: #666;">ChatGPT, Claude, etc.</div>
+          </div>
+          
+          <div class="flow-arrows">→</div>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">✍️</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Type Prompt</div>
+            <div style="font-size: 12px; color: #666;">Enter raw prompt text</div>
+          </div>
+          
+          <div class="flow-arrows">→</div>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">⚡</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Click Enhance</div>
+            <div style="font-size: 12px; color: #666;">Or press Ctrl+Shift+E</div>
+          </div>
+          
+          <div class="flow-arrows">→</div>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">✨</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Review Enhanced</div>
+            <div style="font-size: 12px; color: #666;">See improvements & metrics</div>
+          </div>
+          
+          <div class="flow-arrows">→</div>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
+            <div style="font-size: 24px; margin-bottom: 10px;">🚀</div>
+            <div style="font-weight: 600; margin-bottom: 5px;">Use Prompt</div>
+            <div style="font-size: 12px; color: #666;">Insert or copy to use</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="annotations">
+        <div class="annotation">
+          <div class="annotation-icon">1</div>
+          <div>Users can trigger enhancement via popup, injected button, keyboard shortcut, or context menu</div>
+        </div>
+        <div class="annotation">
+          <div class="annotation-icon">2</div>
+          <div>Enhancement happens through API when online, falls back to local rules when offline</div>
+        </div>
+        <div class="annotation">
+          <div class="annotation-icon">3</div>
+          <div>All enhancements are cached locally for performance and stored in history</div>
+        </div>
+        <div class="annotation">
+          <div class="annotation-icon">4</div>
+          <div>Metrics provide feedback on improvement quality (Clarity, Specificity, Completeness)</div>
+        </div>
+        <div class="annotation">
+          <div class="annotation-icon">5</div>
+          <div>Settings sync across devices when user is logged into Chrome</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Component States Reference -->
+    <div class="wireframe-section">
+      <h2 class="section-title">
+        component states
+        <span class="badge">Reference</span>
+      </h2>
+      <p class="section-description">
+        Quick reference for all UI component states and variations.
+      </p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+          <h4 style="margin-bottom: 15px; color: #333;">Button States</h4>
+          <div class="w-button" style="margin-bottom: 10px;">Default Button</div>
+          <div class="w-button" style="margin-bottom: 10px; opacity: 0.5; cursor: not-allowed;">Disabled Button</div>
+          <div class="w-button" style="margin-bottom: 10px; background: #4caf50;">✓ Success Button</div>
+          <div class="w-button-secondary">Secondary Button</div>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+          <h4 style="margin-bottom: 15px; color: #333;">Input States</h4>
+          <div class="w-textarea" style="height: 40px; margin-bottom: 10px;">Empty state</div>
+          <div class="w-textarea" style="height: 40px; margin-bottom: 10px; border-color: #667eea; background: #f0f4ff;">
+            Focused state
+          </div>
+          <div class="w-textarea" style="height: 40px; border-color: #f44336; background: #fff5f5;">
+            Error state
+          </div>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+          <h4 style="margin-bottom: 15px; color: #333;">Metrics Display</h4>
+          <div class="w-metric">
+            <span class="w-metric-label">Low Score</span>
+            <div class="w-metric-bar">
+              <div class="w-metric-fill" style="width: 25%; background: #f44336;"></div>
+            </div>
+            <span class="w-metric-value" style="color: #f44336;">25%</span>
+          </div>
+          <div class="w-metric">
+            <span class="w-metric-label">Mid Score</span>
+            <div class="w-metric-bar">
+              <div class="w-metric-fill" style="width: 60%; background: #ff9800;"></div>
+            </div>
+            <span class="w-metric-value" style="color: #ff9800;">60%</span>
+          </div>
+          <div class="w-metric">
+            <span class="w-metric-label">High Score</span>
+            <div class="w-metric-bar">
+              <div class="w-metric-fill" style="width: 90%; background: #4caf50;"></div>
+            </div>
+            <span class="w-metric-value" style="color: #4caf50;">90%</span>
+          </div>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+          <h4 style="margin-bottom: 15px; color: #333;">Loading States</h4>
+          <div class="w-button" style="margin-bottom: 10px;">
+            <span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> Processing...
+          </div>
+          <div style="display: flex; justify-content: center; align-items: center; height: 40px;">
+            <div style="width: 20px; height: 20px; border: 2px solid #667eea; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</body>
+</html>

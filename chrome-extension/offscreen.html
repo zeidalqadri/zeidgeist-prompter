@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MstPrmpt Offscreen</title>
+</head>
+<body>
+  <script>
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type === 'COPY_TO_CLIPBOARD') {
+        navigator.clipboard.writeText(request.text).then(() => {
+          sendResponse({ success: true });
+        }).catch(err => {
+          sendResponse({ success: false, error: err.message });
+        });
+        return true;
+      }
+    });
+  </script>
+</body>
+</html>

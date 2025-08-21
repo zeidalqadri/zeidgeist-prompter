@@ -1,0 +1,20 @@
+{
+  "name": "mstprmpt-chrome-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension for MstPrmpt - Master Prompt Engineer",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "package": "node package.js",
+    "test": "echo \"No tests specified\""
+  },
+  "keywords": [
+    "chrome-extension",
+    "prompt-engineering",
+    "ai",
+    "chatgpt",
+    "claude"
+  ],
+  "author": "Zeidgeist",
+  "license": "MIT"
+}

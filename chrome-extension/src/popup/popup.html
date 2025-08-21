@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mstprmpt</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>mstprmpt</h1>
+      <p class="tagline">master prompt engineer</p>
+    </header>
+    
+    <main>
+      <div class="input-section">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <h3 style="font-size: 16px; font-weight: 500; color: var(--black-primary);">Raw</h3>
+          <button id="clearBtn" style="background: none; border: none; color: var(--gray-500); cursor: pointer; padding: 4px;">clear</button>
+        </div>
+        
+        <textarea 
+          id="promptInput" 
+          placeholder="Raw input..."
+          rows="4"
+        ></textarea>
+        
+        <div style="font-size: 12px; color: var(--gray-500); margin: 12px 0;">
+          press cmd+enter (or ctrl+enter) to refine
+        </div>
+        
+        <button id="enhanceBtn" class="btn btn-primary">
+          refine
+        </button>
+      </div>
+      
+      <div id="resultSection" class="result-section hidden">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3 style="font-size: 16px; font-weight: 500; color: var(--black-primary);">Refined</h3>
+          <span id="sourceInfo" style="font-size: 12px; color: var(--gray-500); background: var(--gray-100); padding: 4px 8px; border-radius: 12px;"></span>
+        </div>
+        
+        <div id="enhancedPrompt" class="enhanced-prompt"></div>
+        
+        <div class="action-buttons">
+          <button id="copyBtn" class="btn btn-secondary">
+            copy
+          </button>
+          <button id="repeatBtn" class="btn btn-primary">
+            repeat
+          </button>
+        </div>
+      </div>
+      
+      <div class="history-section">
+        <div class="section-header">
+          <button id="historyToggle" style="background: none; border: none; color: var(--gray-60); padding: 0; height: 36px; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; cursor: pointer;">
+            <span>recollect</span>
+            <span id="historyChevron">[+]</span>
+          </button>
+          <span id="historyCount" style="font-size: 12px; color: var(--gray-500);">0 entries</span>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </main>
+    
+    <footer>
+      <button id="settingsBtn" class="btn-icon-only" title="settings">settings</button>
+      <button id="helpBtn" class="btn-icon-only" title="help">help</button>
+      <a href="https://mstprmpt.zeidgeist.com" target="_blank" class="btn-text">
+        Open Web App
+      </a>
+    </footer>
+    
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button id="closeSettingsBtn" class="btn-close">close</button>
+        </div>
+        <div class="modal-body">
+          <div class="setting">
+            <label for="autoEnhance">
+              <input type="checkbox" id="autoEnhance">
+              Auto-enhance on selection
+            </label>
+          </div>
+          
+          <div class="setting">
+            <label for="showNotifications">
+              <input type="checkbox" id="showNotifications" checked>
+              Show notifications
+            </label>
+          </div>
+          
+          <div class="setting">
+            <label for="historyLimit">
+              History limit
+              <input type="number" id="historyLimit" min="10" max="100" value="50">
+            </label>
+          </div>
+          
+          <div class="setting">
+            <label for="theme">
+              Theme
+              <select id="theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="auto">Auto</option>
+              </select>
+            </label>
+          </div>
+          
+          <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
