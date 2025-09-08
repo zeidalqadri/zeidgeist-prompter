@@ -3,8 +3,9 @@
  * Tests registration, login, MFA, token validation, and security measures
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import jwt from 'jsonwebtoken';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import jwt from 'jsonwebtoken'
+import { server } from './mocks/server'
 
 const API_BASE = process.env.API_URL || 'http://localhost:8788';
 

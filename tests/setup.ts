@@ -1,0 +1,92 @@
+import { expect, afterEach, beforeAll, afterAll } from 'vitest'
+import { cleanup } from '@testing-library/react'
+import '@testing-library/jest-dom'
+import { server } from './mocks/server'
+
+// Mock environment variables for tests
+process.env.NODE_ENV = 'test'
+process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test_db'
+process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only'
+process.env.NEXTAUTH_SECRET = 'test-nextauth-secret'
+process.env.API_URL = 'http://localhost:8788'
+process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8788'
+
+// Extend Vitest's expect with jest-dom matchers
+expect.extend({})
+
+// Mock fetch globally for tests
+global.fetch = global.fetch || (() => Promise.resolve({
+  json: () => Promise.resolve({}),
+  text: () => Promise.resolve(''),
+  status: 200,
+  ok: true,
+  headers: new Headers(),
+} as Response))
+
+// Mock window.location
+Object.defineProperty(window, 'location', {
+  value: {
+    href: 'http://localhost:3000',
+    origin: 'http://localhost:3000',
+    protocol: 'http:',
+    host: 'localhost:3000',
+    hostname: 'localhost',
+    port: '3000',
+    pathname: '/',
+    search: '',
+    hash: ''
+  },
+  writable: true
+})
+
+// Mock crypto for testing
+Object.defineProperty(global, 'crypto', {
+  value: {
+    randomUUID: () => `test-${Math.random().toString(36).substr(2, 9)}`,
+    getRandomValues: (arr: Uint8Array) => {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = Math.floor(Math.random() * 256)
+      }
+      return arr
+    }
+  }
+})
+
+// MSW server setup
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'warn' })
+})
+
+afterEach(() => {
+  cleanup()
+  server.resetHandlers()
+})
+
+afterAll(() => {
+  server.close()
+})
+
+// Mock console methods to reduce noise in tests
+global.console = {
+  ...console,
+  log: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {}
+}
+
+// Mock ResizeObserver
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+// Mock IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
