@@ -559,3 +559,13 @@ EOF
 --------------------------------
 2025-09-08T22:44:28.248776 - git status - Verify all changes are committed
 --------------------------------
+2025-09-08T22:48:47.098739 - docker exec zeidgeist-postgres psql -U zeidgeist -d zeidgeist_prompter_dev -c "SELECT tablename FROM pg_tables WHERE schemaname='public';" - Verify database tables
+--------------------------------
+2025-09-08T22:52:11.844256 - curl -s http://localhost:3000 | grep -o '<title>[^<]*</title>' - Test frontend page title
+--------------------------------
+2025-09-08T22:52:34.418392 - curl -s http://localhost:3000 | grep -c "textarea.*placeholder.*Ramble" - Test frontend form elements
+--------------------------------
+2025-09-08T22:52:59.155052 - curl -s http://localhost:8788/ | head -1 - Test API root endpoint
+--------------------------------
+2025-09-08T22:53:11.304961 - curl -s -w "%{http_code}" -o /dev/null http://localhost:8788/api/health/liveness - Test API liveness endpoint status code
+--------------------------------
