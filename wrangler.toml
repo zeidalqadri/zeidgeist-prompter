@@ -23,6 +23,11 @@ vars = { NODE_ENV = "staging", APP_ENV = "staging", API_BASE_URL = "https://stag
 name = "zeidgeist-prompter-dev"
 vars = { NODE_ENV = "development", APP_ENV = "development", API_BASE_URL = "http://localhost:8788" }
 
+# Preview environment (for PR deployments)
+[env.preview]
+name = "zeidgeist-prompter-preview"
+vars = { NODE_ENV = "preview", APP_ENV = "preview", API_BASE_URL = "https://preview.mstprmpt.zeidgeist.com" }
+
 # Default environment variables (will be overridden by specific environments)
 [vars]
 NODE_ENV = "production"

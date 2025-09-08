@@ -5,6 +5,7 @@ on:
     branches: [ master, main, develop ]
   pull_request:
     branches: [ master, main ]
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
   test:
@@ -157,6 +158,249 @@ jobs:
       with:
         name: performance-results
         path: performance-report/
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: [test, security, performance]
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    
+    environment: 
+      name: preview-${{ github.event.number }}
+      url: ${{ steps.deploy-preview.outputs.deployment-url }}
+    
+    concurrency:
+      group: preview-${{ github.event.number }}
+      cancel-in-progress: true
+    
+    env:
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      NODE_ENV: preview
+      APP_ENV: preview
+      APP_VERSION: ${{ github.sha }}
+      PR_NUMBER: ${{ github.event.number }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run pre-deployment validation
+      run: node scripts/deployment/pre-deploy.js
+
+    - name: Build application for preview
+      run: npm run build
+      env:
+        NODE_ENV: preview
+        APP_ENV: preview
+        NEXT_PUBLIC_APP_ENV: preview
+        NEXT_PUBLIC_API_URL: https://preview-pr-${{ github.event.number }}.mstprmpt.zeidgeist.com
+
+    - name: Deploy to Cloudflare Pages (Preview)
+      id: deploy-preview
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --compatibility-date=2024-01-15
+      env:
+        DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+        NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+    - name: Extract deployment URL
+      id: extract-url
+      run: |
+        # Extract the deployment URL from Wrangler output
+        DEPLOYMENT_URL="https://preview-pr-${{ github.event.number }}.zeidgeist-prompter.pages.dev"
+        echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+        echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> $GITHUB_ENV
+
+    - name: Wait for deployment propagation
+      run: sleep 30
+
+    - name: Run preview deployment health checks
+      run: |
+        echo "Running health checks for preview deployment..."
+        max_attempts=30
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt/$max_attempts: Checking $DEPLOYMENT_URL/api/health/liveness"
+          
+          if curl -f --max-time 30 "$DEPLOYMENT_URL/api/health/liveness" > /dev/null 2>&1; then
+            echo "✅ Preview deployment is healthy!"
+            break
+          else
+            echo "⏳ Deployment not ready yet, waiting..."
+            sleep 10
+            ((attempt++))
+          fi
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Preview deployment health check failed after $max_attempts attempts"
+            exit 1
+          fi
+        done
+
+    - name: Run preview smoke tests
+      run: npm run test:smoke
+      env:
+        BASE_URL: ${{ env.DEPLOYMENT_URL }}
+        CI: true
+
+    - name: Generate preview deployment report
+      run: |
+        cat << EOF > preview-deployment-report.json
+        {
+          "pr_number": ${{ github.event.number }},
+          "deployment_url": "${{ env.DEPLOYMENT_URL }}",
+          "commit_sha": "${{ github.sha }}",
+          "branch": "${{ github.head_ref }}",
+          "timestamp": "$(date -Iseconds)",
+          "status": "success",
+          "environment": "preview",
+          "health_checks": "passed",
+          "smoke_tests": "passed"
+        }
+        EOF
+
+    - name: Upload preview deployment artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: preview-deployment-report-pr-${{ github.event.number }}
+        path: |
+          preview-deployment-report.json
+          dist/
+        retention-days: 14
+
+    - name: Comment PR with deployment info
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { owner, repo } = context.repo;
+          const pr_number = context.payload.pull_request.number;
+          
+          // Check if we already have a comment
+          const comments = await github.rest.issues.listComments({
+            owner,
+            repo,
+            issue_number: pr_number
+          });
+          
+          const botComment = comments.data.find(comment => 
+            comment.user.login === 'github-actions[bot]' && 
+            comment.body.includes('🚀 Preview Deployment')
+          );
+          
+          const body = `## 🚀 Preview Deployment Ready
+          
+          Your changes have been deployed to a preview environment!
+          
+          **📱 Preview URL:** ${{ env.DEPLOYMENT_URL }}
+          
+          **🔍 What to test:**
+          - [ ] Core functionality works as expected
+          - [ ] UI/UX changes look correct
+          - [ ] No console errors or warnings
+          - [ ] Performance is acceptable
+          - [ ] Security features function properly
+          
+          **📊 Deployment Details:**
+          - **Commit:** \`${{ github.sha }}\`
+          - **Branch:** \`${{ github.head_ref }}\`
+          - **Environment:** Preview
+          - **Status:** ✅ Healthy
+          
+          **⚡ Quick Links:**
+          - [Health Check](${{ env.DEPLOYMENT_URL }}/api/health)
+          - [API Status](${{ env.DEPLOYMENT_URL }}/api/health/liveness)
+          
+          ---
+          
+          *This preview deployment will be automatically cleaned up when the PR is closed.*
+          
+          <details>
+          <summary>🛠️ Technical Details</summary>
+          
+          - **Node.js Version:** 20
+          - **Build Command:** \`npm run build\`
+          - **Environment Variables:** Preview configuration
+          - **Database:** Staging database connection
+          - **Deployment Time:** $(date -Iseconds)
+          
+          </details>`;
+          
+          if (botComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner,
+              repo,
+              comment_id: botComment.id,
+              body
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pr_number,
+              body
+            });
+          }
+
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    
+    steps:
+    - name: Cleanup preview deployment
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deployment delete --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --force
+      continue-on-error: true
+
+    - name: Comment PR with cleanup info
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { owner, repo } = context.repo;
+          const pr_number = context.payload.pull_request.number;
+          
+          const body = `## 🧹 Preview Deployment Cleaned Up
+          
+          The preview deployment for this PR has been automatically cleaned up.
+          
+          **📱 Preview URL:** ~~https://preview-pr-${pr_number}.zeidgeist-prompter.pages.dev~~ *(No longer available)*
+          
+          Thank you for testing! 🎉`;
+          
+          await github.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr_number,
+            body
+          });
 
   deploy-staging:
     runs-on: ubuntu-latest

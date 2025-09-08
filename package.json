@@ -27,11 +27,14 @@
     "deploy:pre": "node scripts/deployment/pre-deploy.js",
     "deploy:post": "node scripts/deployment/post-deploy.js",
     "deploy:migrate": "node scripts/deployment/migrate-database.js",
+    "deploy:preview": "node scripts/deployment/deploy-preview.js",
     "deploy:staging": "wrangler pages deploy dist --env staging",
     "deploy:production": "wrangler pages deploy dist --env production",
+    "cleanup:preview": "node scripts/deployment/cleanup-preview.js",
     "health:check": "curl -f http://localhost:8788/api/health || exit 1",
     "validate:env": "node -e \"require('./app/lib/config/environment').validateEnvironment(); console.log('✅ Environment validation passed')\"",
-    "deployment:readiness": "node scripts/deployment/deployment-readiness.js"
+    "deployment:readiness": "node scripts/deployment/deployment-readiness.js",
+    "preview:test": "node scripts/setup-preview-testing.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
