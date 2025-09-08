@@ -313,3 +313,34 @@ This enhancement enables safe preview deployments for code review and testing be
 --------------------------------
 2025-09-08T16:59:49.657119 - git status - Check the status of Vercel removal changes
 --------------------------------
+2025-09-08T17:00:25.134512 - git add . - Stage all Vercel removal changes
+--------------------------------
+2025-09-08T17:01:10.616370 - git commit -m "[claude] Remove Vercel integrations and references
+
+VERCEL REMOVAL:
+
+1. REMOVED VERCEL FILES AND REFERENCES:
+   - Deleted public/vercel.svg (Vercel logo file)
+   - Removed Vercel entries from .gitignore (# vercel, .vercel)
+   - Updated README.md to remove Vercel deployment section
+   - Changed deployment documentation to focus on Cloudflare Pages
+
+2. UPDATED PROJECT REFERENCES:
+   - components/prompt-engineer.tsx: Updated link from zeidgeist.vercel.app to zeidgeist.com
+   - README.md: Replaced Vercel deployment section with Cloudflare deployment information
+   - Added reference to DEPLOYMENT-GUIDE.md for complete deployment instructions
+
+3. ADDED VERCEL DEPLOYMENT PREVENTION:
+   - Created .vercelignore file to completely disable Vercel deployments
+   - Ensures project only deploys via Cloudflare Pages as intended
+
+4. DOCUMENTATION UPDATES:
+   - Updated README.md to emphasize Cloudflare deployment
+   - Removed all Vercel Platform references and links
+   - Maintained Next.js repository reference (github.com/vercel/next.js) as it's the official Next.js repo
+
+PURPOSE:
+This removes the two automatic Vercel checks that were running on pull requests and pushes, ensuring the project only uses Cloudflare Pages deployment infrastructure as designed.
+
+The application now exclusively uses the comprehensive Cloudflare deployment infrastructure with preview deployments, testing, and production deployment automation." - No description
+--------------------------------
