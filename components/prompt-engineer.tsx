@@ -867,7 +867,7 @@ export default function PromptEngineer() {
     <div className="w-full max-w-4xl px-4 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-          <a href="https://zeidgeist.vercel.app" className="text-black hover:text-gray-700 transition-colors">
+          <a href="https://zeidgeist.com" className="text-black hover:text-gray-700 transition-colors">
             <span className="inline sm:hidden">mstprmpt</span>
             <span className="hidden sm:inline">mstprmpt<sub className="text-xs">.zeidgeist.com</sub></span>
           </a>
