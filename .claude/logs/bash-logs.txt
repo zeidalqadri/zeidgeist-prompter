@@ -168,3 +168,78 @@ This commit completes the transformation of zeidgeist-prompter from a vulnerable
 --------------------------------
 2025-09-08T15:11:29.672226 - git status - Check current git status to see all changes
 --------------------------------
+2025-09-08T15:11:57.978521 - git add . - Stage all changes for commit
+--------------------------------
+2025-09-08T15:11:58.331534 - git commit -m "$(cat <<'EOF'
+Enhance deployment workflow with comprehensive preview deployments
+
+This commit implements a complete preview deployment system for pull requests:
+
+🚀 PREVIEW DEPLOYMENT FEATURES:
+- Automated preview deployments on PR open/update
+- Unique preview URLs per PR (preview-pr-{number}.pages.dev)
+- Preview-specific environment configuration
+- Automatic cleanup when PR is closed
+- Comprehensive health checks and validation
+- Detailed PR comments with deployment status
+- Progressive deployment with retry logic
+
+🔧 WORKFLOW ENHANCEMENTS:
+- Enhanced ci.yml with preview deployment job
+- New pr-preview.yml workflow for advanced PR management
+- Concurrency controls to prevent conflicts
+- Environment-specific build configurations
+- Comprehensive error handling and reporting
+
+📜 DEPLOYMENT SCRIPTS:
+- deploy-preview.js: Full preview deployment orchestration
+- cleanup-preview.js: Automated cleanup when PR closes
+- setup-preview-testing.js: Local testing and validation
+- preview-environment.js: Preview-specific configuration
+
+⚙️ CONFIGURATION UPDATES:
+- Updated wrangler.toml with preview environment
+- Enhanced package.json with preview commands
+- Created PR template for standardized testing
+- Preview-specific environment variables and settings
+
+🔒 SECURITY & PERFORMANCE:
+- Relaxed security policies for testing (staging database)
+- Progressive health check with backoff
+- Comprehensive smoke tests on deployment
+- Resource cleanup to prevent cost accumulation
+- Rate limiting and CORS configured for preview use
+
+🧪 TESTING IMPROVEMENTS:
+- Preview-specific test configuration
+- Local testing capabilities before deployment
+- Comprehensive validation and reporting
+- Health checks and smoke tests integration
+
+This enables safe preview deployments for all PRs with automatic cleanup,
+comprehensive testing, and detailed feedback for reviewers.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit preview deployment enhancements
+--------------------------------
+2025-09-08T15:14:48.492808 - git log --oneline -3 - Show recent commit history
+--------------------------------
+2025-09-08T15:14:48.814247 - git status - Check current git status after all changes
+--------------------------------
+2025-09-08T15:15:47.042750 - git add PREVIEW-DEPLOYMENT.md - Add preview deployment documentation
+--------------------------------
+2025-09-08T15:15:50.738796 - git commit -m "Add comprehensive preview deployment documentation
+
+- Complete usage guide for developers and reviewers
+- Configuration details and troubleshooting steps  
+- Security considerations and best practices
+- File structure and command reference
+- Integration workflow and testing checklists
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>" - Commit documentation
+--------------------------------
