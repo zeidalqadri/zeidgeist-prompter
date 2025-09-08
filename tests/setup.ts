@@ -4,12 +4,14 @@ import '@testing-library/jest-dom'
 import { server } from './mocks/server'
 
 // Mock environment variables for tests
-process.env.NODE_ENV = 'test'
-process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test_db'
-process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only'
-process.env.NEXTAUTH_SECRET = 'test-nextauth-secret'
-process.env.API_URL = 'http://localhost:8788'
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8788'
+Object.assign(process.env, {
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgres://test:test@localhost:5432/test_db',
+  JWT_SECRET: 'test-jwt-secret-key-for-testing-only',
+  NEXTAUTH_SECRET: 'test-nextauth-secret',
+  API_URL: 'http://localhost:8788',
+  NEXT_PUBLIC_API_URL: 'http://localhost:8788'
+})
 
 // Extend Vitest's expect with jest-dom matchers
 expect.extend({})
@@ -85,8 +87,13 @@ global.ResizeObserver = class ResizeObserver {
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
+  root = null
+  rootMargin = '0px'
+  thresholds = [0]
+  
   constructor() {}
   observe() {}
   unobserve() {}
   disconnect() {}
-}
+  takeRecords() { return [] }
+} as any

@@ -78,7 +78,7 @@ export function validateEnvironment(): void {
   }
 
   // Check environment-specific vars
-  if (env === 'production' || env === 'staging') {
+  if (env === 'production') {
     const envVars = REQUIRED_VARS[env as keyof typeof REQUIRED_VARS];
     if (Array.isArray(envVars)) {
       for (const varName of envVars) {
