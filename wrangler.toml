@@ -50,14 +50,9 @@ name = "RATE_LIMITER"
 class_name = "RateLimiter"
 script_name = "rate-limiter"
 
-# Worker configuration
-[worker]
-compat_date = "2024-01-15"
-compat_flags = ["nodejs_compat"]
-
-# Observability settings
+# Observability settings (simplified for local development)
 [observability]
-tail_consumers = [{service = "zeidgeist-prompter-logs"}]
+enabled = true
 
 # Triggers for scheduled functions
 [[triggers.crons]]
