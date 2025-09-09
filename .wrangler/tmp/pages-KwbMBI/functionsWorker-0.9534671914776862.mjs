@@ -9,7 +9,7 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// ../.wrangler/tmp/bundle-xCypII/checked-fetch.js
+// ../.wrangler/tmp/bundle-hZBHUk/checked-fetch.js
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
     (typeof request === "string" ? new Request(request, init) : request).url
@@ -27,7 +27,7 @@ function checkURL(request, init) {
 }
 var urls;
 var init_checked_fetch = __esm({
-  "../.wrangler/tmp/bundle-xCypII/checked-fetch.js"() {
+  "../.wrangler/tmp/bundle-hZBHUk/checked-fetch.js"() {
     "use strict";
     urls = /* @__PURE__ */ new Set();
     __name(checkURL, "checkURL");
@@ -16695,19 +16695,20 @@ var init_history_dual_mode = __esm({
 });
 
 // ../app/lib/config/environment.ts
-function validateEnvironment() {
-  const env = "development";
+function validateEnvironment(env) {
+  const environment = env || (typeof process !== "undefined" ? process.env : {});
+  const nodeEnv = environment.NODE_ENV || "development";
   const missing = [];
   for (const varName of REQUIRED_VARS.all) {
-    if (!process.env[varName]) {
+    if (!environment[varName]) {
       missing.push(varName);
     }
   }
-  if (env === "production") {
-    const envVars = REQUIRED_VARS[env];
+  if (nodeEnv === "production") {
+    const envVars = REQUIRED_VARS[nodeEnv];
     if (Array.isArray(envVars)) {
       for (const varName of envVars) {
-        if (!process.env[varName]) {
+        if (!environment[varName]) {
           missing.push(varName);
         }
       }
@@ -16720,61 +16721,62 @@ Please set these variables before starting the application.`
     );
   }
 }
-function getConfig() {
-  validateEnvironment();
-  const env = "development";
-  const appEnv = process.env.APP_ENV || env;
+function getConfig(env) {
+  validateEnvironment(env);
+  const environment = env || (typeof process !== "undefined" ? process.env : {});
+  const nodeEnv = environment.NODE_ENV || "development";
+  const appEnv = environment.APP_ENV || nodeEnv;
   return {
     app: {
       env: appEnv,
       name: "zeidgeist-prompter",
-      version: process.env.APP_VERSION || "1.0.0",
-      baseUrl: process.env.API_BASE_URL || (appEnv === "production" ? "https://mstprmpt.zeidgeist.com" : appEnv === "staging" ? "https://staging.mstprmpt.zeidgeist.com" : "http://localhost:8788")
+      version: environment.APP_VERSION || "1.0.0",
+      baseUrl: environment.API_BASE_URL || (appEnv === "production" ? "https://mstprmpt.zeidgeist.com" : appEnv === "staging" ? "https://staging.mstprmpt.zeidgeist.com" : "http://localhost:8788")
     },
     database: {
-      url: process.env.DATABASE_URL,
-      maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || "10"),
-      connectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || "30000"),
-      retryAttempts: parseInt(process.env.DB_RETRY_ATTEMPTS || "3")
+      url: environment.DATABASE_URL,
+      maxConnections: parseInt(environment.DB_MAX_CONNECTIONS || "10"),
+      connectionTimeout: parseInt(environment.DB_CONNECTION_TIMEOUT || "30000"),
+      retryAttempts: parseInt(environment.DB_RETRY_ATTEMPTS || "3")
     },
     security: {
-      jwtSecret: process.env.JWT_SECRET,
-      nextAuthSecret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
-      corsOrigins: process.env.CORS_ORIGINS?.split(",") || [
+      jwtSecret: environment.JWT_SECRET,
+      nextAuthSecret: environment.NEXTAUTH_SECRET || environment.JWT_SECRET,
+      corsOrigins: environment.CORS_ORIGINS?.split(",") || [
         "https://mstprmpt.zeidgeist.com",
         "https://staging.mstprmpt.zeidgeist.com",
-        ...env === "development" ? ["http://localhost:3000", "http://localhost:8788"] : []
+        ...nodeEnv === "development" ? ["http://localhost:3000", "http://localhost:8788"] : []
       ],
       rateLimit: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW || "900000"),
+        windowMs: parseInt(environment.RATE_LIMIT_WINDOW || "900000"),
         // 15 minutes
-        max: parseInt(process.env.RATE_LIMIT_MAX || "100")
+        max: parseInt(environment.RATE_LIMIT_MAX || "100")
       },
-      sessionTimeout: parseInt(process.env.SESSION_TIMEOUT || "86400000")
+      sessionTimeout: parseInt(environment.SESSION_TIMEOUT || "86400000")
       // 24 hours
     },
     apis: {
-      claudeApiKey: process.env.CLAUDE_API_KEY,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      deepseekApiKey: process.env.DEEPSEEK_API_KEY,
-      mistralApiKey: process.env.MISTRAL_API_KEY,
-      moonshotApiKey: process.env.MOONSHOT_API_KEY
+      claudeApiKey: environment.CLAUDE_API_KEY,
+      openaiApiKey: environment.OPENAI_API_KEY,
+      deepseekApiKey: environment.DEEPSEEK_API_KEY,
+      mistralApiKey: environment.MISTRAL_API_KEY,
+      moonshotApiKey: environment.MOONSHOT_API_KEY
     },
     monitoring: {
-      logLevel: process.env.LOG_LEVEL || (appEnv === "production" ? "info" : "debug"),
-      enablePerformanceLogging: process.env.ENABLE_PERFORMANCE_LOGGING === "true" || appEnv !== "production",
-      enableErrorTracking: process.env.ENABLE_ERROR_TRACKING !== "false",
-      sentryDsn: process.env.SENTRY_DSN
+      logLevel: environment.LOG_LEVEL || (appEnv === "production" ? "info" : "debug"),
+      enablePerformanceLogging: environment.ENABLE_PERFORMANCE_LOGGING === "true" || appEnv !== "production",
+      enableErrorTracking: environment.ENABLE_ERROR_TRACKING !== "false",
+      sentryDsn: environment.SENTRY_DSN
     },
     features: {
-      enableAnalytics: process.env.ENABLE_ANALYTICS !== "false" && appEnv === "production",
-      enableErrorReporting: process.env.ENABLE_ERROR_REPORTING !== "false",
-      enablePerformanceMonitoring: process.env.ENABLE_PERFORMANCE_MONITORING !== "false"
+      enableAnalytics: environment.ENABLE_ANALYTICS !== "false" && appEnv === "production",
+      enableErrorReporting: environment.ENABLE_ERROR_REPORTING !== "false",
+      enablePerformanceMonitoring: environment.ENABLE_PERFORMANCE_MONITORING !== "false"
     }
   };
 }
-function getDatabaseConfig() {
-  return getConfig().database;
+function getDatabaseConfig(env) {
+  return getConfig(env).database;
 }
 var REQUIRED_VARS;
 var init_environment = __esm({
@@ -16794,7 +16796,7 @@ var init_environment = __esm({
 });
 
 // ../app/lib/health/health-checks.ts
-async function checkDatabase() {
+async function checkDatabase(env) {
   const start = Date.now();
   const check = {
     name: "database",
@@ -16802,7 +16804,7 @@ async function checkDatabase() {
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   };
   try {
-    const config = getDatabaseConfig();
+    const config = getDatabaseConfig(env);
     const testConnection = /* @__PURE__ */ __name(async () => {
       if (!config.url) {
         throw new Error("Database URL not configured");
@@ -16902,32 +16904,33 @@ async function checkApiDependencies() {
   }
   return check;
 }
-async function checkEnvironment() {
+async function checkEnvironment(env) {
   const check = {
     name: "environment",
     status: "healthy",
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   };
   try {
+    const environment = env || (typeof process !== "undefined" ? process.env : {});
     const requiredVars = ["DATABASE_URL", "JWT_SECRET"];
-    const missing = requiredVars.filter((varName) => !process.env[varName]);
+    const missing = requiredVars.filter((varName) => !environment[varName]);
     if (missing.length > 0) {
       check.status = "unhealthy";
       check.error = `Missing environment variables: ${missing.join(", ")}`;
     }
     const configuredApis = [
-      process.env.CLAUDE_API_KEY && "claude",
-      process.env.OPENAI_API_KEY && "openai",
-      process.env.MISTRAL_API_KEY && "mistral",
-      process.env.DEEPSEEK_API_KEY && "deepseek",
-      process.env.MOONSHOT_API_KEY && "moonshot"
+      environment.CLAUDE_API_KEY && "claude",
+      environment.OPENAI_API_KEY && "openai",
+      environment.MISTRAL_API_KEY && "mistral",
+      environment.DEEPSEEK_API_KEY && "deepseek",
+      environment.MOONSHOT_API_KEY && "moonshot"
     ].filter(Boolean);
     if (configuredApis.length === 0) {
       check.status = "degraded";
       check.error = "No external API keys configured, using local enhancement only";
     }
     check.details = {
-      environment: "development",
+      environment: environment.NODE_ENV || "development",
       configuredApis,
       requiredVarsPresent: requiredVars.length - missing.length,
       totalRequiredVars: requiredVars.length
@@ -16938,13 +16941,13 @@ async function checkEnvironment() {
   }
   return check;
 }
-async function runHealthChecks() {
+async function runHealthChecks(env) {
   const startTime = Date.now();
   const checks = await Promise.all([
-    checkDatabase(),
+    checkDatabase(env),
     checkMemory(),
     checkApiDependencies(),
-    checkEnvironment()
+    checkEnvironment(env)
   ]);
   const healthy = checks.filter((c) => c.status === "healthy").length;
   const degraded = checks.filter((c) => c.status === "degraded").length;
@@ -16956,10 +16959,11 @@ async function runHealthChecks() {
     overallStatus = "degraded";
   }
   const uptime = typeof process !== "undefined" && process.uptime ? Math.floor(process.uptime()) : Math.floor((Date.now() - startTime) / 1e3);
+  const environment = env || (typeof process !== "undefined" ? process.env : {});
   return {
     status: overallStatus,
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    version: process.env.APP_VERSION || "1.0.0",
+    version: environment.APP_VERSION || "1.0.0",
     uptime,
     checks,
     summary: {
@@ -16976,9 +16980,9 @@ async function livenessCheck() {
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   };
 }
-async function readinessCheck() {
-  const dbCheck = await checkDatabase();
-  const envCheck = await checkEnvironment();
+async function readinessCheck(env) {
+  const dbCheck = await checkDatabase(env);
+  const envCheck = await checkEnvironment(env);
   const criticalChecks = [dbCheck, envCheck];
   const unhealthy = criticalChecks.filter((c) => c.status === "unhealthy");
   if (unhealthy.length > 0) {
@@ -17050,9 +17054,9 @@ var init_liveness = __esm({
 });
 
 // api/health/readiness.ts
-async function onRequestGet5() {
+async function onRequestGet5(context) {
   try {
-    const result = await readinessCheck();
+    const result = await readinessCheck(context.env);
     const status = result.status === "healthy" ? 200 : 503;
     return Response.json(result, {
       status,
@@ -19316,17 +19320,18 @@ async function onRequestGet8(context) {
   try {
     const url = new URL(context.request.url);
     const endpoint = url.pathname.split("/").pop();
+    const env = context.env;
     switch (endpoint) {
       case "liveness":
         const liveness = await livenessCheck();
         return Response.json(liveness, { status: 200 });
       case "readiness":
-        const readiness = await readinessCheck();
+        const readiness = await readinessCheck(env);
         const status = readiness.status === "healthy" ? 200 : 503;
         return Response.json(readiness, { status });
       case "health":
       default:
-        const health = await runHealthChecks();
+        const health = await runHealthChecks(env);
         const healthStatus = health.status === "healthy" ? 200 : health.status === "degraded" ? 200 : 503;
         return Response.json(health, {
           status: healthStatus,
@@ -19592,11 +19597,11 @@ var init_functionsRoutes_0_6604610172584127 = __esm({
   }
 });
 
-// ../.wrangler/tmp/bundle-xCypII/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-hZBHUk/middleware-loader.entry.ts
 init_functionsRoutes_0_6604610172584127();
 init_checked_fetch();
 
-// ../.wrangler/tmp/bundle-xCypII/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-hZBHUk/middleware-insertion-facade.js
 init_functionsRoutes_0_6604610172584127();
 init_checked_fetch();
 
@@ -20097,7 +20102,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// ../.wrangler/tmp/bundle-xCypII/middleware-insertion-facade.js
+// ../.wrangler/tmp/bundle-hZBHUk/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -20131,7 +20136,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// ../.wrangler/tmp/bundle-xCypII/middleware-loader.entry.ts
+// ../.wrangler/tmp/bundle-hZBHUk/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
