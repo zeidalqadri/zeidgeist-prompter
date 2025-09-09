@@ -2,6 +2,7 @@
 """
 Check immutable patterns and prevent access to protected files.
 This script is called before tool use to ensure protected files are not modified.
+Optimized for high performance with intelligent caching.
 """
 
 import json
@@ -9,16 +10,30 @@ import sys
 import os
 import fnmatch
 from utils.trace_decision import log_decision
+from utils.performance_cache import (
+    performance_decorator, cache_result, get_cached_result
+)
 
 
+@performance_decorator("check_immutable_patterns")
 def main():
-    """Main function to check immutable patterns."""
+    """Main function to check immutable patterns with caching optimization."""
     try:
         # Read input from stdin
         data = json.load(sys.stdin)
         tool_input = data.get('tool_input', {})
         path = tool_input.get('file_path', '')
         command = tool_input.get('command', '')
+        
+        # Check cache first for performance
+        cache_key = f"immutable_check:{hash(path)}:{hash(command)}"
+        cached_result = get_cached_result(cache_key)
+        if cached_result is not None:
+            if cached_result['should_block']:
+                print(json.dumps(cached_result['output']))
+                sys.exit(2)
+            else:
+                sys.exit(0)
         
         # Define ignore patterns (including immutable patterns)
         ignore_patterns = [
@@ -35,7 +50,7 @@ def main():
         # Check .env file for environment variables in commands
         env_path = '.env'
         
-        # Check if path contains any ignore patterns
+        # Check if path contains any ignore patterns (optimized)
         if any(pattern in path for pattern in ignore_patterns):
             output = {
                 "continue": True,
@@ -47,6 +62,8 @@ def main():
                     "permissionDecisionReason": f"Security policy violation. Attempted to modify immutable file. Please request human approval to modify this file. (file: {path}). See '.claude/.immutable' for more information."
                 }
             }
+            # Cache the blocking result
+            cache_result(cache_key, {'should_block': True, 'output': output}, ttl_override=300)
             log_decision(output, operation_type="immutable_patterns_decision")
             print(json.dumps(output))
             sys.exit(2)
@@ -93,7 +110,8 @@ def main():
                             print(json.dumps(output))
                             sys.exit(2)
         
-        # All checks passed
+        # All checks passed - cache the success result
+        cache_result(cache_key, {'should_block': False}, ttl_override=300)
         sys.exit(0)
         
     except Exception as e:
