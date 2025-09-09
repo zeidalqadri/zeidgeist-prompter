@@ -855,3 +855,49 @@ console.log('Lines:', content.split('\n').length);
 --------------------------------
 2025-09-10T01:40:06.867888 - npm run build - Test build process to ensure it creates proper dist directory
 --------------------------------
+2025-09-10T01:42:22.080759 - git add . - Stage all Cloudflare deployment fixes
+--------------------------------
+2025-09-10T01:42:53.978405 - git commit -m "$(cat <<'EOF'
+Fix critical Cloudflare Pages deployment issues
+
+Resolved all configuration and workflow issues causing deployment failures:
+
+🔧 GitHub Actions Workflow Fixes:
+- Added missing CLOUDFLARE_API_TOKEN to all deployment job environments
+- Fixed wrangler pages deploy command syntax (removed --config, --branch)
+- Updated deployment commands to use proper --env=preview/production flags
+- Corrected environment variable propagation across all workflows
+
+📋 Deployment Command Updates:
+- PR Preview: pages deploy dist --env=preview
+- Staging: pages deploy dist --env=preview  
+- Production: pages deploy dist --env=production
+- Removed conflicting --config=wrangler.pages.toml parameters
+- Removed unsupported --branch parameters for Pages deployment
+
+✅ Configuration Validation:
+- Verified wrangler.pages.toml syntax is valid (1674 chars, 68 lines)
+- Confirmed build process creates proper dist/ directory structure
+- Tested build completes successfully (8.1s compile, 58.32s total)
+- Validated all required environment variables are referenced correctly
+
+🎯 Key Fixes:
+- CLOUDFLARE_API_TOKEN now available to all deployment steps
+- Wrangler commands use Pages-compatible syntax
+- Environment mapping aligns with Pages constraints (preview/production only)
+- Build artifacts properly structured for Cloudflare Pages deployment
+
+This resolves the deployment errors:
+- "Configuration file contains unsupported environment names"
+- "Configuration file does not support triggers/build"
+- Missing API token authentication failures
+
+The deployment pipeline should now successfully deploy to Cloudflare Pages
+with proper environment variable handling and correct wrangler syntax.
+
+🚀 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit all Cloudflare Pages deployment fixes
+--------------------------------
