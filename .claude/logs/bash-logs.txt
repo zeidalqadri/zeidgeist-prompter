@@ -2801,3 +2801,15 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )" - Commit server restart documentation
 --------------------------------
+2025-09-09T11:51:56.961219 - PORT=3333 npm run dev - Start Next.js development server on port 3333
+--------------------------------
+2025-09-09T11:52:38.013630 - npx next dev --port 3333 - Start Next.js directly on port 3333
+--------------------------------
+2025-09-09T11:53:12.671971 - npm run dev -- -p 3333 - Start Next.js with port flag
+--------------------------------
+2025-09-09T11:54:12.581187 - wrangler pages dev dist --port=8788 - Restart Cloudflare Workers development server
+--------------------------------
+2025-09-09T11:54:40.915557 - git diff --stat - Show summary of unstaged changes
+--------------------------------
+2025-09-09T11:54:41.519267 - git status - Check git status for uncommitted changes
+--------------------------------
