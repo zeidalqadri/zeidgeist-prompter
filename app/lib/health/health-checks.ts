@@ -30,7 +30,7 @@ export interface HealthStatus {
 /**
  * Database connectivity check
  */
-async function checkDatabase(): Promise<HealthCheck> {
+async function checkDatabase(env?: Record<string, string>): Promise<HealthCheck> {
   const start = Date.now();
   const check: HealthCheck = {
     name: 'database',
@@ -39,7 +39,7 @@ async function checkDatabase(): Promise<HealthCheck> {
   };
 
   try {
-    const config = getDatabaseConfig();
+    const config = getDatabaseConfig(env);
     
     // Simple connection test (adjust based on your database setup)
     const testConnection = async () => {
@@ -178,7 +178,7 @@ async function checkApiDependencies(): Promise<HealthCheck> {
 /**
  * Environment configuration check
  */
-async function checkEnvironment(): Promise<HealthCheck> {
+async function checkEnvironment(env?: Record<string, string>): Promise<HealthCheck> {
   const check: HealthCheck = {
     name: 'environment',
     status: 'healthy',
@@ -186,8 +186,11 @@ async function checkEnvironment(): Promise<HealthCheck> {
   };
 
   try {
+    // Use provided env or fallback to process.env (Node.js) or empty object (Workers)
+    const environment = env || (typeof process !== 'undefined' ? process.env : {});
+    
     const requiredVars = ['DATABASE_URL', 'JWT_SECRET'];
-    const missing = requiredVars.filter(varName => !process.env[varName]);
+    const missing = requiredVars.filter(varName => !environment[varName]);
 
     if (missing.length > 0) {
       check.status = 'unhealthy';
@@ -195,11 +198,11 @@ async function checkEnvironment(): Promise<HealthCheck> {
     }
 
     const configuredApis = [
-      process.env.CLAUDE_API_KEY && 'claude',
-      process.env.OPENAI_API_KEY && 'openai',
-      process.env.MISTRAL_API_KEY && 'mistral',
-      process.env.DEEPSEEK_API_KEY && 'deepseek',
-      process.env.MOONSHOT_API_KEY && 'moonshot',
+      environment.CLAUDE_API_KEY && 'claude',
+      environment.OPENAI_API_KEY && 'openai',
+      environment.MISTRAL_API_KEY && 'mistral',
+      environment.DEEPSEEK_API_KEY && 'deepseek',
+      environment.MOONSHOT_API_KEY && 'moonshot',
     ].filter(Boolean);
 
     if (configuredApis.length === 0) {
@@ -208,7 +211,7 @@ async function checkEnvironment(): Promise<HealthCheck> {
     }
 
     check.details = {
-      environment: process.env.NODE_ENV || 'development',
+      environment: environment.NODE_ENV || 'development',
       configuredApis,
       requiredVarsPresent: requiredVars.length - missing.length,
       totalRequiredVars: requiredVars.length,
@@ -225,15 +228,15 @@ async function checkEnvironment(): Promise<HealthCheck> {
 /**
  * Run all health checks
  */
-export async function runHealthChecks(): Promise<HealthStatus> {
+export async function runHealthChecks(env?: Record<string, string>): Promise<HealthStatus> {
   const startTime = Date.now();
   
   // Run all health checks in parallel
   const checks = await Promise.all([
-    checkDatabase(),
+    checkDatabase(env),
     checkMemory(),
     checkApiDependencies(),
-    checkEnvironment(),
+    checkEnvironment(env),
   ]);
 
   // Calculate overall status
@@ -253,10 +256,13 @@ export async function runHealthChecks(): Promise<HealthStatus> {
     Math.floor(process.uptime()) : 
     Math.floor((Date.now() - startTime) / 1000);
 
+  // Use provided env or fallback to process.env (Node.js) or empty object (Workers)
+  const environment = env || (typeof process !== 'undefined' ? process.env : {});
+
   return {
     status: overallStatus,
     timestamp: new Date().toISOString(),
-    version: process.env.APP_VERSION || '1.0.0',
+    version: environment.APP_VERSION || '1.0.0',
     uptime,
     checks,
     summary: {
@@ -281,10 +287,10 @@ export async function livenessCheck(): Promise<{ status: 'healthy'; timestamp: s
 /**
  * Readiness check (checks if the service is ready to handle requests)
  */
-export async function readinessCheck(): Promise<HealthCheck> {
+export async function readinessCheck(env?: Record<string, string>): Promise<HealthCheck> {
   // Check critical components only
-  const dbCheck = await checkDatabase();
-  const envCheck = await checkEnvironment();
+  const dbCheck = await checkDatabase(env);
+  const envCheck = await checkEnvironment(env);
 
   const criticalChecks = [dbCheck, envCheck];
   const unhealthy = criticalChecks.filter(c => c.status === 'unhealthy');

@@ -66,23 +66,25 @@ const REQUIRED_VARS = {
 /**
  * Validate required environment variables
  */
-export function validateEnvironment(): void {
-  const env = process.env.NODE_ENV || 'development';
+export function validateEnvironment(env?: Record<string, string>): void {
+  // Use provided env or fallback to process.env (Node.js) or empty object (Workers)
+  const environment = env || (typeof process !== 'undefined' ? process.env : {});
+  const nodeEnv = environment.NODE_ENV || 'development';
   const missing: string[] = [];
 
   // Check required vars for all environments
   for (const varName of REQUIRED_VARS.all) {
-    if (!process.env[varName]) {
+    if (!environment[varName]) {
       missing.push(varName);
     }
   }
 
   // Check environment-specific vars
-  if (env === 'production') {
-    const envVars = REQUIRED_VARS[env as keyof typeof REQUIRED_VARS];
+  if (nodeEnv === 'production') {
+    const envVars = REQUIRED_VARS[nodeEnv as keyof typeof REQUIRED_VARS];
     if (Array.isArray(envVars)) {
       for (const varName of envVars) {
-        if (!process.env[varName]) {
+        if (!environment[varName]) {
           missing.push(varName);
         }
       }
@@ -100,59 +102,61 @@ export function validateEnvironment(): void {
 /**
  * Get typed environment configuration
  */
-export function getConfig(): EnvironmentConfig {
-  validateEnvironment();
+export function getConfig(env?: Record<string, string>): EnvironmentConfig {
+  validateEnvironment(env);
 
-  const env = process.env.NODE_ENV || 'development';
-  const appEnv = (process.env.APP_ENV as any) || env;
+  // Use provided env or fallback to process.env (Node.js) or empty object (Workers)
+  const environment = env || (typeof process !== 'undefined' ? process.env : {});
+  const nodeEnv = environment.NODE_ENV || 'development';
+  const appEnv = (environment.APP_ENV as any) || nodeEnv;
   
   return {
     app: {
       env: appEnv,
       name: 'zeidgeist-prompter',
-      version: process.env.APP_VERSION || '1.0.0',
-      baseUrl: process.env.API_BASE_URL || 
+      version: environment.APP_VERSION || '1.0.0',
+      baseUrl: environment.API_BASE_URL || 
         (appEnv === 'production' ? 'https://mstprmpt.zeidgeist.com' :
          appEnv === 'staging' ? 'https://staging.mstprmpt.zeidgeist.com' :
          'http://localhost:8788'),
     },
     database: {
-      url: process.env.DATABASE_URL!,
-      maxConnections: parseInt(process.env.DB_MAX_CONNECTIONS || '10'),
-      connectionTimeout: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30000'),
-      retryAttempts: parseInt(process.env.DB_RETRY_ATTEMPTS || '3'),
+      url: environment.DATABASE_URL!,
+      maxConnections: parseInt(environment.DB_MAX_CONNECTIONS || '10'),
+      connectionTimeout: parseInt(environment.DB_CONNECTION_TIMEOUT || '30000'),
+      retryAttempts: parseInt(environment.DB_RETRY_ATTEMPTS || '3'),
     },
     security: {
-      jwtSecret: process.env.JWT_SECRET!,
-      nextAuthSecret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET!,
-      corsOrigins: process.env.CORS_ORIGINS?.split(',') || [
+      jwtSecret: environment.JWT_SECRET!,
+      nextAuthSecret: environment.NEXTAUTH_SECRET || environment.JWT_SECRET!,
+      corsOrigins: environment.CORS_ORIGINS?.split(',') || [
         'https://mstprmpt.zeidgeist.com',
         'https://staging.mstprmpt.zeidgeist.com',
-        ...(env === 'development' ? ['http://localhost:3000', 'http://localhost:8788'] : [])
+        ...(nodeEnv === 'development' ? ['http://localhost:3000', 'http://localhost:8788'] : [])
       ],
       rateLimit: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW || '900000'), // 15 minutes
-        max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
+        windowMs: parseInt(environment.RATE_LIMIT_WINDOW || '900000'), // 15 minutes
+        max: parseInt(environment.RATE_LIMIT_MAX || '100'),
       },
-      sessionTimeout: parseInt(process.env.SESSION_TIMEOUT || '86400000'), // 24 hours
+      sessionTimeout: parseInt(environment.SESSION_TIMEOUT || '86400000'), // 24 hours
     },
     apis: {
-      claudeApiKey: process.env.CLAUDE_API_KEY,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-      deepseekApiKey: process.env.DEEPSEEK_API_KEY,
-      mistralApiKey: process.env.MISTRAL_API_KEY,
-      moonshotApiKey: process.env.MOONSHOT_API_KEY,
+      claudeApiKey: environment.CLAUDE_API_KEY,
+      openaiApiKey: environment.OPENAI_API_KEY,
+      deepseekApiKey: environment.DEEPSEEK_API_KEY,
+      mistralApiKey: environment.MISTRAL_API_KEY,
+      moonshotApiKey: environment.MOONSHOT_API_KEY,
     },
     monitoring: {
-      logLevel: (process.env.LOG_LEVEL as any) || (appEnv === 'production' ? 'info' : 'debug'),
-      enablePerformanceLogging: process.env.ENABLE_PERFORMANCE_LOGGING === 'true' || appEnv !== 'production',
-      enableErrorTracking: process.env.ENABLE_ERROR_TRACKING !== 'false',
-      sentryDsn: process.env.SENTRY_DSN,
+      logLevel: (environment.LOG_LEVEL as any) || (appEnv === 'production' ? 'info' : 'debug'),
+      enablePerformanceLogging: environment.ENABLE_PERFORMANCE_LOGGING === 'true' || appEnv !== 'production',
+      enableErrorTracking: environment.ENABLE_ERROR_TRACKING !== 'false',
+      sentryDsn: environment.SENTRY_DSN,
     },
     features: {
-      enableAnalytics: process.env.ENABLE_ANALYTICS !== 'false' && appEnv === 'production',
-      enableErrorReporting: process.env.ENABLE_ERROR_REPORTING !== 'false',
-      enablePerformanceMonitoring: process.env.ENABLE_PERFORMANCE_MONITORING !== 'false',
+      enableAnalytics: environment.ENABLE_ANALYTICS !== 'false' && appEnv === 'production',
+      enableErrorReporting: environment.ENABLE_ERROR_REPORTING !== 'false',
+      enablePerformanceMonitoring: environment.ENABLE_PERFORMANCE_MONITORING !== 'false',
     },
   };
 }
@@ -160,51 +164,51 @@ export function getConfig(): EnvironmentConfig {
 /**
  * Check if we're in a specific environment
  */
-export function isProduction(): boolean {
-  return getConfig().app.env === 'production';
+export function isProduction(env?: Record<string, string>): boolean {
+  return getConfig(env).app.env === 'production';
 }
 
-export function isStaging(): boolean {
-  return getConfig().app.env === 'staging';
+export function isStaging(env?: Record<string, string>): boolean {
+  return getConfig(env).app.env === 'staging';
 }
 
-export function isDevelopment(): boolean {
-  return getConfig().app.env === 'development';
+export function isDevelopment(env?: Record<string, string>): boolean {
+  return getConfig(env).app.env === 'development';
 }
 
 /**
  * Get database configuration with connection pooling
  */
-export function getDatabaseConfig(): DatabaseConfig {
-  return getConfig().database;
+export function getDatabaseConfig(env?: Record<string, string>): DatabaseConfig {
+  return getConfig(env).database;
 }
 
 /**
  * Get security configuration
  */
-export function getSecurityConfig(): SecurityConfig {
-  return getConfig().security;
+export function getSecurityConfig(env?: Record<string, string>): SecurityConfig {
+  return getConfig(env).security;
 }
 
 /**
  * Get available API configurations
  */
-export function getApiConfig(): ApiConfig {
-  return getConfig().apis;
+export function getApiConfig(env?: Record<string, string>): ApiConfig {
+  return getConfig(env).apis;
 }
 
 /**
  * Get monitoring configuration  
  */
-export function getMonitoringConfig(): MonitoringConfig {
-  return getConfig().monitoring;
+export function getMonitoringConfig(env?: Record<string, string>): MonitoringConfig {
+  return getConfig(env).monitoring;
 }
 
 /**
  * Mask sensitive values for logging
  */
-export function getMaskedConfig(): Partial<EnvironmentConfig> {
-  const config = getConfig();
+export function getMaskedConfig(env?: Record<string, string>): Partial<EnvironmentConfig> {
+  const config = getConfig(env);
   return {
     ...config,
     security: {

@@ -9,19 +9,22 @@ export async function onRequestGet(context: any) {
     const url = new URL(context.request.url);
     const endpoint = url.pathname.split('/').pop();
 
+    // Pass environment variables from Cloudflare Workers context
+    const env = context.env;
+
     switch (endpoint) {
       case 'liveness':
         const liveness = await livenessCheck();
         return Response.json(liveness, { status: 200 });
 
       case 'readiness':
-        const readiness = await readinessCheck();
+        const readiness = await readinessCheck(env);
         const status = readiness.status === 'healthy' ? 200 : 503;
         return Response.json(readiness, { status });
 
       case 'health':
       default:
-        const health = await runHealthChecks();
+        const health = await runHealthChecks(env);
         const healthStatus = 
           health.status === 'healthy' ? 200 :
           health.status === 'degraded' ? 200 :

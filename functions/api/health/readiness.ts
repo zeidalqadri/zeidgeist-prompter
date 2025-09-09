@@ -5,9 +5,9 @@
 
 import { readinessCheck } from '../../../app/lib/health/health-checks';
 
-export async function onRequestGet() {
+export async function onRequestGet(context: any) {
   try {
-    const result = await readinessCheck();
+    const result = await readinessCheck(context.env);
     const status = result.status === 'healthy' ? 200 : 503;
     
     return Response.json(result, {
