@@ -152,3 +152,123 @@ EOF
 --------------------------------
 2025-09-09T18:54:43.803052 - git status - Check git status to see the new agent files
 --------------------------------
+2025-09-09T18:55:03.704601 - git add . - Stage all uncommitted changes including new agent files
+--------------------------------
+2025-09-09T18:55:35.122169 - git commit -m "$(cat <<'EOF'
+[claude] Add specialized CI/CD GitHub Actions and Cloudflare integration sub-agents
+
+SPECIALIZED CI/CD SUB-AGENT ECOSYSTEM:
+
+This commit introduces three new specialized Claude Code sub-agents designed to resolve failing GitHub Actions workflows and improve CI/CD pipeline reliability for Cloudflare deployments.
+
+1. GITHUB ACTIONS PERMISSIONS SPECIALIST (.claude/agents/github-actions-permissions-specialist.md):
+
+PURPOSE:
+- Expert in GitHub Actions permissions, GITHUB_TOKEN scopes, and workflow authorization
+- Addresses critical "Resource not accessible by integration" errors (403/401) 
+- Resolves PR commenting failures and deployment status update issues
+
+KEY CAPABILITIES:
+- Diagnose and fix GitHub Actions permission errors
+- Configure proper GITHUB_TOKEN permissions for PR operations
+- Implement PAT (Personal Access Token) strategies when default tokens insufficient
+- Handle repository and organization permission configurations
+- Troubleshoot GitHub API permission boundaries and scope issues
+
+TOOLS: Read, Edit, MultiEdit, Write, Bash, Grep, Glob
+COLOR: Purple for easy identification
+
+2. CI/CD SECRETS MANAGER (.claude/agents/ci-cd-secrets-manager.md):
+
+PURPOSE:
+- Expert in managing secrets and environment variables across CI/CD pipelines
+- Prevents silent failures from missing or misconfigured secrets
+- Ensures proper secret propagation to deployment environments
+
+KEY CAPABILITIES:
+- Audit and validate all required secrets in GitHub Actions workflows
+- Configure environment-specific secrets (staging, production, preview)
+- Implement secure secret management and rotation strategies
+- Handle Cloudflare API tokens, database URLs, JWT secrets, API keys
+- Troubleshoot secret availability and environment variable propagation
+
+SPECIALIZATIONS:
+- GitHub Actions secrets configuration and validation
+- Cloudflare API token management and scoping
+- Database connection string management across environments
+- Multi-provider API key management (OpenAI, Claude, Mistral, etc.)
+- JWT and authentication secret handling
+
+TOOLS: Read, Edit, MultiEdit, Write, Bash, Grep, Glob
+COLOR: Blue for deployment/infrastructure focus
+
+3. GITHUB-CLOUDFLARE INTEGRATION ENGINEER (.claude/agents/github-cloudflare-integration-engineer.md):
+
+PURPOSE:
+- Expert in GitHub Actions to Cloudflare Pages/Workers deployment integration
+- Bridges the orchestration layer between CI/CD and Cloudflare infrastructure
+- Optimizes deployment workflows and troubleshoots integration failures
+
+KEY CAPABILITIES:
+- Configure cloudflare/wrangler-action for different environments
+- Handle Cloudflare API token permissions and scopes for GitHub Actions
+- Optimize build and deployment commands for Cloudflare Pages
+- Configure preview deployments and branch deployment workflows
+- Implement deployment verification and health checks
+- Manage environment variable propagation from GitHub to Cloudflare
+
+INTEGRATION PATTERNS:
+- Pull request preview deployments
+- Environment promotion workflows (dev → staging → production)
+- Feature branch deployments
+- Zero-downtime deployment strategies
+- Rollback and recovery procedures
+
+TOOLS: Read, Edit, MultiEdit, Write, Bash, Grep, Glob, Context7 MCP tools
+COLOR: Blue for infrastructure consistency
+
+PROBLEM RESOLUTION STRATEGY:
+
+These agents directly address the current failing GitHub Actions workflows:
+- PR Preview Management workflow failures (403 permission errors)
+- CI/CD Pipeline workflow failures (secret and integration issues)
+- Cloudflare deployment step failures in GitHub Actions
+
+PROACTIVE ACTIVATION:
+
+Each agent is configured for proactive activation:
+- github-actions-permissions-specialist: Auto-invoked for 403/401 GitHub API errors
+- ci-cd-secrets-manager: Auto-invoked for missing/invalid secrets
+- github-cloudflare-integration-engineer: Auto-invoked for Cloudflare deployment failures
+
+INTEGRATION WITH EXISTING AGENTS:
+
+These new agents complement the existing Cloudflare specialist ecosystem:
+- Focuses on CI/CD orchestration vs application runtime issues
+- Provides GitHub Actions expertise vs pure Cloudflare knowledge
+- Handles integration layer vs individual platform specialization
+
+EXPECTED OUTCOMES:
+
+1. Resolution of current PR commenting permission failures
+2. Improved secret management and validation across environments
+3. Optimized GitHub Actions to Cloudflare deployment workflows
+4. Reduced deployment failures and faster issue resolution
+5. Better separation of concerns for CI/CD troubleshooting
+
+TECHNICAL IMPLEMENTATION:
+
+- All agents follow established Claude Code sub-agent patterns
+- Proper YAML frontmatter with tools, colors, and descriptions
+- Comprehensive instruction sets with best practices
+- Clear activation criteria and troubleshooting workflows
+- Integration with existing project rules and patterns
+
+This enhancement transforms the CI/CD troubleshooting capabilities by providing specialized expertise for the specific integration challenges between GitHub Actions and Cloudflare infrastructure, ensuring reliable deployments and faster issue resolution.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit new CI/CD specialist agents with comprehensive description
+--------------------------------
