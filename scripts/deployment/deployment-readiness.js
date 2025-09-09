@@ -42,7 +42,16 @@ async function main() {
   // Configuration Files
   console.log('\n📋 Configuration Files:');
   maxScore += 8;
-  score += checkFile('wrangler.toml', 'Wrangler configuration') ? 1 : 0;
+  // Check for wrangler configuration (prioritize Pages)
+  if (fs.existsSync('wrangler.pages.toml')) {
+    console.log('✅ wrangler.pages.toml - Wrangler Pages configuration');
+    score += 1;
+  } else if (fs.existsSync('wrangler.workers.toml')) {
+    console.log('✅ wrangler.workers.toml - Wrangler Workers configuration');
+    score += 1;
+  } else {
+    console.log('❌ Missing wrangler configuration file');
+  }
   score += checkFile('package.json', 'Package configuration') ? 1 : 0;
   score += checkFile('next.config.js', 'Next.js configuration') ? 1 : 0;
   score += checkFile('_routes.json', 'Cloudflare routes') ? 1 : 0;
@@ -121,13 +130,25 @@ async function main() {
   maxScore += 2;
   
   try {
-    const wranglerConfig = fs.readFileSync('wrangler.toml', 'utf8');
+    let wranglerConfig;
+    let configFile;
+    
+    if (fs.existsSync('wrangler.pages.toml')) {
+      wranglerConfig = fs.readFileSync('wrangler.pages.toml', 'utf8');
+      configFile = 'wrangler.pages.toml';
+    } else if (fs.existsSync('wrangler.workers.toml')) {
+      wranglerConfig = fs.readFileSync('wrangler.workers.toml', 'utf8');
+      configFile = 'wrangler.workers.toml';
+    } else {
+      throw new Error('No wrangler configuration file found');
+    }
+    
     const hasEnvironments = wranglerConfig.includes('[env.production]') && 
-                           wranglerConfig.includes('[env.staging]');
-    console.log(`${hasEnvironments ? '✅' : '❌'} Environment configurations in wrangler.toml`);
+                           wranglerConfig.includes('[env.preview]');
+    console.log(`${hasEnvironments ? '✅' : '❌'} Environment configurations in ${configFile}`);
     score += hasEnvironments ? 1 : 0;
   } catch (error) {
-    console.log('❌ Error reading wrangler.toml');
+    console.log('❌ Error reading wrangler configuration file');
   }
   
   try {

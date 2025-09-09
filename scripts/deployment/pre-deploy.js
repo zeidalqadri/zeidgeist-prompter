@@ -135,11 +135,20 @@ async function validateDeploymentConfig() {
   console.log('⚙️  Validating deployment configuration...');
   
   const configFiles = [
-    'wrangler.toml',
     '_routes.json',
     '_headers',
     'package.json'
   ];
+  
+  // Check for wrangler configuration files
+  let wranglerConfigFile;
+  if (fs.existsSync('wrangler.pages.toml')) {
+    wranglerConfigFile = 'wrangler.pages.toml';
+  } else if (fs.existsSync('wrangler.workers.toml')) {
+    wranglerConfigFile = 'wrangler.workers.toml';
+  } else {
+    throw new Error('Missing wrangler configuration file (wrangler.pages.toml or wrangler.workers.toml)');
+  }
   
   for (const file of configFiles) {
     const filePath = path.join(process.cwd(), file);
@@ -148,8 +157,8 @@ async function validateDeploymentConfig() {
     }
   }
   
-  // Validate wrangler.toml
-  const wranglerConfig = fs.readFileSync('wrangler.toml', 'utf8');
+  // Validate wrangler configuration
+  const wranglerConfig = fs.readFileSync(wranglerConfigFile, 'utf8');
   if (!wranglerConfig.includes('pages_build_output_dir = "dist"')) {
     console.warn('⚠️  Wrangler config may not have correct output directory');
   }

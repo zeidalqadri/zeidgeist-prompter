@@ -225,18 +225,21 @@ MISTRAL_API_KEY=\${MISTRAL_API_KEY}
     console.log('☁️  Validating Cloudflare configuration...');
     
     try {
-      // Check wrangler.toml
-      if (!fs.existsSync('wrangler.toml')) {
-        throw new Error('wrangler.toml not found');
+      // Check wrangler configuration (prioritize Pages config)
+      let wranglerConfig;
+      if (fs.existsSync('wrangler.pages.toml')) {
+        wranglerConfig = fs.readFileSync('wrangler.pages.toml', 'utf8');
+      } else if (fs.existsSync('wrangler.workers.toml')) {
+        wranglerConfig = fs.readFileSync('wrangler.workers.toml', 'utf8');
+      } else {
+        throw new Error('No wrangler configuration file found (wrangler.pages.toml or wrangler.workers.toml)');
       }
-      
-      const wranglerConfig = fs.readFileSync('wrangler.toml', 'utf8');
       
       // Check for preview environment
       if (!wranglerConfig.includes('[env.preview]')) {
-        console.warn('⚠️  Preview environment not configured in wrangler.toml');
+        console.warn('⚠️  Preview environment not configured in wrangler configuration');
       } else {
-        console.log('✅ Preview environment found in wrangler.toml');
+        console.log('✅ Preview environment found in wrangler configuration');
       }
       
       // Check for required settings
