@@ -140,3 +140,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )" - Commit all changes with comprehensive description
 --------------------------------
+2025-09-09T18:46:33.493056 - gh run list --branch feature/security-testing-deployment-infrastructure --limit 10 --json status,name,conclusion,workflowName,createdAt | jq -r '.[] | "\(.workflowName) - \(.status) - \(.conclusion) - \(.createdAt)"' - Check recent GitHub Actions runs on the current branch
+--------------------------------
+2025-09-09T18:47:04.128682 - gh run view $(gh run list --branch feature/security-testing-deployment-infrastructure --limit 1 --json databaseId -q '.[0].databaseId') --log-failed 2>/dev/null | head -100 - View failed logs from the most recent GitHub Actions run
+--------------------------------
