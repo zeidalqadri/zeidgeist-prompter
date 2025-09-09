@@ -2,9 +2,8 @@
 
 import React from "react"
 
-import { useState, useEffect, useCallback, useReducer, useMemo, memo, lazy, Suspense } from "react"
+import { useEffect, useCallback, useReducer, useMemo, memo, lazy, Suspense } from "react"
 import { Button } from "./ui/button"
-import { Textarea } from "./ui/textarea"
 import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 
@@ -179,6 +178,21 @@ interface PromptHistoryItem {
   };
 }
 
+// API response types for history endpoint
+interface HistoryApiResponse {
+  items: Array<{
+    original: string;
+    refined: string;
+    context?: string;
+    timestamp: string | Date;
+    metadata?: {
+      source?: string;
+      model?: string;
+      processingTime?: number;
+    };
+  }>;
+}
+
 // Return type for the engineer API
 interface EngineerResponse {
   result: string;
@@ -188,6 +202,9 @@ interface EngineerResponse {
     processingTime?: number;
   };
 }
+
+// Type for timestamp values that can be various formats
+type TimestampValue = Date | string | number | null | undefined;
 
 // State management with useReducer for better performance
 interface PromptState {
@@ -332,10 +349,10 @@ export default function PromptEngineer() {
     try {
       const response = await fetch('/api/engineer/history-dual-mode');
       if (response.ok) {
-        const data = await response.json();
+        const data: HistoryApiResponse = await response.json();
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           // Convert timestamp strings to Date objects with error handling
-          const itemsWithDates = data.items.map((item: any) => {
+          const itemsWithDates = data.items.map((item) => {
             try {
               const timestamp = item.timestamp instanceof Date 
                 ? item.timestamp 
@@ -374,8 +391,13 @@ export default function PromptEngineer() {
         const savedHistory = localStorage.getItem('promptHistory');
         if (savedHistory) {
           const parsedHistory = JSON.parse(savedHistory);
-          const historyWithDates = parsedHistory.map((item: any) => {
+          const historyWithDates = parsedHistory.map((item: Partial<PromptHistoryItem> & { timestamp: TimestampValue }) => {
             try {
+              // Handle undefined or null timestamps
+              if (!item.timestamp) {
+                return { ...item, timestamp: new Date() };
+              }
+              
               const timestamp = item.timestamp instanceof Date 
                 ? item.timestamp 
                 : new Date(item.timestamp);
@@ -439,23 +461,6 @@ export default function PromptEngineer() {
     return () => clearTimeout(timeoutId);
   }, [state.promptHistory]);
 
-  // Add item to prompt history - optimized with dispatch
-  const addToHistory = useCallback((original: string, refined: string, contextValue?: string, metadata?: any) => {
-    const historyItem: PromptHistoryItem = {
-      original,
-      refined,
-      context: contextValue,
-      timestamp: new Date(),
-      metadata
-    };
-    
-    // Send to server for ML training purposes (non-blocking)
-    storeForTraining(historyItem);
-    
-    // Update local history state via reducer
-    dispatch({ type: 'ADD_TO_HISTORY', payload: historyItem });
-  }, []);
-  
   // Store history item for ML training - non-blocking with error handling
   const storeForTraining = useCallback(async (item: PromptHistoryItem) => {
     try {
@@ -477,6 +482,23 @@ export default function PromptEngineer() {
       }
     }
   }, []);
+
+  // Add item to prompt history - optimized with dispatch
+  const addToHistory = useCallback((original: string, refined: string, contextValue?: string, metadata?: PromptHistoryItem['metadata']) => {
+    const historyItem: PromptHistoryItem = {
+      original,
+      refined,
+      context: contextValue,
+      timestamp: new Date(),
+      metadata
+    };
+    
+    // Send to server for ML training purposes (non-blocking)
+    storeForTraining(historyItem);
+    
+    // Update local history state via reducer
+    dispatch({ type: 'ADD_TO_HISTORY', payload: historyItem });
+  }, [storeForTraining]);
 
   // Define handleSubmit with useCallback to avoid dependency issues - optimized
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
@@ -563,7 +585,7 @@ export default function PromptEngineer() {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [state.prompt, state.context, state.promptHistory, addToHistory]);
+  }, [state.prompt, state.context, state.promptHistory, addToHistory, isLikelyRefined]);
 
   // Check if a prompt is already refined - memoized with better heuristics
   const isLikelyRefined = useCallback((text: string): boolean => {
@@ -669,21 +691,6 @@ export default function PromptEngineer() {
     dispatch({ type: 'SET_PROMPT', payload: refined });
   }, []);
 
-  // Emergency function to clear all localStorage data - enhanced with dispatch
-  const clearAllData = useCallback(() => {
-    try {
-      localStorage.removeItem('promptHistory');
-      localStorage.removeItem('hasRefinedPrompt');
-      localStorage.removeItem('lastRefinedPrompt');
-      localStorage.removeItem('repeatType');
-      localStorage.removeItem('repeatCount');
-      dispatch({ type: 'SET_PROMPT_HISTORY', payload: [] });
-      dispatch({ type: 'SET_HAS_REFINED_PROMPT', payload: false });
-      console.log('All localStorage data cleared successfully');
-    } catch (error) {
-      console.error('Error clearing localStorage:', error);
-    }
-  }, []);
 
   // Toggle expanded state for a history item - memoized
   const toggleExpandItem = useCallback((index: number) => {
@@ -763,7 +770,7 @@ export default function PromptEngineer() {
             <tbody>
               {state.promptHistory.map((item, index) => {
                 // Defensive timestamp handling for React key
-                const getTimestampKey = (timestamp: any): number => {
+                const getTimestampKey = (timestamp: TimestampValue): number => {
                   if (timestamp instanceof Date) {
                     return timestamp.getTime();
                   } else if (typeof timestamp === 'string') {
@@ -794,31 +801,6 @@ export default function PromptEngineer() {
     );
   }, [state.promptHistory, state.expandedItems, toggleExpandItem, handleUsePromptFromHistory, copyToClipboard, formatTime]);
 
-  // Memoized clear all function
-  const clearAll = useCallback(() => {
-    dispatch({ type: 'CLEAR_ALL' });
-  }, []);
-
-  // Memoized repeat function
-  const handleRepeat = useCallback(() => {
-    const textToRepeat = state.refinedWithContext || state.result;
-    dispatch({ type: 'SET_PROMPT', payload: textToRepeat });
-    dispatch({ type: 'RESET_FORM' });
-    
-    // Store this as a refinement to ensure it keeps improving
-    localStorage.setItem('lastRefinedPrompt', textToRepeat);
-    
-    // Store metadata indicating this is a request for further expansion/elaboration
-    localStorage.setItem('repeatType', 'expand');
-    localStorage.setItem('repeatCount', String(parseInt(localStorage.getItem('repeatCount') || '0') + 1));
-  }, [state.refinedWithContext, state.result]);
-
-
-
-  // Toggle context input visibility - optimized
-  const toggleContext = useCallback(() => {
-    dispatch({ type: 'SET_SHOW_CONTEXT', payload: !state.showContext });
-  }, [state.showContext]);
 
   // Function to handle expansion button (Repeat) - optimized
   const handleExpand = useCallback(() => {
@@ -836,32 +818,6 @@ export default function PromptEngineer() {
     dispatch({ type: 'RESET_FORM' });
   }, [state.result]);
 
-  // Function to set a prompt from history - optimized
-  const setPromptFromHistory = useCallback((item: PromptHistoryItem) => {
-    dispatch({ type: 'SET_PROMPT', payload: item.refined });
-    if (item.context) {
-      dispatch({ type: 'SET_CONTEXT', payload: item.context });
-      dispatch({ type: 'SET_SHOW_CONTEXT', payload: true });
-    }
-    dispatch({ type: 'RESET_FORM' });
-  }, []);
-
-  // Function to provide feedback on enhancement - optimized
-  const provideFeedback = useCallback((isPositive: boolean) => {
-    // Send feedback to server (non-blocking)
-    fetch('/api/engineer/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        original: state.prompt,
-        refined: state.result,
-        wasSuccessful: isPositive
-      }),
-    }).catch(err => console.error('Failed to send feedback:', err));
-    
-    // Show feedback confirmation
-    dispatch({ type: 'SET_SHOW_FEEDBACK', payload: true });
-  }, [state.prompt, state.result]);
 
   return (
     <div className="w-full max-w-4xl px-4 sm:px-6 lg:px-8">

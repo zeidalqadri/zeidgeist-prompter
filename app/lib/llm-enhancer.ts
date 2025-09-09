@@ -6,7 +6,6 @@ import { enhancePrompt as localEnhance } from './prompt-enhancer-v2';
 import { db, enhancementLogs, feedback } from './db';
 import { AdaptiveEnhancer } from './learning/adaptive-enhancer';
 import { LearningService } from './learning/learning-service';
-import { PromptRepository } from './enhanced-architecture/prompt-repository';
 import { AdvancedContextManager } from './enhanced-architecture/context-manager';
 import { SafetyValidator } from './enhanced-architecture/safety-validator';
 import { MetricsCalculator } from './enhanced-architecture/metrics-calculator';
@@ -241,9 +240,8 @@ function buildPromptEnhancementMessages(
   context?: string,
   isRefinement: boolean = false
 ): Array<{ role: string, content: string }> {
-  // Use enhanced system prompt from repository
-  const promptRepo = PromptRepository.getInstance();
-  const systemPromptTemplate = promptRepo.getSystemPrompt('enhancement', 'chain-of-thought');
+  // TODO: Use enhanced system prompt from repository in the future
+  // const promptRepo = PromptRepository.getInstance();
   
   const baseSystemPrompt = `You are an expert prompt engineer that enhances prompts to make them clearer and more effective. 
 

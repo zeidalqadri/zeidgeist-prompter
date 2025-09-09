@@ -107,8 +107,8 @@ export function getConfig(env?: Record<string, string>): EnvironmentConfig {
 
   // Use provided env or fallback to process.env (Node.js) or empty object (Workers)
   const environment = env || (typeof process !== 'undefined' ? process.env : {});
-  const nodeEnv = environment.NODE_ENV || 'development';
-  const appEnv = (environment.APP_ENV as any) || nodeEnv;
+  const nodeEnv = (environment.NODE_ENV as 'development' | 'staging' | 'production') || 'development';
+  const appEnv = (environment.APP_ENV as 'development' | 'staging' | 'production') || nodeEnv;
   
   return {
     app: {
@@ -148,7 +148,7 @@ export function getConfig(env?: Record<string, string>): EnvironmentConfig {
       moonshotApiKey: environment.MOONSHOT_API_KEY,
     },
     monitoring: {
-      logLevel: (environment.LOG_LEVEL as any) || (appEnv === 'production' ? 'info' : 'debug'),
+      logLevel: (environment.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || (appEnv === 'production' ? 'info' : 'debug'),
       enablePerformanceLogging: environment.ENABLE_PERFORMANCE_LOGGING === 'true' || appEnv !== 'production',
       enableErrorTracking: environment.ENABLE_ERROR_TRACKING !== 'false',
       sentryDsn: environment.SENTRY_DSN,
