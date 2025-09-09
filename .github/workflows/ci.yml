@@ -181,6 +181,7 @@ jobs:
       cancel-in-progress: true
     
     env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
       NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
@@ -269,7 +270,7 @@ jobs:
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         workingDirectory: '.'
-        command: pages deploy dist --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --compatibility-date=2024-01-15 --config=wrangler.pages.toml
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=preview --compatibility-date=2024-01-15
       env:
         DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
@@ -467,6 +468,7 @@ jobs:
       url: https://staging.mstprmpt.zeidgeist.com
     
     env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
       NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
@@ -550,7 +552,7 @@ jobs:
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         workingDirectory: '.'
-        command: pages deploy dist --project-name=zeidgeist-prompter --branch=staging --compatibility-date=2024-01-15 --config=wrangler.pages.toml
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=preview --compatibility-date=2024-01-15
       env:
         DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
@@ -590,6 +592,7 @@ jobs:
       url: https://mstprmpt.zeidgeist.com
     
     env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
       JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
       NEXTAUTH_SECRET: ${{ secrets.PRODUCTION_NEXTAUTH_SECRET }}
@@ -687,7 +690,7 @@ jobs:
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         workingDirectory: '.'
-        command: pages deploy dist --project-name=zeidgeist-prompter --compatibility-date=2024-01-15 --config=wrangler.pages.toml
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=production --compatibility-date=2024-01-15
       env:
         DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
