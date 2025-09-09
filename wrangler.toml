@@ -1,3 +1,7 @@
+# Cloudflare Workers/Development Configuration
+# NOTE: For Cloudflare Pages deployment, use wrangler.pages.toml instead
+# This file contains features not supported by Pages (triggers, staging/dev environments)
+
 name = "zeidgeist-prompter"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "dist"
@@ -27,6 +31,23 @@ vars = { NODE_ENV = "development", APP_ENV = "development", API_BASE_URL = "http
 [env.preview]
 name = "zeidgeist-prompter-preview"
 vars = { NODE_ENV = "preview", APP_ENV = "preview", API_BASE_URL = "https://preview.mstprmpt.zeidgeist.com" }
+
+# KV namespaces for preview environment
+[[env.preview.kv_namespaces]]
+binding = "SESSION_STORAGE"
+preview_id = "dev-sessions"
+id = "production-sessions"
+
+[[env.preview.kv_namespaces]]
+binding = "CACHE_STORAGE"
+preview_id = "dev-cache"
+id = "production-cache"
+
+# Durable Objects for preview environment
+[[env.preview.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+script_name = "rate-limiter"
 
 # Default environment variables (will be overridden by specific environments)
 [vars]

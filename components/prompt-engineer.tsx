@@ -500,6 +500,16 @@ export default function PromptEngineer() {
     dispatch({ type: 'ADD_TO_HISTORY', payload: historyItem });
   }, [storeForTraining]);
 
+  // Check if a prompt is already refined - memoized with better heuristics
+  const isLikelyRefined = useCallback((text: string): boolean => {
+    const isLong = text.length > 150;
+    const hasStructure = text.includes(', ') && text.includes('.');
+    const hasSpecifics = /\b(include|sections|design|ensure|provide|create|implement)\b/i.test(text);
+    const hasInstructions = /\b(should|must|will|need to|please|make sure)\b/i.test(text);
+    
+    return isLong && hasStructure && (hasSpecifics || hasInstructions);
+  }, []);
+
   // Define handleSubmit with useCallback to avoid dependency issues - optimized
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -586,16 +596,6 @@ export default function PromptEngineer() {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [state.prompt, state.context, state.promptHistory, addToHistory, isLikelyRefined]);
-
-  // Check if a prompt is already refined - memoized with better heuristics
-  const isLikelyRefined = useCallback((text: string): boolean => {
-    const isLong = text.length > 150;
-    const hasStructure = text.includes(', ') && text.includes('.');
-    const hasSpecifics = /\b(include|sections|design|ensure|provide|create|implement)\b/i.test(text);
-    const hasInstructions = /\b(should|must|will|need to|please|make sure)\b/i.test(text);
-    
-    return isLong && hasStructure && (hasSpecifics || hasInstructions);
-  }, []);
 
   // Add keyboard shortcut for refine action
   useEffect(() => {

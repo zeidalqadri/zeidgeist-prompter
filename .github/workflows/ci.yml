@@ -269,7 +269,7 @@ jobs:
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         workingDirectory: '.'
-        command: pages deploy dist --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --compatibility-date=2024-01-15
+        command: pages deploy dist --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --compatibility-date=2024-01-15 --config=wrangler.pages.toml
       env:
         DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
@@ -549,8 +549,8 @@ jobs:
       uses: cloudflare/wrangler-action@v3
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        environment: staging
         workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --branch=staging --compatibility-date=2024-01-15 --config=wrangler.pages.toml
       env:
         DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
@@ -686,8 +686,8 @@ jobs:
       uses: cloudflare/wrangler-action@v3
       with:
         apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        environment: production
         workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --compatibility-date=2024-01-15 --config=wrangler.pages.toml
       env:
         DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
