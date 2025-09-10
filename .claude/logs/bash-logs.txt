@@ -974,3 +974,20 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )" - Commit package manager fix
 --------------------------------
+2025-09-10T08:41:45.247488 - npm run build - Test build process after TypeScript fix
+--------------------------------
+2025-09-10T08:41:58.295309 - git add tsconfig.json && git commit -m "$(cat <<'EOF'
+fix: Exclude test files from TypeScript compilation during build
+
+- Added "tests" directory to tsconfig.json exclude array
+- Prevents TypeScript from compiling test files during production build
+- Fixes Cloudflare Pages build failure: "Cannot find module 'msw'"
+- msw is a devDependency only needed for testing, not production
+- Build now completes successfully in 12.81s
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit TypeScript configuration fix
+--------------------------------
