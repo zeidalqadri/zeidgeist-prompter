@@ -991,3 +991,20 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )" - Commit TypeScript configuration fix
 --------------------------------
+2025-09-10T09:26:24.382870 - npm run build - Test build process after surgical fix
+--------------------------------
+2025-09-10T09:26:37.673518 - git add tsconfig.json && git commit -m "$(cat <<'EOF'
+fix: Exclude test config files from TypeScript compilation
+
+- Added vitest.config.ts and playwright.config.ts to tsconfig exclude list
+- Prevents TypeScript from compiling test config files during production build
+- Fixes "Cannot find module 'vitest/config'" error in Cloudflare Pages
+- Surgical fix targeting only specific problematic files
+- Build completes successfully in 13.14s
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit surgical TypeScript fix
+--------------------------------
