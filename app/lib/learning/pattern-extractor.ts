@@ -1,4 +1,4 @@
-import { db, trainingExamples, enhancementLogs, feedback } from '../db';
+import { db, enhancementLogs, feedback } from '../db';
 import { eq, and, gte, sql } from 'drizzle-orm';
 
 export interface EnhancementPattern {
@@ -95,7 +95,7 @@ export class PatternExtractor {
     }
 
     // Filter patterns that appear frequently enough
-    for (const [key, group] of patternGroups) {
+    for (const [_key, group] of patternGroups) {
       if (group.length >= this.MIN_EXAMPLES_FOR_PATTERN) {
         const avgConfidence =
           group.reduce((sum, p) => sum + p.confidence, 0) / group.length;

@@ -5,7 +5,7 @@
 
 import { db } from '../db';
 import { prompts, promptVersions } from '../db/schema';
-import { eq, desc, and, inArray, like, sql } from 'drizzle-orm';
+import { eq, desc, and, like, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 
 export interface PromptSearchFilters {
@@ -40,7 +40,7 @@ export class PromptRepository {
   /**
    * Get system prompts for different enhancement types
    */
-  getSystemPrompt(type: string, variant: string): string {
+  getSystemPrompt(_type: string, _variant: string): string {
     // For now, return a basic template - this could be expanded to load from database
     return "Enhanced system prompt template";
   }
@@ -210,7 +210,7 @@ export class PromptRepository {
   /**
    * Create or get prompt category (simplified)
    */
-  async getOrCreateCategory(name: string, description?: string): Promise<string> {
+  async getOrCreateCategory(_name: string, _description?: string): Promise<string> {
     // For now, return a default category ID
     // This would be implemented when categories table is added
     return 'default';
@@ -219,7 +219,7 @@ export class PromptRepository {
   /**
    * Update prompt usage statistics
    */
-  async recordUsage(promptId: string, success: boolean): Promise<void> {
+  async recordUsage(promptId: string, _success: boolean): Promise<void> {
     await db.update(prompts).set({
       totalUses: sql`${prompts.totalUses} + 1`,
       updatedAt: new Date()
