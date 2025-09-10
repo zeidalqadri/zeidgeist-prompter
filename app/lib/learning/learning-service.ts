@@ -1,6 +1,6 @@
 import { db, trainingExamples, enhancementLogs, feedback } from '../db';
 import { PatternExtractor, EnhancementPattern } from './pattern-extractor';
-import { eq, desc, and, gte } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 
 export interface LearningMetrics {
   totalPatterns: number;

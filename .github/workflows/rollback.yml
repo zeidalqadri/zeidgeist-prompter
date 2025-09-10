@@ -1,0 +1,328 @@
+name: Emergency Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+      rollback_type:
+        description: 'Type of rollback'
+        required: true
+        default: 'deployment'
+        type: choice
+        options:
+        - deployment
+        - database
+        - full
+      commit_sha:
+        description: 'Commit SHA to rollback to (leave empty for previous deployment)'
+        required: false
+        type: string
+      confirm_rollback:
+        description: 'Type "CONFIRM" to proceed with rollback'
+        required: true
+        type: string
+
+jobs:
+  validate-rollback:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm_rollback == 'CONFIRM'
+    
+    steps:
+    - name: Validate inputs
+      run: |
+        echo "🔍 Validating rollback request..."
+        echo "Environment: ${{ github.event.inputs.environment }}"
+        echo "Type: ${{ github.event.inputs.rollback_type }}"
+        echo "Commit: ${{ github.event.inputs.commit_sha || 'previous deployment' }}"
+        
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          echo "⚠️  PRODUCTION ROLLBACK REQUESTED"
+        fi
+
+  deployment-rollback:
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: github.event.inputs.rollback_type == 'deployment' || github.event.inputs.rollback_type == 'full'
+    
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.commit_sha || github.event.before }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+
+    - name: Set environment variables
+      run: |
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          echo "DATABASE_URL=${{ secrets.PRODUCTION_DATABASE_URL }}" >> $GITHUB_ENV
+          echo "JWT_SECRET=${{ secrets.PRODUCTION_JWT_SECRET }}" >> $GITHUB_ENV
+          echo "NEXTAUTH_SECRET=${{ secrets.PRODUCTION_NEXTAUTH_SECRET }}" >> $GITHUB_ENV
+        else
+          echo "DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }}" >> $GITHUB_ENV
+          echo "JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}" >> $GITHUB_ENV  
+          echo "NEXTAUTH_SECRET=${{ secrets.STAGING_NEXTAUTH_SECRET }}" >> $GITHUB_ENV
+        fi
+
+    - name: Deploy rollback version
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        environment: ${{ github.event.inputs.environment }}
+        workingDirectory: '.'
+
+    - name: Wait for deployment
+      run: sleep 30
+
+    - name: Verify rollback deployment
+      run: |
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          URL="https://mstprmpt.zeidgeist.com"
+        else
+          URL="https://staging.mstprmpt.zeidgeist.com"
+        fi
+        
+        echo "Verifying rollback deployment at: $URL"
+        
+        # Check health endpoint
+        if curl -f "$URL/api/health/liveness"; then
+          echo "✅ Rollback deployment successful"
+        else
+          echo "❌ Rollback deployment failed"
+          exit 1
+        fi
+
+    - name: Create rollback report
+      run: |
+        cat << EOF > rollback-report.json
+        {
+          "timestamp": "$(date -Iseconds)",
+          "environment": "${{ github.event.inputs.environment }}",
+          "type": "${{ github.event.inputs.rollback_type }}",
+          "from_commit": "${{ github.sha }}",
+          "to_commit": "${{ github.event.inputs.commit_sha || github.event.before }}",
+          "status": "completed",
+          "performed_by": "${{ github.actor }}"
+        }
+        EOF
+
+    - name: Upload rollback report
+      uses: actions/upload-artifact@v4
+      with:
+        name: rollback-report-${{ github.event.inputs.environment }}
+        path: rollback-report.json
+        retention-days: 90
+
+  database-rollback:
+    runs-on: ubuntu-latest
+    needs: validate-rollback
+    if: github.event.inputs.rollback_type == 'database' || github.event.inputs.rollback_type == 'full'
+    
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Download backup artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ github.event.inputs.environment }}-deployment-artifacts
+        path: ./artifacts/
+
+    - name: Prepare database rollback
+      run: |
+        echo "⚠️  Database rollback requested for ${{ github.event.inputs.environment }}"
+        echo "This is a destructive operation that cannot be undone"
+        
+        # List available backups
+        if [ -d "artifacts/backups" ]; then
+          echo "Available backups:"
+          ls -la artifacts/backups/
+        else
+          echo "❌ No backup artifacts found"
+          echo "Cannot proceed with database rollback without backup"
+          exit 1
+        fi
+
+    - name: Execute database rollback
+      run: |
+        echo "🔄 Executing database rollback..."
+        
+        # This is a placeholder - implement actual rollback logic
+        echo "⚠️  Database rollback implementation required"
+        echo "Manual intervention may be needed"
+        
+        # In a real implementation, you would:
+        # 1. Stop application traffic
+        # 2. Create a backup of current state
+        # 3. Restore from backup
+        # 4. Verify data integrity
+        # 5. Resume traffic
+        
+        if [ -f "artifacts/rollback-latest.js" ]; then
+          echo "Found rollback script, executing..."
+          node artifacts/rollback-latest.js
+        else
+          echo "No automated rollback script found"
+          echo "Manual database rollback required"
+        fi
+
+  notify-rollback:
+    runs-on: ubuntu-latest
+    needs: [deployment-rollback, database-rollback]
+    if: always()
+    
+    steps:
+    - name: Determine rollback status
+      id: status
+      run: |
+        if [ "${{ needs.deployment-rollback.result }}" = "success" ] || [ "${{ needs.database-rollback.result }}" = "success" ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+        else
+          echo "status=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Notify rollback completion
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ steps.status.outputs.status }}
+        channel: '#emergency'
+        text: |
+          🔄 Emergency Rollback ${{ steps.status.outputs.status == 'success' && 'Completed' || 'Failed' }}!
+          
+          Environment: ${{ github.event.inputs.environment }}
+          Type: ${{ github.event.inputs.rollback_type }}
+          Performed by: ${{ github.actor }}
+          Time: ${{ github.event.repository.pushed_at }}
+          
+          ${{ steps.status.outputs.status == 'success' && '✅ System restored' || '❌ Manual intervention required' }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Create incident report
+      if: steps.status.outputs.status == 'success'
+      run: |
+        cat << EOF > incident-report.md
+        # Rollback Incident Report
+        
+        ## Summary
+        Emergency rollback performed on ${{ github.event.inputs.environment }} environment.
+        
+        ## Details
+        - **Environment**: ${{ github.event.inputs.environment }}
+        - **Rollback Type**: ${{ github.event.inputs.rollback_type }}
+        - **Performed By**: ${{ github.actor }}
+        - **Timestamp**: $(date -Iseconds)
+        - **Status**: ${{ steps.status.outputs.status }}
+        
+        ## Actions Taken
+        - [ ] Deployment rollback: ${{ needs.deployment-rollback.result }}
+        - [ ] Database rollback: ${{ needs.database-rollback.result }}
+        
+        ## Next Steps
+        1. Monitor system stability
+        2. Investigate root cause
+        3. Plan remediation
+        4. Post-incident review
+        
+        ## Verification
+        Please verify system functionality:
+        - [ ] Health checks passing
+        - [ ] Core functionality working
+        - [ ] No data loss
+        - [ ] Performance acceptable
+        EOF
+
+    - name: Upload incident report
+      uses: actions/upload-artifact@v4
+      with:
+        name: incident-report-${{ github.run_number }}
+        path: incident-report.md
+        retention-days: 365
+
+  post-rollback-validation:
+    runs-on: ubuntu-latest
+    needs: [deployment-rollback, database-rollback]
+    if: success()
+    
+    steps:
+    - name: Wait for system stabilization
+      run: sleep 60
+
+    - name: Comprehensive health check
+      run: |
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          URL="https://mstprmpt.zeidgeist.com"
+        else
+          URL="https://staging.mstprmpt.zeidgeist.com"
+        fi
+        
+        echo "Running post-rollback health checks..."
+        
+        # Check all health endpoints
+        endpoints=(
+          "$URL/api/health/liveness"
+          "$URL/api/health/readiness"  
+          "$URL/api/health"
+        )
+        
+        for endpoint in "${endpoints[@]}"; do
+          echo "Checking: $endpoint"
+          if curl -f --max-time 30 "$endpoint"; then
+            echo "✅ $endpoint OK"
+          else
+            echo "❌ $endpoint FAILED"
+            exit 1
+          fi
+        done
+        
+        echo "✅ All health checks passed"
+
+    - name: Basic functionality test
+      run: |
+        if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+          URL="https://mstprmpt.zeidgeist.com"
+        else
+          URL="https://staging.mstprmpt.zeidgeist.com"
+        fi
+        
+        echo "Testing basic functionality..."
+        
+        # Test homepage
+        if curl -f "$URL/"; then
+          echo "✅ Homepage accessible"
+        else
+          echo "❌ Homepage failed"
+          exit 1
+        fi
+        
+        echo "✅ Basic functionality test passed"

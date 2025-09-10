@@ -25,29 +25,8 @@ const nextConfig = {
   
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
-    // Production optimizations
+    // Production optimizations - consolidated configuration
     if (!dev) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            vendor: {
-              test: /[\/]node_modules[\/]/,
-              name: 'vendors',
-              chunks: 'all',
-            },
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              enforce: true,
-            },
-          },
-        },
-      }
-      
-      // Advanced webpack optimizations
       config.optimization = {
         ...config.optimization,
         usedExports: true,
@@ -59,17 +38,28 @@ const nextConfig = {
           minSize: 20000,
           maxSize: 244000,
           cacheGroups: {
+            // Default cache group with proper priority
             default: {
               minChunks: 2,
               priority: -20,
               reuseExistingChunk: true,
             },
+            // Common chunks for shared code
+            common: {
+              name: 'common',
+              minChunks: 2,
+              priority: -15,
+              chunks: 'all',
+              enforce: true,
+            },
+            // Vendor chunks for node_modules
             vendor: {
               test: /[\/]node_modules[\/]/,
               name: 'vendors',
               priority: -10,
               chunks: 'all',
             },
+            // Separate React runtime for better caching
             react: {
               test: /[\/]node_modules[\/](react|react-dom)[\/]/,
               name: 'react',
@@ -131,7 +121,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+            value: "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
           },
           {
             key: 'Permissions-Policy',

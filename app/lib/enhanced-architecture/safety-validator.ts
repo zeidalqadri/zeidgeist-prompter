@@ -364,7 +364,7 @@ export class SafetyValidator {
   /**
    * Sanitize prompt by removing/replacing dangerous content
    */
-  private sanitizePrompt(prompt: string, checks: SafetyCheck[]): string {
+  private sanitizePrompt(prompt: string, _checks: SafetyCheck[]): string {
     let sanitized = prompt;
     
     // Remove injection patterns

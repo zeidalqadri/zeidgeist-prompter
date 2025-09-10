@@ -1,13 +1,15 @@
 {
   "version": 1,
   "include": [
-    "/api/*"
+    "/api/*",
+    "/__scheduled/*"
   ],
   "exclude": [
     "/favicon.ico",
     "/_next/static/*",
     "/images/*",
     "/assets/*",
+    "/deployment-info.json",
     "/*.html",
     "/*.css",
     "/*.js",
@@ -16,6 +18,9 @@
     "/*.jpeg",
     "/*.gif",
     "/*.svg",
-    "/*.ico"
+    "/*.ico",
+    "/*.map",
+    "/*.txt",
+    "/*.xml"
   ]
 }

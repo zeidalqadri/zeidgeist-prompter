@@ -64,7 +64,7 @@ export class PromptTestRunner {
     originalPrompt: string,
     enhancedPrompt: string,
     criteria: TestCriteria,
-    context?: string
+    _context?: string
   ): Promise<TestResult> {
     const startTime = Date.now();
     

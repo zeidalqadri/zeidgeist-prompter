@@ -1,6 +1,6 @@
 import { db, trainingExamples, enhancementLogs } from '../db';
 import { LearningService } from './learning-service';
-import { and, gte, desc, eq } from 'drizzle-orm';
+import { gte, desc } from 'drizzle-orm';
 
 export interface AdaptiveEnhancement {
   enhanced: string;

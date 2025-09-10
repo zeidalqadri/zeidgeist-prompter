@@ -3,7 +3,8 @@
  * Ensures user data isolation and prevents cross-user data exposure
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { server } from './mocks/server'
 
 const API_BASE = process.env.API_URL || 'http://localhost:8788';
 

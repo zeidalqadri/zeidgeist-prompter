@@ -1,0 +1,796 @@
+name: CI/CD Pipeline
+
+# Add explicit permissions for GitHub Actions
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  checks: write
+  deployments: write
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18, 20]
+        
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+      JWT_SECRET: test-jwt-secret-for-ci
+      NEXTAUTH_SECRET: test-nextauth-secret-for-ci
+      API_URL: http://localhost:8788
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run database migrations
+      run: npm run db:migrate
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Run type checking
+      run: npx tsc --noEmit
+
+    - name: Run unit tests
+      run: npm run test:unit
+
+    - name: Run integration tests
+      run: npm run test:integration
+      
+    - name: Generate test coverage
+      run: npm run test:coverage
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Build application
+      run: npm run build
+
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps
+
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        CI: true
+
+    - name: Upload Playwright report
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-report-${{ matrix.node-version }}
+        path: playwright-report/
+        retention-days: 30
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.node-version }}
+        path: |
+          coverage/
+          playwright-report/
+          vitest-report/
+        retention-days: 30
+
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run security audit
+      run: npm audit --audit-level high
+
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/node@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  performance:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+
+    - name: Run performance tests
+      run: npm run test:performance
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: performance-report/
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: [test, security, performance]
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    
+    environment: 
+      name: preview-${{ github.event.number }}
+      url: ${{ steps.deploy-preview.outputs.deployment-url }}
+    
+    concurrency:
+      group: preview-${{ github.event.number }}
+      cancel-in-progress: true
+    
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      NODE_ENV: preview
+      APP_ENV: preview
+      APP_VERSION: ${{ github.sha }}
+      PR_NUMBER: ${{ github.event.number }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate required secrets for preview deployment
+      run: |
+        echo "🔐 Validating required secrets for preview deployment..."
+        
+        # Check critical secrets
+        if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+          echo "❌ CLOUDFLARE_API_TOKEN is required for deployment"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_DATABASE_URL" ]; then
+          echo "❌ STAGING_DATABASE_URL is required for preview"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_JWT_SECRET" ]; then
+          echo "❌ STAGING_JWT_SECRET is required for authentication"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_NEXTAUTH_SECRET" ]; then
+          echo "❌ STAGING_NEXTAUTH_SECRET is required for NextAuth"
+          exit 1
+        fi
+        
+        # Check at least one AI API key is available
+        api_keys_available=0
+        [ ! -z "$CLAUDE_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$OPENAI_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$MISTRAL_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        
+        if [ $api_keys_available -eq 0 ]; then
+          echo "❌ At least one AI API key (CLAUDE_API_KEY, OPENAI_API_KEY, or MISTRAL_API_KEY) is required"
+          exit 1
+        fi
+        
+        echo "✅ All required secrets are configured"
+        echo "✅ $api_keys_available AI API key(s) available"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        STAGING_JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+        STAGING_NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run pre-deployment validation
+      run: node scripts/deployment/pre-deploy.js
+
+    - name: Build application for preview
+      run: npm run build
+      env:
+        NODE_ENV: preview
+        APP_ENV: preview
+        NEXT_PUBLIC_APP_ENV: preview
+        NEXT_PUBLIC_API_URL: https://preview-pr-${{ github.event.number }}.mstprmpt.zeidgeist.com
+
+    - name: Deploy to Cloudflare Pages (Preview)
+      id: deploy-preview
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=preview --compatibility-date=2024-01-15
+      env:
+        DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+        NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+    - name: Extract deployment URL
+      id: extract-url
+      run: |
+        # Extract the deployment URL from Wrangler output
+        DEPLOYMENT_URL="https://preview-pr-${{ github.event.number }}.zeidgeist-prompter.pages.dev"
+        echo "deployment-url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+        echo "DEPLOYMENT_URL=$DEPLOYMENT_URL" >> $GITHUB_ENV
+
+    - name: Wait for deployment propagation
+      run: sleep 30
+
+    - name: Run preview deployment health checks
+      run: |
+        echo "Running health checks for preview deployment..."
+        max_attempts=30
+        attempt=1
+        
+        while [ $attempt -le $max_attempts ]; do
+          echo "Attempt $attempt/$max_attempts: Checking $DEPLOYMENT_URL/api/health/liveness"
+          
+          if curl -f --max-time 30 "$DEPLOYMENT_URL/api/health/liveness" > /dev/null 2>&1; then
+            echo "✅ Preview deployment is healthy!"
+            break
+          else
+            echo "⏳ Deployment not ready yet, waiting..."
+            sleep 10
+            ((attempt++))
+          fi
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Preview deployment health check failed after $max_attempts attempts"
+            exit 1
+          fi
+        done
+
+    - name: Run preview smoke tests
+      run: npm run test:smoke
+      env:
+        BASE_URL: ${{ env.DEPLOYMENT_URL }}
+        CI: true
+
+    - name: Generate preview deployment report
+      run: |
+        cat << EOF > preview-deployment-report.json
+        {
+          "pr_number": ${{ github.event.number }},
+          "deployment_url": "${{ env.DEPLOYMENT_URL }}",
+          "commit_sha": "${{ github.sha }}",
+          "branch": "${{ github.head_ref }}",
+          "timestamp": "$(date -Iseconds)",
+          "status": "success",
+          "environment": "preview",
+          "health_checks": "passed",
+          "smoke_tests": "passed"
+        }
+        EOF
+
+    - name: Upload preview deployment artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: preview-deployment-report-pr-${{ github.event.number }}
+        path: |
+          preview-deployment-report.json
+          dist/
+        retention-days: 14
+
+    - name: Comment PR with deployment info
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { owner, repo } = context.repo;
+          const pr_number = context.payload.pull_request.number;
+          
+          // Check if we already have a comment
+          const comments = await github.rest.issues.listComments({
+            owner,
+            repo,
+            issue_number: pr_number
+          });
+          
+          const botComment = comments.data.find(comment => 
+            comment.user.login === 'github-actions[bot]' && 
+            comment.body.includes('🚀 Preview Deployment')
+          );
+          
+          const body = `## 🚀 Preview Deployment Ready
+          
+          Your changes have been deployed to a preview environment!
+          
+          **📱 Preview URL:** ${{ env.DEPLOYMENT_URL }}
+          
+          **🔍 What to test:**
+          - [ ] Core functionality works as expected
+          - [ ] UI/UX changes look correct
+          - [ ] No console errors or warnings
+          - [ ] Performance is acceptable
+          - [ ] Security features function properly
+          
+          **📊 Deployment Details:**
+          - **Commit:** \`${{ github.sha }}\`
+          - **Branch:** \`${{ github.head_ref }}\`
+          - **Environment:** Preview
+          - **Status:** ✅ Healthy
+          
+          **⚡ Quick Links:**
+          - [Health Check](${{ env.DEPLOYMENT_URL }}/api/health)
+          - [API Status](${{ env.DEPLOYMENT_URL }}/api/health/liveness)
+          
+          ---
+          
+          *This preview deployment will be automatically cleaned up when the PR is closed.*
+          
+          <details>
+          <summary>🛠️ Technical Details</summary>
+          
+          - **Node.js Version:** 20
+          - **Build Command:** \`npm run build\`
+          - **Environment Variables:** Preview configuration
+          - **Database:** Staging database connection
+          - **Deployment Time:** $(date -Iseconds)
+          
+          </details>`;
+          
+          if (botComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner,
+              repo,
+              comment_id: botComment.id,
+              body
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: pr_number,
+              body
+            });
+          }
+
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    
+    steps:
+    - name: Cleanup preview deployment
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deployment delete --project-name=zeidgeist-prompter --branch=preview-pr-${{ github.event.number }} --force
+      continue-on-error: true
+
+    - name: Comment PR with cleanup info
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { owner, repo } = context.repo;
+          const pr_number = context.payload.pull_request.number;
+          
+          const body = `## 🧹 Preview Deployment Cleaned Up
+          
+          The preview deployment for this PR has been automatically cleaned up.
+          
+          **📱 Preview URL:** ~~https://preview-pr-${pr_number}.zeidgeist-prompter.pages.dev~~ *(No longer available)*
+          
+          Thank you for testing! 🎉`;
+          
+          await github.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: pr_number,
+            body
+          });
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [test, security, performance]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    environment: 
+      name: staging
+      url: https://staging.mstprmpt.zeidgeist.com
+    
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      NODE_ENV: staging
+      APP_ENV: staging
+      APP_VERSION: ${{ github.sha }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate required secrets for staging deployment
+      run: |
+        echo "🔐 Validating required secrets for staging deployment..."
+        
+        # Check critical secrets
+        if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+          echo "❌ CLOUDFLARE_API_TOKEN is required for deployment"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_DATABASE_URL" ]; then
+          echo "❌ STAGING_DATABASE_URL is required for staging"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_JWT_SECRET" ]; then
+          echo "❌ STAGING_JWT_SECRET is required for authentication"
+          exit 1
+        fi
+        
+        if [ -z "$STAGING_NEXTAUTH_SECRET" ]; then
+          echo "❌ STAGING_NEXTAUTH_SECRET is required for NextAuth"
+          exit 1
+        fi
+        
+        # Check at least one AI API key is available
+        api_keys_available=0
+        [ ! -z "$CLAUDE_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$OPENAI_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$MISTRAL_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        
+        if [ $api_keys_available -eq 0 ]; then
+          echo "❌ At least one AI API key (CLAUDE_API_KEY, OPENAI_API_KEY, or MISTRAL_API_KEY) is required"
+          exit 1
+        fi
+        
+        echo "✅ All required secrets are configured for staging"
+        echo "✅ $api_keys_available AI API key(s) available"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        STAGING_JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+        STAGING_NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run pre-deployment validation
+      run: node scripts/deployment/pre-deploy.js
+
+    - name: Run database migrations (staging)
+      run: node scripts/deployment/migrate-database.js
+      env:
+        DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+    - name: Deploy to Cloudflare Pages (Staging)
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=preview --compatibility-date=2024-01-15
+      env:
+        DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+        NEXTAUTH_SECRET: ${{ secrets.STAGING_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+
+    - name: Run post-deployment validation
+      run: node scripts/deployment/post-deploy.js https://staging.mstprmpt.zeidgeist.com
+      env:
+        DEPLOYMENT_URL: https://staging.mstprmpt.zeidgeist.com
+
+    - name: Run comprehensive smoke tests
+      run: npm run test:smoke
+      env:
+        BASE_URL: https://staging.mstprmpt.zeidgeist.com
+
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: staging-deployment-artifacts
+        path: |
+          migration-logs/
+          backups/
+          rollback-latest.js
+        retention-days: 30
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [test, security, performance, deploy-staging]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    environment: 
+      name: production
+      url: https://mstprmpt.zeidgeist.com
+    
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+      NEXTAUTH_SECRET: ${{ secrets.PRODUCTION_NEXTAUTH_SECRET }}
+      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+      NODE_ENV: production
+      APP_ENV: production
+      APP_VERSION: ${{ github.sha }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate required secrets for production deployment
+      run: |
+        echo "🔐 Validating required secrets for production deployment..."
+        
+        # Check critical secrets
+        if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+          echo "❌ CLOUDFLARE_API_TOKEN is required for deployment"
+          exit 1
+        fi
+        
+        if [ -z "$PRODUCTION_DATABASE_URL" ]; then
+          echo "❌ PRODUCTION_DATABASE_URL is required for production"
+          exit 1
+        fi
+        
+        if [ -z "$PRODUCTION_JWT_SECRET" ]; then
+          echo "❌ PRODUCTION_JWT_SECRET is required for authentication"
+          exit 1
+        fi
+        
+        if [ -z "$PRODUCTION_NEXTAUTH_SECRET" ]; then
+          echo "❌ PRODUCTION_NEXTAUTH_SECRET is required for NextAuth"
+          exit 1
+        fi
+        
+        # Check at least one AI API key is available
+        api_keys_available=0
+        [ ! -z "$CLAUDE_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$OPENAI_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$MISTRAL_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$DEEPSEEK_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        [ ! -z "$MOONSHOT_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
+        
+        if [ $api_keys_available -eq 0 ]; then
+          echo "❌ At least one AI API key is required for production"
+          exit 1
+        fi
+        
+        # Check optional monitoring secrets (warn but don't fail)
+        [ -z "$SENTRY_DSN" ] && echo "⚠️  SENTRY_DSN not configured - error monitoring disabled"
+        [ -z "$SLACK_WEBHOOK_URL" ] && echo "⚠️  SLACK_WEBHOOK_URL not configured - deployment notifications disabled"
+        
+        echo "✅ All required secrets are configured for production"
+        echo "✅ $api_keys_available AI API key(s) available"
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        PRODUCTION_JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+        PRODUCTION_NEXTAUTH_SECRET: ${{ secrets.PRODUCTION_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+        SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run pre-deployment validation
+      run: node scripts/deployment/pre-deploy.js
+
+    - name: Create production backup
+      run: node scripts/deployment/migrate-database.js
+      env:
+        DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        NODE_ENV: production
+
+    - name: Deploy to Cloudflare Pages (Production)
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        workingDirectory: '.'
+        command: pages deploy dist --project-name=zeidgeist-prompter --env=production --compatibility-date=2024-01-15
+      env:
+        DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+        NEXTAUTH_SECRET: ${{ secrets.PRODUCTION_NEXTAUTH_SECRET }}
+        CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        MOONSHOT_API_KEY: ${{ secrets.MOONSHOT_API_KEY }}
+
+    - name: Wait for deployment propagation
+      run: sleep 60
+
+    - name: Run post-deployment validation
+      run: node scripts/deployment/post-deploy.js https://mstprmpt.zeidgeist.com
+      env:
+        DEPLOYMENT_URL: https://mstprmpt.zeidgeist.com
+
+    - name: Run production smoke tests
+      run: npm run test:smoke
+      env:
+        BASE_URL: https://mstprmpt.zeidgeist.com
+
+    - name: Update deployment status
+      run: |
+        echo "DEPLOYMENT_STATUS=success" >> $GITHUB_OUTPUT
+        echo "DEPLOYMENT_URL=https://mstprmpt.zeidgeist.com" >> $GITHUB_OUTPUT
+        echo "DEPLOYMENT_TIME=$(date -Iseconds)" >> $GITHUB_OUTPUT
+
+    - name: Upload production deployment artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: production-deployment-artifacts
+        path: |
+          dist/
+          migration-logs/
+          backups/
+          rollback-latest.js
+        retention-days: 90
+
+    - name: Notify deployment success
+      uses: 8398a7/action-slack@v3
+      if: success()
+      with:
+        status: success
+        channel: '#deployments'
+        text: |
+          ✅ Production deployment successful!
+          🌐 URL: https://mstprmpt.zeidgeist.com
+          📦 Version: ${{ github.sha }}
+          ⏱️  Build: ${{ github.run_number }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify deployment failure
+      uses: 8398a7/action-slack@v3
+      if: failure()
+      with:
+        status: failure
+        channel: '#deployments'
+        text: |
+          ❌ Production deployment failed!
+          🔍 Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          📦 Version: ${{ github.sha }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  post-deployment-tests:
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps
+
+    - name: Run post-deployment E2E tests
+      run: npm run test:e2e -- --baseURL https://mstprmpt.zeidgeist.com
+      env:
+        CI: true
+        TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
+        TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+
+    - name: Upload post-deployment test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: post-deployment-test-results
+        path: playwright-report/
+        retention-days: 30

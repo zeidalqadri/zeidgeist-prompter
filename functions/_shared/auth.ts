@@ -35,11 +35,14 @@ export function authenticateRequest(request: Request, env: any): AuthResult {
     return { success: true, userId: 'dev-user' };
   }
 
-  // For public prompt enhancement, allow anonymous access
+  // Only allow anonymous access to basic prompt enhancement endpoint
   const url = new URL(request.url);
-  const isPublicEndpoint = url.pathname.includes('/api/engineer') && 
-                          !url.pathname.includes('/history') && 
-                          !url.pathname.includes('/feedback');
+  const isPublicEndpoint = url.pathname === '/api/engineer' || 
+                          (url.pathname.includes('/api/engineer') && 
+                           !url.pathname.includes('/history') && 
+                           !url.pathname.includes('/feedback') &&
+                           !url.pathname.includes('/admin') &&
+                           !url.pathname.includes('/learning'));
   
   if (isPublicEndpoint) {
     return { success: true, userId: 'anonymous' };
@@ -55,8 +58,8 @@ export function authenticateRequest(request: Request, env: any): AuthResult {
   const validApiKeys = env.VALID_API_KEYS?.split(',') || [];
   
   if (validApiKeys.length === 0) {
-    // If no API keys configured, allow access (for backward compatibility)
-    return { success: true, userId: 'anonymous' };
+    // No API keys configured - security violation, deny access
+    return { success: false, error: 'Server configuration error: API authentication not properly configured' };
   }
 
   if (!validApiKeys.includes(apiKey)) {
