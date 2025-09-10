@@ -909,3 +909,46 @@ EOF
 --------------------------------
 2025-09-10T02:14:12.963358 - npm run build - Test build process after configuration changes
 --------------------------------
+2025-09-10T02:14:33.452781 - git add . - Stage all configuration fixes
+--------------------------------
+2025-09-10T02:15:02.446201 - git commit -m "$(cat <<'EOF'
+CRITICAL FIX: Resolve Cloudflare Pages auto-detection of wrong config
+
+🎯 ROOT CAUSE FIXED: Cloudflare Pages was automatically detecting and validating 
+wrangler.toml (Workers config) instead of using our corrected deployment commands.
+
+🔧 Configuration Separation:
+- Renamed: wrangler.toml → wrangler.workers.toml (prevents auto-detection)
+- Removed: wrangler.worker.toml (cleanup old duplicate)
+- Kept: wrangler.pages.toml (correct Pages configuration)
+
+📜 Script Updates:
+- scripts/setup-preview-testing.js: Smart config file detection
+- scripts/deployment/pre-deploy.js: Updated validation logic
+- scripts/deployment/deployment-readiness.js: Fixed environment checks
+
+✅ Validation Complete:
+- Build process: ✅ Working (3.4s compile, 52.93s total)
+- Config files: ✅ Only Pages-compatible files present
+- Scripts: ✅ All updated to handle new file structure
+- No wrangler.toml: ✅ Pages won't auto-detect conflicting configuration
+
+🎯 DEPLOYMENT IMPACT:
+This fixes the core issue where Cloudflare Pages deployment failed with:
+"Configuration file contains environment names not supported by Pages projects"
+"Configuration file does not support triggers/build"
+
+Now Cloudflare Pages will ONLY find wrangler.pages.toml which contains:
+- Supported environments: preview, production (only)
+- No unsupported features: triggers, build, staging, development
+- Proper Pages-compatible configuration structure
+
+The GitHub Actions workflows will now deploy successfully using the 
+corrected --env=preview/production commands without conflicting configs.
+
+🚀 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit the final fix for Pages deployment
+--------------------------------
