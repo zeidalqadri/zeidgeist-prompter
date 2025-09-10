@@ -960,3 +960,17 @@ EOF
 --------------------------------
 2025-09-10T08:33:51.896443 - npm run build - Test build process with npm only
 --------------------------------
+2025-09-10T08:34:06.003131 - git add -A && git commit -m "$(cat <<'EOF'
+fix: Remove yarn.lock to resolve package manager conflict
+
+- Removed yarn.lock causing Cloudflare Pages build failure
+- Yarn 4.9.1 was failing with lockfile modification error during CI
+- Project now uses npm exclusively for consistent package management
+- Build tested successfully with npm run build (25.25s, 1.06MB output)
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit package manager fix
+--------------------------------
