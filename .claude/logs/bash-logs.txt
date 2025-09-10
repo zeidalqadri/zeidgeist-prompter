@@ -952,3 +952,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )" - Commit the final fix for Pages deployment
 --------------------------------
+2025-09-10T08:29:49.132387 - ls -la | grep -E "(yarn|package-lock|pnpm)" - Check for package manager lock files
+--------------------------------
+2025-09-10T08:30:46.973231 - rm yarn.lock - Remove conflicting yarn.lock file
+--------------------------------
+2025-09-10T08:31:46.749549 - npm install - Verify npm installation works correctly
+--------------------------------
+2025-09-10T08:33:51.896443 - npm run build - Test build process with npm only
+--------------------------------
