@@ -492,10 +492,10 @@ export class GeminiTemplateEnhancer {
     
     // Detect or use specified task type
     const taskType = options.forceTaskType || GeminiTemplateManager.detectTaskType(prompt);
-    const template = GeminiTemplateManager.getTemplateConfig(taskType, options.isRefinement);
+    const template = GeminiTemplateManager.getTemplateConfig(taskType, options.isRefinement || false);
     
     // Build comprehensive prompt with template
-    const fullPrompt = this.buildTemplatePrompt(prompt, context, template, options.isRefinement);
+    const fullPrompt = this.buildTemplatePrompt(prompt, context, template, options.isRefinement || false);
     
     // Make API call with template configuration
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${options.apiKey}`, {
