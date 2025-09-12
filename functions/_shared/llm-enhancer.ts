@@ -860,7 +860,7 @@ Provide only the enhanced prompt text with analytical framework, systematic appr
     }
   };
   
-  const template = templates[taskType] || templates.analysis;
+  const template = templates[taskType as keyof typeof templates] || templates.analysis;
   
   const messages = [
     { role: 'system', content: template.systemPrompt }

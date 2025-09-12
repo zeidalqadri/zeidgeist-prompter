@@ -551,7 +551,7 @@ export class MistralTemplateUtils {
       business: 'Strategic planning and business optimization'
     };
     
-    return descriptions[taskType] || 'General purpose task enhancement';
+    return descriptions[taskType as keyof typeof descriptions] || 'General purpose task enhancement';
   }
   
   static validateTemplate(template: MistralTemplate): { isValid: boolean; errors: string[] } {
