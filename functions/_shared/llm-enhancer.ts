@@ -2,7 +2,7 @@
 
 interface EnhancementResponse {
   enhancedPrompt: string;
-  source: 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'local';
+  source: 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'gemini' | 'local';
   metadata?: Record<string, unknown>;
 }
 
@@ -1080,6 +1080,190 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
   };
 }
 
+// Gemini enhancement (Google)
+async function enhanceWithGemini(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+  const apiKey = env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  const startTime = Date.now();
+  const model = 'gemini-1.5-pro';
+  
+  // Build Gemini-optimized system instructions with few-shot learning
+  const systemInstruction = buildGeminiSystemInstruction(isRefinement);
+  const userContent = buildGeminiUserContent(prompt, context, isRefinement);
+  
+  // Gemini API uses a different structure than OpenAI-compatible APIs
+  const requestBody = {
+    contents: [{
+      parts: [{
+        text: `${systemInstruction}\n\n${userContent}`
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      stopSequences: []
+    },
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      }
+    ]
+  };
+  
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error('Gemini API returned no content');
+  }
+  
+  let enhancedContent = data.candidates[0].content.parts[0].text;
+  
+  // Apply Gemini-specific post-processing
+  enhancedContent = processGeminiResponse(enhancedContent);
+  
+  return {
+    enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
+    source: 'gemini',
+    metadata: { 
+      model,
+      usage: data.usageMetadata,
+      optimization: 'gemini-optimized-v1.0',
+      processTime: Date.now() - startTime,
+      finishReason: data.candidates[0].finishReason
+    }
+  };
+}
+
+// Build Gemini-specific system instruction with few-shot learning
+function buildGeminiSystemInstruction(isRefinement: boolean = false): string {
+  const baseInstruction = isRefinement 
+    ? `You are an expert prompt refinement specialist. Your task is to refine already-enhanced prompts by adding missing details, improving clarity, and strengthening specifications while preserving the original intent.
+
+Key principles:
+1. Build upon existing quality (don't restart from scratch)
+2. Add substantial improvements (not minor tweaks)
+3. Include concrete examples where beneficial
+4. Ensure all constraints and requirements are explicit
+5. Output ONLY the refined prompt text - no introductions or explanations`
+    : `You are an expert prompt engineering specialist. Your task is to transform basic prompts into comprehensive, actionable instructions that deliver exceptional results.
+
+Key principles:
+1. Extract and clarify the core intent
+2. Add specific requirements and constraints
+3. Structure with clear hierarchy and organization
+4. Include success criteria and quality standards
+5. Specify desired format and output structure
+6. Output ONLY the enhanced prompt text - no introductions or explanations`;
+
+  // Add few-shot learning examples
+  const examples = `
+Few-shot examples:
+
+Basic: "write about climate change"
+Enhanced: "Compose a comprehensive 1500-word analysis of climate change covering: current scientific evidence from IPCC reports, primary causes (greenhouse gas emissions, deforestation, industrial processes), observable global impacts (temperature rise, sea level changes, extreme weather patterns), regional variations in effects, evidence-based mitigation strategies, adaptation measures being implemented worldwide, economic implications for different sectors, and specific actionable steps for individuals, businesses, and governments. Include recent data from peer-reviewed sources, cite specific examples from at least three different continents, and structure the analysis with clear sections and subheadings."
+
+Basic: "create a website"
+Enhanced: "Design a professional business website including: modern responsive layout compatible with desktop, tablet, and mobile devices, homepage with clear value proposition and call-to-action, about us page with team credentials and company history, services/products page with detailed descriptions and pricing, testimonials section with customer reviews and case studies, contact page with multiple contact methods and location map, blog section for content marketing, SEO optimization with proper meta tags and schema markup, fast loading speed (under 3 seconds), accessibility compliance (WCAG 2.1 AA standards), and integration with analytics tracking and lead capture forms."
+
+Basic: "analyze data"
+Enhanced: "Conduct a comprehensive data analysis including: initial data exploration with summary statistics and distribution analysis, data quality assessment identifying missing values, outliers, and inconsistencies, appropriate statistical tests or modeling techniques based on data type and research questions, visualizations including histograms, scatter plots, correlation matrices, and trend charts, interpretation of results with confidence intervals and statistical significance testing, identification of key patterns, relationships, and anomalies, actionable insights and recommendations based on findings, methodology documentation explaining approach and assumptions, and executive summary highlighting the most important discoveries with business implications."${isRefinement ? 
+    `
+
+Refinement example:
+Already-Enhanced: "Design a professional medical practice website featuring patient portal integration, appointment scheduling, and service descriptions."
+Refined: "Design a comprehensive medical practice website featuring: HIPAA-compliant patient portal with secure login, medical records access, and prescription refill requests; intelligent appointment scheduling system with automated reminders via email/SMS, availability calendar, and waiting list management; detailed service descriptions organized by specialty with treatment explanations, preparation instructions, and expected outcomes; doctor profiles with credentials, specializations, education, and patient reviews; insurance verification tools with real-time eligibility checking and pre-authorization workflows; telemedicine integration for virtual consultations with video calling and secure messaging; patient education library with condition-specific resources, post-treatment care instructions, and medication guides; accessibility compliance meeting ADA and WCAG 2.1 AA standards; mobile-responsive design optimized for tablet/smartphone usage; and multilingual support for diverse patient populations."` : ''}`;
+
+  return baseInstruction + examples;
+}
+
+// Build Gemini-specific user content
+function buildGeminiUserContent(prompt: string, context?: string, isRefinement: boolean = false): string {
+  const taskType = isRefinement ? 'REFINE' : 'ENHANCE';
+  
+  let content = `Task: ${taskType} the following prompt\n\n`;
+  
+  if (context && context.trim()) {
+    content += `Context: ${context}\n\n`;
+  }
+  
+  content += `Prompt to ${taskType.toLowerCase()}: ${prompt}\n\n`;
+  content += `Provide only the ${isRefinement ? 'refined' : 'enhanced'} prompt text. Do not include introductions, explanations, or meta-text.`;
+  
+  return content;
+}
+
+// Process Gemini response with specific optimizations
+function processGeminiResponse(response: string): string {
+  let cleaned = response.trim();
+  
+  // Remove common Gemini meta-text patterns
+  const metaPatterns = [
+    /^(Here's the|Here is the)\s+(enhanced|refined|improved)\s+prompt:?\s*/i,
+    /^(The|This)\s+(enhanced|refined|improved)\s+prompt\s+is:?\s*/i,
+    /^(Enhanced|Refined|Improved)\s+prompt:?\s*/i,
+    /^\*\*(Enhanced|Refined|Improved)\s+Prompt\*\*:?\s*/i,
+    /^Task:\s+(ENHANCE|REFINE).*?\n\n/i
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Remove markdown artifacts that Gemini sometimes includes
+  cleaned = cleaned.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+  cleaned = cleaned.replace(/^---\n?/, '').replace(/\n?---$/, '');
+  
+  // Normalize formatting
+  cleaned = cleaned
+    .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive line breaks
+    .replace(/[ \t]+/g, ' ')     // Normalize spaces
+    .replace(/\n /g, '\n')       // Remove leading spaces after line breaks
+    .trim();
+  
+  // Ensure minimum quality standards
+  if (cleaned.length < 50) {
+    cleaned += '. Include comprehensive details, clear structure, and specific requirements for optimal results.';
+  }
+  
+  // Ensure proper sentence endings
+  if (!cleaned.match(/[.!?]$/)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
+}
+
 // Moonshot enhancement (Kimi)
 async function enhanceWithMoonshot(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
   const apiKey = env.MOONSHOT_API_KEY;
@@ -1149,6 +1333,7 @@ export async function enhancePrompt(
   console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY, '(DISABLED - too much intro/outro text)');
   console.log('Mistral key:', !!env.MISTRAL_API_KEY);
   console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
+  console.log('Gemini key:', !!env.GEMINI_API_KEY);
   
   if (env.CLAUDE_API_KEY) {
     availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean) => enhanceWithClaude(p, c, r, env) });
@@ -1166,6 +1351,9 @@ export async function enhancePrompt(
   if (env.MOONSHOT_API_KEY) {
     availableProviders.push({ name: 'moonshot', fn: (p: string, c?: string, r?: boolean) => enhanceWithMoonshot(p, c, r, env) });
   }
+  if (env.GEMINI_API_KEY) {
+    availableProviders.push({ name: 'gemini', fn: (p: string, c?: string, r?: boolean) => enhanceWithGemini(p, c, r, env) });
+  }
 
   if (availableProviders.length === 0) {
     console.log('No API keys configured, using local enhancement');
@@ -1180,7 +1368,8 @@ export async function enhancePrompt(
           openai: !!env.OPENAI_API_KEY,
           deepseek: `${!!env.DEEPSEEK_API_KEY} (DISABLED)`,
           mistral: !!env.MISTRAL_API_KEY,
-          moonshot: !!env.MOONSHOT_API_KEY
+          moonshot: !!env.MOONSHOT_API_KEY,
+          gemini: !!env.GEMINI_API_KEY
         }
       }
     };
