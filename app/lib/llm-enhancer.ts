@@ -102,7 +102,150 @@ async function enhanceWithDeepseek(
 }
 
 /**
- * Enhance a prompt using Mistral AI API
+ * Build Mistral-specific enhancement messages optimized for Mistral's capabilities
+ */
+function buildMistralPromptEnhancementMessages(
+  prompt: string,
+  context?: string,
+  isRefinement: boolean = false
+): Array<{ role: string, content: string }> {
+  // Mistral-optimized system prompt using their documented best practices
+  const systemPrompt = isRefinement 
+    ? `### PROMPT REFINEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt refinement expert specializing in iterative improvement of existing prompts. Your expertise lies in identifying gaps and enhancing clarity while preserving original intent.
+<<<END_ROLE>>>
+
+<<<TASK_INSTRUCTIONS>>>
+Your task is to refine an already-enhanced prompt by:
+
+**Step 1: ANALYSIS**
+- Identify remaining ambiguities or gaps
+- Assess completeness of specifications
+- Evaluate clarity of success criteria
+
+**Step 2: ENHANCEMENT STRATEGY**
+- Add missing edge case handling
+- Strengthen specificity without redundancy
+- Improve structural organization
+- Enhance actionability
+
+**Step 3: REFINEMENT EXECUTION**
+- Build upon existing quality (don't restart)
+- Add substantial improvements (not minor changes)
+- Include concrete examples where helpful
+- Ensure measurable success criteria
+
+**Step 4: VALIDATION**
+- Verify all constraints are addressed
+- Confirm enhanced specificity
+- Ensure actionable outcomes
+<<<END_TASK_INSTRUCTIONS>>>
+
+<<<OUTPUT_CONSTRAINTS>>>
+- OUTPUT FORMAT: Enhanced prompt text only
+- NO META-TEXT: Never include "Here's...", "This is...", "Below is..."
+- NO EXPLANATIONS: Just the refined prompt
+- SUBSTANTIAL CHANGES: Must be meaningfully different from input
+- DIRECT DELIVERY: Start immediately with the enhanced content
+<<<END_OUTPUT_CONSTRAINTS>>>
+
+<<<QUALITY_CHECKLIST>>>
+☐ Eliminates remaining ambiguity
+☐ Adds concrete specifications  
+☐ Includes success/failure criteria
+☐ Provides actionable steps
+☐ Contains relevant examples
+☐ Maintains original intent
+☐ Significantly improves upon input
+<<<END_QUALITY_CHECKLIST>>>`
+
+    : `### PROMPT ENHANCEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt engineering expert with deep expertise in transforming vague requests into crystal-clear, actionable prompts that deliver exceptional results.
+<<<END_ROLE>>>
+
+<<<TASK_METHODOLOGY>>>
+Follow this systematic approach:
+
+**Step 1: INTENT EXTRACTION**
+- Identify core purpose and domain
+- Determine target audience and use case
+- Extract key requirements and constraints
+
+**Step 2: GAP ANALYSIS**
+- What specific information is missing?
+- What ambiguities need clarification?
+- What edge cases should be addressed?
+
+**Step 3: ENHANCEMENT DESIGN**
+- Structure with clear sections and hierarchy
+- Add domain-specific requirements
+- Include success criteria and quality standards
+- Specify desired format and style
+
+**Step 4: OPTIMIZATION**
+- Remove redundancy while maintaining clarity
+- Add concrete examples where beneficial
+- Ensure actionable and measurable outcomes
+- Include error handling and constraints
+<<<END_TASK_METHODOLOGY>>>
+
+<<<ENHANCEMENT_FRAMEWORK>>>
+Transform basic prompts by adding:
+• **Context**: Background information and domain specifics
+• **Specificity**: Precise requirements and parameters
+• **Structure**: Clear organization and logical flow
+• **Examples**: Concrete demonstrations where helpful
+• **Constraints**: Boundaries, limitations, and quality standards
+• **Success Criteria**: Measurable outcomes and evaluation methods
+• **Format**: Desired output structure and presentation
+<<<END_ENHANCEMENT_FRAMEWORK>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+- DIRECT OUTPUT: Provide only the enhanced prompt text
+- NO INTRODUCTIONS: Never start with "Here's..." or similar phrases
+- NO EXPLANATIONS: Don't explain what you're doing
+- SUBSTANTIAL IMPROVEMENT: Create meaningfully better prompts
+- ACTIONABLE CONTENT: Ensure clear, executable instructions
+<<<END_OUTPUT_REQUIREMENTS>>>
+
+<<<EXAMPLE_TRANSFORMATIONS>>>
+Basic: "website for a doctor"
+Enhanced: "Design a professional medical practice website featuring: patient portal integration, appointment scheduling system, service descriptions with pricing, doctor credentials and specializations, patient testimonials, insurance information, contact details with maps, HIPAA-compliant contact forms, mobile-responsive design, and accessibility compliance (WCAG 2.1 AA standards)."
+
+Basic: "write about climate change"  
+Enhanced: "Compose a comprehensive 2000-word analysis of climate change covering: scientific evidence from IPCC reports, primary causes (greenhouse gas emissions, deforestation), current global impacts (temperature rise, extreme weather patterns), regional variations in effects, evidence-based mitigation strategies, adaptation measures, economic implications, and actionable steps for individuals and organizations. Include data visualizations, peer-reviewed sources, and specific examples from at least three different continents."
+<<<END_EXAMPLE_TRANSFORMATIONS>>>`
+
+  const messages = [
+    { role: "system", content: systemPrompt }
+  ];
+
+  // Format user input with clear delimiters (Mistral best practice)
+  let userMessage = '';
+  if (context && context.trim()) {
+    userMessage = `<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  } else {
+    userMessage = `<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  }
+
+  messages.push({ role: "user", content: userMessage });
+  return messages;
+}
+
+/**
+ * Enhance a prompt using Mistral AI API with optimized parameters
  */
 async function enhanceWithMistral(
   prompt: string,
@@ -114,7 +257,8 @@ async function enhanceWithMistral(
   }
 
   try {
-    const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+    // Use Mistral-specific message building
+    const messages = buildMistralPromptEnhancementMessages(prompt, context, isRefinement);
     
     const response = await fetch(mistralConfig.endpoint, {
       method: 'POST',
@@ -126,7 +270,10 @@ async function enhanceWithMistral(
         model: mistralConfig.model,
         messages,
         temperature: 0.2,
-        max_tokens: 1024
+        max_tokens: 4096,
+        top_p: 0.95,        // Better quality control (Mistral recommendation)
+        safe_prompt: false, // We handle safety ourselves
+        random_seed: 42     // Reproducibility for testing
       })
     });
 
@@ -143,7 +290,8 @@ async function enhanceWithMistral(
       source: 'mistral',
       metadata: {
         model: mistralConfig.model,
-        usage: data.usage
+        usage: data.usage,
+        optimization: 'mistral-specific-v1.0'
       }
     };
   } catch (error) {

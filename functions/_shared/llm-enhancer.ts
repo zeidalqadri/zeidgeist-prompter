@@ -470,14 +470,181 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
   };
 }
 
-// Mistral enhancement
+// Build Mistral-specific enhancement messages optimized for Mistral's capabilities
+function buildMistralPromptEnhancementMessages(prompt: string, context?: string, isRefinement: boolean = false) {
+  // Mistral-optimized system prompt using their documented best practices
+  const systemPrompt = isRefinement 
+    ? `### PROMPT REFINEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt refinement expert specializing in iterative improvement of existing prompts. Your expertise lies in identifying gaps and enhancing clarity while preserving original intent.
+<<<END_ROLE>>>
+
+<<<TASK_INSTRUCTIONS>>>
+Your task is to refine an already-enhanced prompt by:
+
+**Step 1: ANALYSIS**
+- Identify remaining ambiguities or gaps
+- Assess completeness of specifications
+- Evaluate clarity of success criteria
+
+**Step 2: ENHANCEMENT STRATEGY**
+- Add missing edge case handling
+- Strengthen specificity without redundancy
+- Improve structural organization
+- Enhance actionability
+
+**Step 3: REFINEMENT EXECUTION**
+- Build upon existing quality (don't restart)
+- Add substantial improvements (not minor changes)
+- Include concrete examples where helpful
+- Ensure measurable success criteria
+
+**Step 4: VALIDATION**
+- Verify all constraints are addressed
+- Confirm enhanced specificity
+- Ensure actionable outcomes
+<<<END_TASK_INSTRUCTIONS>>>
+
+<<<OUTPUT_CONSTRAINTS>>>
+- OUTPUT FORMAT: Enhanced prompt text only
+- NO META-TEXT: Never include "Here's...", "This is...", "Below is..."
+- NO EXPLANATIONS: Just the refined prompt
+- SUBSTANTIAL CHANGES: Must be meaningfully different from input
+- DIRECT DELIVERY: Start immediately with the enhanced content
+<<<END_OUTPUT_CONSTRAINTS>>>
+
+<<<QUALITY_CHECKLIST>>>
+☐ Eliminates remaining ambiguity
+☐ Adds concrete specifications  
+☐ Includes success/failure criteria
+☐ Provides actionable steps
+☐ Contains relevant examples
+☐ Maintains original intent
+☐ Significantly improves upon input
+<<<END_QUALITY_CHECKLIST>>>`
+
+    : `### PROMPT ENHANCEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt engineering expert with deep expertise in transforming vague requests into crystal-clear, actionable prompts that deliver exceptional results.
+<<<END_ROLE>>>
+
+<<<TASK_METHODOLOGY>>>
+Follow this systematic approach:
+
+**Step 1: INTENT EXTRACTION**
+- Identify core purpose and domain
+- Determine target audience and use case
+- Extract key requirements and constraints
+
+**Step 2: GAP ANALYSIS**
+- What specific information is missing?
+- What ambiguities need clarification?
+- What edge cases should be addressed?
+
+**Step 3: ENHANCEMENT DESIGN**
+- Structure with clear sections and hierarchy
+- Add domain-specific requirements
+- Include success criteria and quality standards
+- Specify desired format and style
+
+**Step 4: OPTIMIZATION**
+- Remove redundancy while maintaining clarity
+- Add concrete examples where beneficial
+- Ensure actionable and measurable outcomes
+- Include error handling and constraints
+<<<END_TASK_METHODOLOGY>>>
+
+<<<ENHANCEMENT_FRAMEWORK>>>
+Transform basic prompts by adding:
+• **Context**: Background information and domain specifics
+• **Specificity**: Precise requirements and parameters
+• **Structure**: Clear organization and logical flow
+• **Examples**: Concrete demonstrations where helpful
+• **Constraints**: Boundaries, limitations, and quality standards
+• **Success Criteria**: Measurable outcomes and evaluation methods
+• **Format**: Desired output structure and presentation
+<<<END_ENHANCEMENT_FRAMEWORK>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+- DIRECT OUTPUT: Provide only the enhanced prompt text
+- NO INTRODUCTIONS: Never start with "Here's..." or similar phrases
+- NO EXPLANATIONS: Don't explain what you're doing
+- SUBSTANTIAL IMPROVEMENT: Create meaningfully better prompts
+- ACTIONABLE CONTENT: Ensure clear, executable instructions
+<<<END_OUTPUT_REQUIREMENTS>>>
+
+<<<EXAMPLE_TRANSFORMATIONS>>>
+Basic: "website for a doctor"
+Enhanced: "Design a professional medical practice website featuring: patient portal integration, appointment scheduling system, service descriptions with pricing, doctor credentials and specializations, patient testimonials, insurance information, contact details with maps, HIPAA-compliant contact forms, mobile-responsive design, and accessibility compliance (WCAG 2.1 AA standards)."
+
+Basic: "write about climate change"  
+Enhanced: "Compose a comprehensive 2000-word analysis of climate change covering: scientific evidence from IPCC reports, primary causes (greenhouse gas emissions, deforestation), current global impacts (temperature rise, extreme weather patterns), regional variations in effects, evidence-based mitigation strategies, adaptation measures, economic implications, and actionable steps for individuals and organizations. Include data visualizations, peer-reviewed sources, and specific examples from at least three different continents."
+<<<END_EXAMPLE_TRANSFORMATIONS>>>`
+
+  const messages = [
+    { role: "system", content: systemPrompt }
+  ];
+
+  // Format user input with clear delimiters (Mistral best practice)
+  let userMessage = '';
+  if (context && context.trim()) {
+    userMessage = `<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  } else {
+    userMessage = `<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  }
+
+  messages.push({ role: "user", content: userMessage });
+  return messages;
+}
+
+// Mistral enhancement with full optimization pipeline
 async function enhanceWithMistral(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
   const apiKey = env.MISTRAL_API_KEY;
   if (!apiKey) {
     throw new Error('Mistral API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const startTime = Date.now();
+
+  // Detect optimal model based on complexity
+  const model = selectMistralModel(prompt, context);
+  const complexity = assessPromptComplexity(prompt);
+  
+  // Use template-based enhancement for better results
+  const useTemplateOptimization = !isRefinement && shouldUseTemplateOptimization(prompt);
+  
+  let messages;
+  let parameters;
+  
+  if (useTemplateOptimization) {
+    // Use specialized template for detected task type
+    const taskType = detectMistralTaskType(prompt);
+    const templateResult = buildMistralTemplateMessages(prompt, context, taskType);
+    messages = templateResult.messages;
+    parameters = templateResult.parameters;
+    
+    console.log(`🎯 Using Mistral template optimization: ${taskType} (${model})`);
+  } else {
+    // Use general Mistral-optimized messages
+    messages = buildMistralPromptEnhancementMessages(prompt, context, isRefinement);
+    parameters = {
+      temperature: 0.2,
+      max_tokens: 4096,
+      top_p: 0.95,
+      safe_prompt: false,
+      random_seed: 42
+    };
+  }
   
   const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
@@ -486,10 +653,9 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'mistral-large-latest',
+      model,
       messages,
-      temperature: 0.2,
-      max_tokens: 4096
+      ...parameters
     })
   });
 
@@ -499,11 +665,269 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
   }
 
   const data = await response.json();
+  let enhancedContent = data.choices[0].message.content;
+  
+  // Apply Mistral-specific post-processing
+  enhancedContent = processMistralResponse(enhancedContent);
+  
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
     source: 'mistral',
-    metadata: { model: 'mistral-large-latest', usage: data.usage }
+    metadata: { 
+      model,
+      usage: data.usage,
+      optimization: useTemplateOptimization ? 'mistral-template-v1.0' : 'mistral-specific-v1.0',
+      complexity,
+      taskType: useTemplateOptimization ? detectMistralTaskType(prompt) : undefined,
+      processTime: Date.now() - startTime
+    }
   };
+}
+
+// Mistral model selection based on complexity
+function selectMistralModel(prompt: string, context?: string): string {
+  const totalLength = prompt.length + (context?.length || 0);
+  const complexity = assessPromptComplexity(prompt);
+  
+  // Use smaller, faster models for simple tasks (cost optimization)
+  if (complexity === 'simple' && totalLength < 500) {
+    return 'mistral-small-latest';
+  }
+  
+  // Use medium model for moderate complexity
+  if (complexity === 'moderate' && totalLength < 2000) {
+    return 'mistral-medium-latest';
+  }
+  
+  // Use large model for complex tasks or long content
+  return 'mistral-large-latest';
+}
+
+// Assess prompt complexity for optimization
+function assessPromptComplexity(prompt: string): 'simple' | 'moderate' | 'complex' {
+  // Simple: basic transformations, short prompts
+  if (prompt.length < 100 && !hasComplexPatterns(prompt)) {
+    return 'simple';
+  }
+  
+  // Complex: technical content, multiple requirements, long prompts
+  if (prompt.length > 500 || hasComplexPatterns(prompt)) {
+    return 'complex';
+  }
+  
+  return 'moderate';
+}
+
+// Check for complex patterns requiring advanced processing
+function hasComplexPatterns(prompt: string): boolean {
+  const complexPatterns = [
+    /\b(analysis|evaluation|comparison|synthesis)\b/i,
+    /\b(step-by-step|methodology|framework|strategy)\b/i,
+    /\b(requirements|specifications|criteria|constraints)\b/i,
+    /\b(technical|professional|academic|scientific)\b/i,
+    /[0-9]+\s*(steps|phases|sections|parts)/i
+  ];
+  
+  return complexPatterns.some(pattern => pattern.test(prompt));
+}
+
+// Detect Mistral task type for template optimization
+function detectMistralTaskType(prompt: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Classification indicators (Mistral's strength)
+  if (hasPatterns(lowerPrompt, ['classify', 'categorize', 'label', 'tag', 'type of', 'which category'])) {
+    return 'classification';
+  }
+  
+  // Summarization indicators (Mistral excels here)
+  if (hasPatterns(lowerPrompt, ['summarize', 'summary', 'brief', 'overview', 'key points', 'tldr'])) {
+    return 'summarization';
+  }
+  
+  // Evaluation indicators (Another Mistral strength)
+  if (hasPatterns(lowerPrompt, ['evaluate', 'assess', 'review', 'rate', 'score', 'judge', 'analyze quality'])) {
+    return 'evaluation';
+  }
+  
+  // Analysis indicators
+  if (hasPatterns(lowerPrompt, ['analyze', 'analysis', 'examine', 'investigate', 'research', 'study'])) {
+    return 'analysis';
+  }
+  
+  // Default to general enhancement
+  return 'general';
+}
+
+// Check for specific patterns in text
+function hasPatterns(text: string, patterns: string[]): boolean {
+  return patterns.some(pattern => text.includes(pattern));
+}
+
+// Determine if template optimization should be used
+function shouldUseTemplateOptimization(prompt: string): boolean {
+  const taskType = detectMistralTaskType(prompt);
+  // Use template optimization for specific task types where Mistral excels
+  return ['classification', 'summarization', 'evaluation', 'analysis'].includes(taskType);
+}
+
+// Build template-optimized messages (simplified version for server-side)
+function buildMistralTemplateMessages(prompt: string, context?: string, taskType: string) {
+  // Simplified template system for server-side use
+  const templates = {
+    classification: {
+      systemPrompt: `### CLASSIFICATION SPECIALIST ###
+
+<<<ROLE>>>
+You are an expert classification specialist transforming vague prompts into precise categorization and labeling instructions with clear criteria and systematic approaches.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define clear classification categories and criteria
+- Add systematic evaluation methodology  
+- Include confidence scoring requirements
+- Specify output format and structure
+- Add validation and quality control steps
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with clear classification framework, structured approach, and measurable criteria.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.1, top_p: 0.9, max_tokens: 2048 }
+    },
+    
+    summarization: {
+      systemPrompt: `### SUMMARIZATION EXPERT ###
+
+<<<ROLE>>>
+You are a master summarization specialist enhancing prompts to create comprehensive, accurate, and well-structured summary instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define summarization scope and depth requirements
+- Add structure and organization guidelines
+- Specify key information extraction criteria  
+- Include length and format specifications
+- Add quality and accuracy validation methods
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with clear summarization framework, content priorities, and structured approach.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.2, top_p: 0.95, max_tokens: 3072 }
+    },
+    
+    evaluation: {
+      systemPrompt: `### EVALUATION SPECIALIST ###
+
+<<<ROLE>>>
+You are an expert evaluation specialist enhancing prompts to create systematic, objective, and comprehensive assessment instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define clear evaluation criteria and scoring scales
+- Add systematic assessment methodology
+- Include evidence and justification requirements
+- Specify structured output format with scores
+- Add consistency and bias reduction measures
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with evaluation framework, scoring systems, and systematic assessment approach.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.1, top_p: 0.9, max_tokens: 2560 }
+    },
+    
+    analysis: {
+      systemPrompt: `### ANALYSIS EXPERT ###
+
+<<<ROLE>>>
+You are a skilled analytical expert enhancing prompts to create thorough, multi-dimensional, and insightful analysis instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define comprehensive analysis scope and methodology
+- Add multi-perspective examination requirements
+- Include pattern recognition and insight generation
+- Specify evidence-based conclusion requirements
+- Add structured reporting and recommendation formats
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with analytical framework, systematic approach, and comprehensive investigation methods.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.3, top_p: 0.95, max_tokens: 4096 }
+    }
+  };
+  
+  const template = templates[taskType] || templates.analysis;
+  
+  const messages = [
+    { role: 'system', content: template.systemPrompt }
+  ];
+  
+  // Format user input with delimiters
+  let userMessage = '';
+  if (context && context.trim()) {
+    userMessage = `<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  } else {
+    userMessage = `<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  }
+  
+  messages.push({ role: 'user', content: userMessage });
+  
+  return {
+    messages,
+    parameters: template.parameters
+  };
+}
+
+// Process Mistral response with specific optimizations
+function processMistralResponse(response: string): string {
+  let cleaned = response.trim();
+  
+  // Remove Mistral-specific artifacts
+  cleaned = cleaned.replace(/<<<[^>]*>>>/g, ''); // Remove delimiter artifacts
+  cleaned = cleaned.replace(/###[^#]*###/g, ''); // Remove header artifacts
+  cleaned = cleaned.replace(/\*\*\*[^*]*\*\*\*/g, ''); // Remove emphasis artifacts
+  
+  // Remove meta-text patterns
+  const metaPatterns = [
+    /^(Here's|Here is|This is|Below is).*?:/i,
+    /^(The enhanced|The improved|The refined).*?:/i,
+    /^(Enhanced prompt|Improved prompt|Refined prompt).*?:/i
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Normalize formatting
+  cleaned = cleaned
+    .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive line breaks
+    .replace(/[ \t]+/g, ' ')     // Normalize spaces
+    .replace(/\n /g, '\n')       // Remove leading spaces after line breaks
+    .trim();
+  
+  // Ensure minimum quality standards
+  if (cleaned.length < 50) {
+    cleaned += '. Include comprehensive information and well-organized sections for optimal results.';
+  }
+  
+  // Ensure proper sentence endings
+  if (!cleaned.match(/[.!?]$/)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
 }
 
 // Claude enhancement (Anthropic)
