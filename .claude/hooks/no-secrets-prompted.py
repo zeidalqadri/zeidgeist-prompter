@@ -4,23 +4,26 @@ import sys
 import re
 import base64
 from utils.trace_decision import log_decision
-from utils.performance_cache import (
-    performance_decorator, get_preferences, compile_pattern_group, 
-    match_pattern_group, cache_result, get_cached_result
-)
 
-# Pre-compile all secret detection patterns for maximum performance
-_SECRET_PATTERNS_COMPILED = False
+def get_preferences():
+    """Read preferences from .claude/preferences.json."""
+    try:
+        with open('.claude/preferences.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
-def _compile_secret_patterns():
-    """Pre-compile all secret detection patterns once at module load."""
-    global _SECRET_PATTERNS_COMPILED
-    if _SECRET_PATTERNS_COMPILED:
-        return
+def is_likely_secret(text):
+    """Check if text looks like a secret based on various heuristics."""
+    if not text or len(text.strip()) < 10:
+        return False, None
     
-    # Define all secret patterns for pre-compilation
+    text = text.strip()
+    
+    # Check for common secret patterns
     secret_patterns = [
-        # API keys and tokens - High Priority (checked first)
+        # API keys and tokens
+        (r'^[a-zA-Z0-9]{32,}$', 'long_alphanumeric'),  # Long alphanumeric strings
         (r'^sk-[a-zA-Z0-9]{20,}$', 'api_key'),  # OpenAI API keys
         (r'^sk_[a-zA-Z0-9]{24,}$', 'secret_key'),  # Stripe secret keys
         (r'^pk_[a-zA-Z0-9]{24,}$', 'public_key'),  # Stripe public keys
@@ -41,10 +44,20 @@ def _compile_secret_patterns():
         (r'^[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com$', 'oauth_client_id'),  # Google OAuth Client ID
         (r'^[0-9]{12}:aws:iam::[0-9]{12}:user/[a-zA-Z0-9_-]+$', 'user_arn'),  # AWS User ARN
         (r'^arn:aws:iam::[0-9]{12}:role/[a-zA-Z0-9_-]+$', 'role_arn'),  # AWS Role ARN
+        (r'^[a-zA-Z0-9]{40}$', 'sha1_hash'),  # SHA-1 hashes (like git commit hashes)
+        (r'^[a-zA-Z0-9]{64}$', 'sha256_hash'),  # SHA-256 hashes
+        (r'^[a-zA-Z0-9]{128}$', 'sha512_hash'),  # SHA-512 hashes
+        
         # JWT tokens
         (r'^eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$', 'jwt_token'),
         
-        # Private keys (PEM format) - High Priority
+        # Base64 encoded strings (likely secrets)
+        (r'^[A-Za-z0-9+/]{75,}={0,2}$', 'base64_encoded'),
+        
+        # UUIDs (might be secrets)
+        (r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'uuid'),
+        
+        # Private keys (PEM format)
         (r'^-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----', 'private_key_pem'),
         (r'^-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----', 'openssh_private_key'),
         (r'^-----BEGIN\s+DSA\s+PRIVATE\s+KEY-----', 'dsa_private_key'),
@@ -64,262 +77,141 @@ def _compile_secret_patterns():
         (r'^(postgresql|mysql|mongodb|redis)://[^@]+@[^:]+:\d+', 'database_connection'),
         (r'^mongodb\+srv://[^@]+@[^/]+', 'mongodb_srv_connection'),
         
-        # Generic patterns - Lower Priority (checked last for performance)
-        (r'^[a-zA-Z0-9]{40}$', 'sha1_hash'),  # SHA-1 hashes
-        (r'^[a-zA-Z0-9]{64}$', 'sha256_hash'),  # SHA-256 hashes
-        (r'^[a-zA-Z0-9]{128}$', 'sha512_hash'),  # SHA-512 hashes
-        (r'^[A-Za-z0-9+/]{75,}={0,2}$', 'base64_encoded'),  # Base64 strings
-        (r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'uuid'),  # UUIDs
+        # AWS credentials
         (r'^[A-Za-z0-9/+=]{75,}$', 'secret_key'),  # AWS secret access key
+        
+        # Generic high-entropy strings (75+ chars)
         (r'^[a-f0-9]{75,}$', 'hex_string'),  # Hex strings
         (r'^[A-Z0-9]{75,}$', 'uppercase_alphanumeric'),  # Uppercase alphanumeric
-        (r'^[a-zA-Z0-9]{32,}$', 'long_alphanumeric'),  # Long alphanumeric strings (lowest priority)
     ]
     
-    # Compile pattern groups for efficient batch matching
-    compile_pattern_group('high_priority_secrets', secret_patterns[:20], re.IGNORECASE)
-    compile_pattern_group('medium_priority_secrets', secret_patterns[20:40], re.IGNORECASE)
-    compile_pattern_group('low_priority_secrets', secret_patterns[40:], re.IGNORECASE)
+    for pattern, pattern_name in secret_patterns:
+        if re.match(pattern, text, re.IGNORECASE):
+            return True, pattern_name
     
-    _SECRET_PATTERNS_COMPILED = True
-
-def is_likely_secret(text):
-    """Check if text looks like a secret using pre-compiled patterns and caching."""
-    if not text or len(text.strip()) < 10:
-        return False, None
-    
-    text = text.strip()
-    
-    # Check cache first for performance
-    cache_key = f"secret_check:{hash(text)}"
-    cached_result = get_cached_result(cache_key)
-    if cached_result is not None:
-        return cached_result
-    
-    # Ensure patterns are compiled
-    _compile_secret_patterns()
-    
-    # Check high-priority patterns first (most common secrets)
-    matches = match_pattern_group('high_priority_secrets', text)
-    if matches:
-        result = (True, matches[0][0])  # Return first match
-        cache_result(cache_key, result, ttl_override=600)  # Cache for 10 minutes
-        return result
-    
-    # Check medium-priority patterns
-    matches = match_pattern_group('medium_priority_secrets', text)
-    if matches:
-        result = (True, matches[0][0])
-        cache_result(cache_key, result, ttl_override=600)
-        return result
-    
-    # Check low-priority patterns (most expensive)
-    matches = match_pattern_group('low_priority_secrets', text)
-    if matches:
-        result = (True, matches[0][0])
-        cache_result(cache_key, result, ttl_override=600)
-        return result
-    
-    # High entropy detection (for strings that don't match known patterns)
+    # Check for high entropy (random-looking strings)
     if len(text) > 20:
-        # Quick checks for natural language
+        # If the text contains spaces, it's likely natural language, not a secret
         if ' ' in text:
-            result = (False, None)
-            cache_result(cache_key, result, ttl_override=300)  # Cache for 5 minutes
-            return result
+            return False, None
             
-        # Optimized character type detection
-        char_types = 0
-        char_types += 1 if any(c.isupper() for c in text) else 0
-        char_types += 1 if any(c.islower() for c in text) else 0
-        char_types += 1 if any(c.isdigit() for c in text) else 0
-        char_types += 1 if any(not c.isalnum() for c in text) else 0
+        # Count character types
+        has_upper = bool(re.search(r'[A-Z]', text))
+        has_lower = bool(re.search(r'[a-z]', text))
+        has_digit = bool(re.search(r'\d', text))
+        has_special = bool(re.search(r'[^A-Za-z0-9]', text))
         
-        # Check entropy thresholds
+        # If it has multiple character types and is long, it might be a secret
+        char_types = sum([has_upper, has_lower, has_digit, has_special])
         if (char_types >= 3 and len(text) > 75) or (char_types >= 2 and len(text) >= 40):
-            result = (True, 'high_entropy_string')
-            cache_result(cache_key, result, ttl_override=600)
-            return result
+            return True, 'high_entropy_string'
     
-    # Cache negative results for shorter time
-    result = (False, None)
-    cache_result(cache_key, result, ttl_override=120)  # Cache for 2 minutes
-    return result
-
-# Pre-compiled quoted content patterns
-_QUOTED_PATTERNS_COMPILED = False
-
-def _compile_quoted_patterns():
-    """Pre-compile quoted content patterns for performance."""
-    global _QUOTED_PATTERNS_COMPILED
-    if _QUOTED_PATTERNS_COMPILED:
-        return
-    
-    quoted_patterns = [
-        (r'"([^"]{10,})"', 'double_quoted'),  # Double quoted strings
-        (r"'([^']{10,})'", 'single_quoted'),   # Single quoted strings
-        (r'`([^`]{10,})`', 'backtick_quoted'),  # Backtick quoted strings
-    ]
-    
-    compile_pattern_group('quoted_patterns', quoted_patterns)
-    _QUOTED_PATTERNS_COMPILED = True
+    return False, None
 
 def check_quoted_content(text):
-    """Check for secrets in quoted content with caching and pre-compiled patterns."""
-    # Check cache first
-    cache_key = f"quoted_check:{hash(text)}"
-    cached_result = get_cached_result(cache_key)
-    if cached_result is not None:
-        return cached_result
-    
-    # Ensure patterns are compiled
-    _compile_quoted_patterns()
-    
-    # Use pre-compiled patterns
-    import re
+    """Check for secrets in quoted content."""
+    # Find all quoted strings
     quoted_patterns = [
-        re.compile(r'"([^"]{10,})"'),
-        re.compile(r"'([^']{10,})'"),
-        re.compile(r'`([^`]{10,})`')
+        r'"([^"]{10,})"',  # Double quoted strings
+        r"'([^']{10,})'",  # Single quoted strings
+        r'`([^`]{10,})`',  # Backtick quoted strings
     ]
     
     for pattern in quoted_patterns:
-        matches = pattern.findall(text)
+        matches = re.findall(pattern, text)
         for match in matches:
             is_secret, pattern_name = is_likely_secret(match)
             if is_secret:
-                result = (True, pattern_name, match)
-                cache_result(cache_key, result, ttl_override=300)
-                return result
+                return True, pattern_name, match
     
-    result = (False, None, None)
-    cache_result(cache_key, result, ttl_override=120)
-    return result
-
-# Pre-compiled sensitive keyword patterns
-_SENSITIVE_KEYWORDS_COMPILED = False
-
-def _compile_sensitive_patterns():
-    """Pre-compile sensitive keyword patterns for performance."""
-    global _SENSITIVE_KEYWORDS_COMPILED
-    if _SENSITIVE_KEYWORDS_COMPILED:
-        return
-    
-    sensitive_keywords = [
-        (r'(?i)\b(password|secret|key|token|private|pwd|encrypt|enc)\s*[:=]', 'auth_keywords'),
-        (r'(?i)\b(api_key|access_key|secret_key|private_key)\s*[:=]', 'key_keywords'),
-        (r'(?i)\b(auth|authentication|authorization)\s*[:=]', 'auth_patterns'),
-        (r'(?i)\b(credential|cred)\s*[:=]', 'credential_keywords'),
-        (r'(?i)\b(login|username|user)\s*[:=]', 'user_keywords'),
-        (r'(?i)\b(database|db|connection)\s*[:=]', 'db_keywords'),
-        (r'(?i)\b(host|port|endpoint|url)\s*[:=]', 'network_keywords'),
-        (r'(?i)\b(session|cookie)\s*[:=]', 'session_keywords'),
-        (r'(?i)\b(signature|sign)\s*[:=]', 'signature_keywords'),
-        (r'(?i)\b(hash|digest|checksum)\s*[:=]', 'hash_keywords'),
-    ]
-    
-    compile_pattern_group('sensitive_keywords', sensitive_keywords)
-    _SENSITIVE_KEYWORDS_COMPILED = True
+    return False, None, None
 
 def check_for_sensitive_keywords(text):
-    """Check for sensitive keywords with caching and pre-compiled patterns."""
-    # Check cache first
-    cache_key = f"keyword_check:{hash(text)}"
-    cached_result = get_cached_result(cache_key)
-    if cached_result is not None:
-        return cached_result
+    """Check for sensitive keywords that might indicate secrets."""
+    sensitive_keywords = [
+        r'(?i)\b(password|secret|key|token|private|pwd|encrypt|enc)\s*[:=]',
+        r'(?i)\b(api_key|access_key|secret_key|private_key)\s*[:=]',
+        r'(?i)\b(auth|authentication|authorization)\s*[:=]',
+        r'(?i)\b(credential|cred)\s*[:=]',
+        r'(?i)\b(login|username|user)\s*[:=]',
+        r'(?i)\b(database|db|connection)\s*[:=]',
+        r'(?i)\b(host|port|endpoint|url)\s*[:=]',
+        r'(?i)\b(session|cookie)\s*[:=]',
+        r'(?i)\b(signature|sign)\s*[:=]',
+        r'(?i)\b(hash|digest|checksum)\s*[:=]',
+    ]
     
-    # Ensure patterns are compiled
-    _compile_sensitive_patterns()
+    for pattern in sensitive_keywords:
+        if re.search(pattern, text):
+            return True
     
-    # Use pre-compiled pattern matching
-    matches = match_pattern_group('sensitive_keywords', text)
-    result = len(matches) > 0
-    
-    # Cache result
-    cache_result(cache_key, result, ttl_override=300)
-    return result
+    return False
 
-@performance_decorator("no_secrets_prompted")
-def main():
-    """Main function with performance monitoring and optimization."""
-    # Load input from stdin
-    try:
-        input_data = json.load(sys.stdin)
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-        sys.exit(1)
+# Load input from stdin
+try:
+    input_data = json.load(sys.stdin)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
+    sys.exit(1)
 
-    prompt = input_data.get("prompt", "")
+prompt = input_data.get("prompt", "")
 
-    # Check if secret pattern safety checks are enabled (cached)
-    preferences = get_preferences()
-    secret_pattern_safety_checks = preferences.get('secret_pattern_safety_checks', {})
-    if not secret_pattern_safety_checks.get('enabled', True):
-        print(f"Skipping secret pattern safety checks.")
-        sys.exit(0)
+# Check if secret pattern safety checks are enabled
+preferences = get_preferences()
+secret_pattern_safety_checks = preferences.get('secret_pattern_safety_checks', {})
+if not secret_pattern_safety_checks.get('enabled', True):
+    print(f"Skipping secret pattern safety checks.")
+    sys.exit(0)
 
-    # Ensure all patterns are pre-compiled before processing
-    _compile_secret_patterns()
-    _compile_quoted_patterns()
-    _compile_sensitive_patterns()
+# Check for sensitive keywords FIXME: (Disabled for false positives)
+# if check_for_sensitive_keywords(prompt):
+#     output = {
+#         "continue": False,
+#         "stopReason": "Security policy violation: Prompt contains sensitive keywords. Please rephrase your request without sensitive information.",
+#         "suppressOutput": True,
+#         "decision": "block",
+#         "reason": "Security policy violation: Prompt contains sensitive keywords. Please rephrase your request without sensitive information."
+#     }
+#     print(json.dumps(output))
+#     sys.exit(2)
 
-    # Check for sensitive keywords FIXME: (Disabled for false positives)
-    # if check_for_sensitive_keywords(prompt):
-    #     output = {
-    #         "continue": False,
-    #         "stopReason": "Security policy violation: Prompt contains sensitive keywords. Please rephrase your request without sensitive information.",
-    #         "suppressOutput": True,
-    #         "decision": "block",
-    #         "reason": "Security policy violation: Prompt contains sensitive keywords. Please rephrase your request without sensitive information."
-    #     }
-    #     print(json.dumps(output))
-    #     sys.exit(2)
+# Check for secrets in quoted content
+found_secret, pattern_name, match_text = check_quoted_content(prompt)
+if found_secret:
+    # Show first 8 characters with ellipsis
+    preview = match_text[:8] + "..." if len(match_text) > 8 else match_text
+    output = {
+        "continue": False,
+        "stopReason": "Security policy violation: Quoted content contains potential secrets. Please rephrase your request without sensitive information. You may reference secrets from a different directory or vault (e.g. doppler, hashicorp vault, unix pass).",
+        "suppressOutput": True,
+        "decision": "block",
+        "reason": f"Security policy violation: Quoted content contains potential secrets. Pattern triggered: {pattern_name} (starts with: {preview}). Please rephrase your request without sensitive information. You may reference secrets from a different directory or vault  (e.g. doppler, hashicorp vault, unix pass)."
+    }
+    log_decision(output, operation_type="quoted_secrets_decision")
+    print(json.dumps(output))
+    sys.exit(2)
 
-    # Check for secrets in quoted content (optimized)
-    found_secret, pattern_name, match_text = check_quoted_content(prompt)
-    if found_secret:
+# Check for long strings that might be secrets
+words = prompt.split()
+for word in words:
+    is_secret, pattern_name = is_likely_secret(word)
+    if is_secret:
         # Show first 8 characters with ellipsis
-        preview = match_text[:8] + "..." if len(match_text) > 8 else match_text
+        preview = word[:8] + "..." if len(word) > 8 else word
         output = {
             "continue": False,
-            "stopReason": "Security policy violation: Quoted content contains potential secrets. Please rephrase your request without sensitive information. You may reference secrets from a different directory or vault (e.g. doppler, hashicorp vault, unix pass).",
+            "stopReason": "Security policy violation: Prompt contains potential secret values. Please rephrase your request without sensitive information.",
             "suppressOutput": True,
             "decision": "block",
-            "reason": f"Security policy violation: Quoted content contains potential secrets. Pattern triggered: {pattern_name} (starts with: {preview}). Please rephrase your request without sensitive information. You may reference secrets from a different directory or vault  (e.g. doppler, hashicorp vault, unix pass)."
+            "reason": f"Security policy violation: Prompt contains potential secret values. Pattern triggered: {pattern_name} (starts with: {preview}). Please rephrase your request without sensitive information."
         }
-        log_decision(output, operation_type="quoted_secrets_decision")
+        log_decision(output, operation_type="word_secrets_decision")
         print(json.dumps(output))
         sys.exit(2)
 
-    # Optimized word-by-word secret checking with early exit
-    words = prompt.split()
-    for word in words:
-        # Skip very short words for performance
-        if len(word) < 10:
-            continue
-            
-        is_secret, pattern_name = is_likely_secret(word)
-        if is_secret:
-            # Show first 8 characters with ellipsis
-            preview = word[:8] + "..." if len(word) > 8 else word
-            output = {
-                "continue": False,
-                "stopReason": "Security policy violation: Prompt contains potential secret values. Please rephrase your request without sensitive information.",
-                "suppressOutput": True,
-                "decision": "block",
-                "reason": f"Security policy violation: Prompt contains potential secret values. Pattern triggered: {pattern_name} (starts with: {preview}). Please rephrase your request without sensitive information."
-            }
-            log_decision(output, operation_type="word_secrets_decision")
-            print(json.dumps(output))
-            sys.exit(2)
-
-    # Allow the prompt to proceed
-    output = {
-        "reason": "No sensitive information detected in prompt. Proceeding."
-    }
-    print(json.dumps(output))
-    sys.exit(0)
-
-if __name__ == "__main__":
-    main()
+# Allow the prompt to proceed
+output = {
+    "reason": "No sensitive information detected in prompt. Proceeding."
+}
+print(json.dumps(output))
+sys.exit(0)
