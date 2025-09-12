@@ -42,11 +42,11 @@ const mistralConfig: LLMConfig = {
   enabled: !!process.env.MISTRAL_API_KEY
 };
 
-// Add Gemini configuration
+// Add Gemini configuration with optimized defaults
 const geminiConfig: LLMConfig = {
   apiKey: process.env.GEMINI_API_KEY || '',
   endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
-  model: 'gemini-1.5-pro',
+  model: 'gemini-1.5-pro', // Will be dynamically selected based on task
   enabled: !!process.env.GEMINI_API_KEY
 };
 
@@ -301,7 +301,7 @@ async function enhanceWithMistral(
 }
 
 /**
- * Enhance a prompt using Gemini API
+ * Enhance a prompt using Gemini API with full optimization pipeline
  */
 async function enhanceWithGemini(
   prompt: string,
@@ -313,71 +313,210 @@ async function enhanceWithGemini(
   }
 
   try {
-    const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+    const startTime = Date.now();
     
-    // Convert to Gemini format - system prompt goes in a special parameter
-    const systemPrompt = messages[0].content;
+    // Import template enhancer (dynamic import to avoid circular dependencies)
+    const { GeminiTemplateEnhancer, GeminiTemplateManager } = await import('./providers/gemini-templates');
+    const { GeminiModelSelector, GeminiSafetyController } = await import('./providers/gemini-optimizer');
     
-    // Extract examples and user message
-    const examples = [];
-    let userMessage = '';
+    // Detect task type for template optimization
+    const taskType = GeminiTemplateManager.detectTaskType(prompt);
+    const shouldUseTemplate = ['creative', 'reasoning', 'technical', 'educational'].includes(taskType);
     
-    for (let i = 1; i < messages.length; i += 2) {
-      if (i + 1 < messages.length) {
-        examples.push({
-          input: { text: messages[i].content },
-          output: { text: messages[i+1].content }
-        });
-      } else {
-        userMessage = messages[i].content;
-      }
-    }
+    // Select optimal model
+    const model = GeminiModelSelector.selectModel(prompt, context, taskType === 'reasoning' || taskType === 'creative');
     
-    const response = await fetch(`${geminiConfig.endpoint}?key=${geminiConfig.apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userMessage }]
-          }
-        ],
-        systemInstruction: { text: systemPrompt },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_ONLY_HIGH"
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 1024
+    let result;
+    
+    if (shouldUseTemplate && !isRefinement) {
+      console.log(`🎯 Using Gemini template optimization: ${taskType} (${model})`);
+      
+      // Use template-based enhancement
+      result = await GeminiTemplateEnhancer.enhance(prompt, context, {
+        forceTaskType: taskType,
+        isRefinement,
+        apiKey: geminiConfig.apiKey
+      });
+      
+      return {
+        enhancedPrompt: result.enhancedPrompt,
+        source: 'gemini',
+        metadata: {
+          model,
+          usage: result.metadata.usage,
+          optimization: `gemini-template-${taskType}-v1.0`,
+          processTime: result.metadata.processTime,
+          taskType,
+          finishReason: result.metadata.finishReason
         }
-      })
-    });
+      };
+    } else {
+      // Use general Gemini-optimized enhancement
+      const systemInstruction = buildGeminiSystemInstruction(isRefinement, taskType);
+      const userContent = buildGeminiUserContent(prompt, context, isRefinement, taskType);
+      
+      // Get optimal generation configuration
+      const generationConfig = getGeminiGenerationConfig(taskType, isRefinement);
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiConfig.apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${systemInstruction}\n\n${userContent}` }] }],
+          generationConfig,
+          safetySettings: GeminiSafetyController.buildSafetySettings()
+        })
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
-    }
-
-    const data = await response.json();
-    const enhancedPrompt = data.candidates[0].content.parts[0].text;
-
-    return {
-      enhancedPrompt,
-      source: 'gemini',
-      metadata: {
-        model: geminiConfig.model
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
       }
-    };
+
+      const data = await response.json();
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new Error('Gemini API returned no content');
+      }
+      
+      let enhancedPrompt = data.candidates[0].content.parts[0].text;
+      
+      // Quality validation and post-processing
+      const validation = GeminiSafetyController.validateResponse(enhancedPrompt);
+      if (!validation.isValid) {
+        console.warn('Gemini response quality issues:', validation.issues);
+      }
+      
+      // Apply post-processing
+      enhancedPrompt = processGeminiResponse(enhancedPrompt);
+      
+      return {
+        enhancedPrompt,
+        source: 'gemini',
+        metadata: {
+          model,
+          usage: data.usageMetadata,
+          optimization: 'gemini-optimized-v1.0',
+          processTime: Date.now() - startTime,
+          taskType,
+          finishReason: data.candidates[0].finishReason
+        }
+      };
+    }
   } catch (error) {
     console.error('Error calling Gemini API:', error);
     throw error;
   }
+}
+
+/**
+ * Build Gemini-specific system instruction with few-shot learning
+ */
+function buildGeminiSystemInstruction(isRefinement: boolean = false, taskType: string = 'general'): string {
+  const baseInstruction = isRefinement 
+    ? `You are an expert prompt refinement specialist. Your task is to refine already-enhanced prompts by adding missing details, improving clarity, and strengthening specifications while preserving the original intent.\n\nKey principles:\n1. Build upon existing quality (don't restart from scratch)\n2. Add substantial improvements (not minor tweaks)\n3. Include concrete examples where beneficial\n4. Ensure all constraints and requirements are explicit\n5. Output ONLY the refined prompt text - no introductions or explanations`
+    : `You are an expert prompt engineering specialist. Your task is to transform basic prompts into comprehensive, actionable instructions that deliver exceptional results.\n\nKey principles:\n1. Extract and clarify the core intent\n2. Add specific requirements and constraints\n3. Structure with clear hierarchy and organization\n4. Include success criteria and quality standards\n5. Specify desired format and output structure\n6. Output ONLY the enhanced prompt text - no introductions or explanations`;
+
+  // Add task-specific guidance
+  if (taskType === 'creative') {
+    return baseInstruction + `\n\nCreative Focus:\n• Incorporate multi-sensory and emotional dimensions\n• Include diverse perspective requirements\n• Add inspiration sources and creative constraints\n• Specify innovation and uniqueness criteria`;
+  } else if (taskType === 'technical') {
+    return baseInstruction + `\n\nTechnical Focus:\n• Include architecture and design pattern considerations\n• Address scalability, performance, and security\n• Define testing strategies and quality standards\n• Specify deployment and operational requirements`;
+  } else if (taskType === 'reasoning') {
+    return baseInstruction + `\n\nAnalytical Focus:\n• Structure systematic thinking processes\n• Include evidence gathering requirements\n• Address potential biases and alternative perspectives\n• Define logical reasoning frameworks`;
+  }
+  
+  return baseInstruction;
+}
+
+/**
+ * Build Gemini-specific user content
+ */
+function buildGeminiUserContent(prompt: string, context?: string, isRefinement: boolean = false, taskType: string = 'general'): string {
+  const taskAction = isRefinement ? 'REFINE' : 'ENHANCE';
+  
+  let content = `Task: ${taskAction} the following prompt\n\n`;
+  
+  if (context && context.trim()) {
+    content += `Context: ${context}\n\n`;
+  }
+  
+  if (taskType !== 'general') {
+    content += `Task type: ${taskType}\n\n`;
+  }
+  
+  content += `Prompt to ${taskAction.toLowerCase()}: ${prompt}\n\n`;
+  content += `Provide only the ${isRefinement ? 'refined' : 'enhanced'} prompt text. Do not include introductions, explanations, or meta-text.`;
+  
+  return content;
+}
+
+/**
+ * Get optimal generation configuration for Gemini based on task type
+ */
+function getGeminiGenerationConfig(taskType: string = 'general', isRefinement: boolean = false): any {
+  const baseConfig = {
+    topK: 40,
+    topP: 0.95,
+    maxOutputTokens: 8192,
+    stopSequences: []
+  };
+  
+  // Adjust temperature based on task type
+  if (taskType === 'creative') {
+    return { ...baseConfig, temperature: 0.4 }; // Higher for creativity
+  } else if (taskType === 'technical') {
+    return { ...baseConfig, temperature: 0.1, maxOutputTokens: 6144 }; // Lower for precision
+  } else if (taskType === 'reasoning') {
+    return { ...baseConfig, temperature: 0.2 }; // Balanced for analysis
+  }
+  
+  return { ...baseConfig, temperature: 0.2 }; // Default balanced setting
+}
+
+/**
+ * Process Gemini response with specific optimizations
+ */
+function processGeminiResponse(response: string): string {
+  let cleaned = response.trim();
+  
+  // Remove common Gemini meta-text patterns
+  const metaPatterns = [
+    /^(Here's the|Here is the)\s+(enhanced|refined|improved)\s+prompt:?\s*/i,
+    /^(The|This)\s+(enhanced|refined|improved)\s+prompt\s+is:?\s*/i,
+    /^(Enhanced|Refined|Improved)\s+prompt:?\s*/i,
+    /^\*\*(Enhanced|Refined|Improved)\s+Prompt\*\*:?\s*/i,
+    /^Task:\s+(ENHANCE|REFINE).*?\n\n/i
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Remove markdown artifacts that Gemini sometimes includes
+  cleaned = cleaned.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+  cleaned = cleaned.replace(/^---\n?/, '').replace(/\n?---$/, '');
+  
+  // Normalize formatting
+  cleaned = cleaned
+    .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive line breaks
+    .replace(/[ \t]+/g, ' ')     // Normalize spaces
+    .replace(/\n /g, '\n')       // Remove leading spaces after line breaks
+    .trim();
+  
+  // Ensure minimum quality standards
+  if (cleaned.length < 50) {
+    cleaned += '. Include comprehensive details, clear structure, and specific requirements for optimal results.';
+  }
+  
+  // Ensure proper sentence endings
+  if (!cleaned.match(/[.!?]$/)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
 }
 
 /**
