@@ -772,7 +772,7 @@ function shouldUseTemplateOptimization(prompt: string): boolean {
 }
 
 // Build template-optimized messages (simplified version for server-side)
-function buildMistralTemplateMessages(prompt: string, context?: string, taskType: string) {
+function buildMistralTemplateMessages(prompt: string, context: string | undefined, taskType: string) {
   // Simplified template system for server-side use
   const templates = {
     classification: {
