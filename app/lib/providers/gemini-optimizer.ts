@@ -517,7 +517,7 @@ export class GeminiOptimizer {
     return baseInstruction;
   }
   
-  private buildOptimizedUserContent(prompt: string, context?: string, options: any): string {
+  private buildOptimizedUserContent(prompt: string, context: string | undefined, options: any): string {
     let content = `Task: ${options.isRefinement ? 'REFINE' : 'ENHANCE'} the following prompt\n\n`;
     
     if (context && context.trim()) {
