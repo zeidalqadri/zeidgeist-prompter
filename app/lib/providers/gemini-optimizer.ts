@@ -156,7 +156,7 @@ export class GeminiFewShotManager {
     };
     
     // Return examples for the specific task type, or default to analysis examples
-    return exampleSets[taskType] || exampleSets.analysis;
+    return exampleSets[taskType as keyof typeof exampleSets] || exampleSets.analysis;
   }
   
   private static buildEnhancementExamples(examples: { basic: string; enhanced: string }[]): string {
