@@ -11,6 +11,7 @@ interface Env {
   GEMINI_API_KEY?: string;
   NODE_ENV?: string;
   APP_ENV?: string;
+  DEBUG_ACCESS_TOKEN?: string;
 }
 
 interface ApiKeyStatus {
