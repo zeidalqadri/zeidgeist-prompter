@@ -110,7 +110,7 @@ export class GeminiTemplateManager {
       general: this.buildGeneralTemplate(isRefinement)
     };
     
-    return templates[taskType] || templates.general;
+    return templates[taskType as keyof typeof templates] || templates.general;
   }
   
   private static hasPatterns(text: string, patterns: string[]): boolean {
