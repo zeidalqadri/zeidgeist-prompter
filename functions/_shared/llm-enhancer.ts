@@ -1310,6 +1310,15 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+// Provider preferences interface
+interface ProviderPreferences {
+  selectionMode: 'random' | 'forced' | 'custom'
+  forcedProvider?: string
+  excludedProviders: string[]
+  sessionDuration: number
+  timestamp: number
+}
+
 // Main enhancement function with random rotation
 export async function enhancePrompt(
   prompt: string,
@@ -1319,9 +1328,16 @@ export async function enhancePrompt(
     isExpansion?: boolean;
     repeatCount?: number;
     env?: Record<string, string>;
+    providerPreferences?: ProviderPreferences | null;
+    testProvider?: string | null;
   } = {}
 ): Promise<EnhancementResponse> {
-  const { isRefinement = false, env = {} } = options;
+  const { 
+    isRefinement = false, 
+    env = {}, 
+    providerPreferences, 
+    testProvider 
+  } = options;
 
   // Check which API keys are configured
   const availableProviders = [];
@@ -1375,11 +1391,58 @@ export async function enhancePrompt(
     };
   }
 
-  // Randomly shuffle providers for load balancing and diversity
-  const shuffledProviders = shuffleArray(availableProviders);
-  console.log(`Available providers: ${shuffledProviders.map(p => p.name).join(', ')}`);
+  // Apply provider preferences from /tweak page
+  let selectedProviders = [...availableProviders];
+  
+  // Handle test provider (from /tweak page testing)
+  if (testProvider) {
+    console.log(`🧪 Test mode: forcing provider ${testProvider}`);
+    const testProviderObj = availableProviders.find(p => 
+      p.name.toLowerCase() === testProvider.toLowerCase()
+    );
+    if (testProviderObj) {
+      selectedProviders = [testProviderObj];
+    } else {
+      console.warn(`⚠️ Test provider ${testProvider} not available or configured`);
+    }
+  }
+  // Handle forced provider selection
+  else if (providerPreferences?.selectionMode === 'forced' && providerPreferences.forcedProvider) {
+    console.log(`🎯 Forced provider mode: ${providerPreferences.forcedProvider}`);
+    const forcedProviderObj = availableProviders.find(p => 
+      p.name.toLowerCase() === providerPreferences.forcedProvider?.toLowerCase()
+    );
+    if (forcedProviderObj) {
+      selectedProviders = [forcedProviderObj, ...availableProviders.filter(p => p !== forcedProviderObj)];
+      console.log(`✅ Forcing ${providerPreferences.forcedProvider} with fallback to others`);
+    } else {
+      console.warn(`⚠️ Forced provider ${providerPreferences.forcedProvider} not available, using random`);
+    }
+  }
+  // Handle custom rotation (exclude specified providers)
+  else if (providerPreferences?.selectionMode === 'custom' && providerPreferences.excludedProviders.length > 0) {
+    console.log(`🚫 Custom rotation: excluding ${providerPreferences.excludedProviders.join(', ')}`);
+    selectedProviders = availableProviders.filter(p => 
+      !providerPreferences.excludedProviders.some(excluded => 
+        excluded.toLowerCase() === p.name.toLowerCase()
+      )
+    );
+    console.log(`✅ Custom rotation will use: ${selectedProviders.map(p => p.name).join(', ')}`);
+    
+    if (selectedProviders.length === 0) {
+      console.warn('⚠️ All providers excluded, falling back to all available providers');
+      selectedProviders = [...availableProviders];
+    }
+  }
+  
+  // Randomly shuffle providers for load balancing and diversity (unless in forced/test mode)
+  const shuffledProviders = testProvider || (providerPreferences?.selectionMode === 'forced' && providerPreferences.forcedProvider) 
+    ? selectedProviders 
+    : shuffleArray(selectedProviders);
+  
+  console.log(`🎲 Selected providers (${providerPreferences?.selectionMode || 'random'}): ${shuffledProviders.map(p => p.name).join(', ')}`);
 
-  // Try providers in random order
+  // Try providers in preferred order
   for (const provider of shuffledProviders) {
     try {
       console.log(`🚀 Trying enhancement with ${provider.name}...`);
