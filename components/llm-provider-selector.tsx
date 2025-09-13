@@ -152,8 +152,8 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
   return (
     <div className="space-y-8">
       {/* Selection Mode */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">🎯 Selection Mode</h2>
+      <div className="bg-white border border-gray-10 p-6 rounded-lg">
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">🎯 Selection Mode</h2>
         <div className="space-y-3">
           <label className="flex items-center space-x-3 cursor-pointer">
             <input
@@ -162,11 +162,11 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
               value="random"
               checked={preferences.selectionMode === 'random'}
               onChange={(e) => setPreferences(prev => ({ ...prev, selectionMode: e.target.value as any }))}
-              className="text-blue-600"
+              className="text-black-primary"
             />
             <div>
-              <span className="font-medium">Random (Load Balanced)</span>
-              <p className="text-sm text-gray-400">Default behavior - randomly selects from available providers</p>
+              <span className="font-medium text-black-primary">Random (Load Balanced)</span>
+              <p className="text-sm text-gray-60">Default behavior - randomly selects from available providers</p>
             </div>
           </label>
           
@@ -177,11 +177,11 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
               value="forced"
               checked={preferences.selectionMode === 'forced'}
               onChange={(e) => setPreferences(prev => ({ ...prev, selectionMode: e.target.value as any }))}
-              className="text-blue-600"
+              className="text-black-primary"
             />
             <div>
-              <span className="font-medium">Force Specific Provider</span>
-              <p className="text-sm text-gray-400">Always use the selected provider (with fallback)</p>
+              <span className="font-medium text-black-primary">Force Specific Provider</span>
+              <p className="text-sm text-gray-60">Always use the selected provider (with fallback)</p>
             </div>
           </label>
           
@@ -192,30 +192,30 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
               value="custom"
               checked={preferences.selectionMode === 'custom'}
               onChange={(e) => setPreferences(prev => ({ ...prev, selectionMode: e.target.value as any }))}
-              className="text-blue-600"
+              className="text-black-primary"
             />
             <div>
-              <span className="font-medium">Custom Rotation</span>
-              <p className="text-sm text-gray-400">Random selection excluding specified providers</p>
+              <span className="font-medium text-black-primary">Custom Rotation</span>
+              <p className="text-sm text-gray-60">Random selection excluding specified providers</p>
             </div>
           </label>
         </div>
       </div>
 
       {/* Provider Status */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">⚡ Provider Status</h2>
+      <div className="bg-white border border-gray-10 p-6 rounded-lg">
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">⚡ Provider Status</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((provider) => (
             <div key={provider.provider} className={`p-4 rounded-lg border ${
               provider.configured && provider.enabled 
-                ? 'border-green-500 bg-green-500/10' 
+                ? 'border-green-500 bg-green-50' 
                 : provider.configured 
-                ? 'border-yellow-500 bg-yellow-500/10'
-                : 'border-red-500 bg-red-500/10'
+                ? 'border-yellow-500 bg-yellow-50'
+                : 'border-red-500 bg-red-50'
             }`}>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium">{provider.provider}</h3>
+                <h3 className="font-medium text-black-primary">{provider.provider}</h3>
                 <div className="flex items-center space-x-2">
                   {provider.configured && provider.enabled && (
                     <span className="text-green-400 text-sm">✅</span>
@@ -229,13 +229,13 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                 </div>
               </div>
               
-              <p className="text-xs text-gray-400 mb-3">
+              <p className="text-xs text-gray-60 mb-3">
                 {provider.configured ? 'API Key Configured' : 'No API Key'}
                 {provider.notes && ` - ${provider.notes}`}
               </p>
               
               {provider.keyPreview && (
-                <p className="text-xs text-gray-500 mb-3 font-mono">
+                <p className="text-xs text-gray-30 mb-3 font-mono">
                   Key: {provider.keyPreview}
                 </p>
               )}
@@ -244,7 +244,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                 <button
                   onClick={() => testProvider(provider.provider)}
                   disabled={testing === provider.provider}
-                  className="w-full py-1 px-2 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded transition duration-200"
+                  className="w-full py-1 px-2 text-xs bg-black-primary hover:bg-black-rich disabled:bg-gray-30 text-white-pure rounded transition duration-200"
                 >
                   {testing === provider.provider ? (
                     <span className="flex items-center justify-center">
@@ -267,15 +267,15 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Forced Provider Selection */}
       {preferences.selectionMode === 'forced' && (
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">🎯 Force Provider</h2>
+        <div className="bg-white border border-gray-10 p-6 rounded-lg">
+          <h2 className="text-xl font-semibold mb-4 text-black-primary">🎯 Force Provider</h2>
           <select
             value={preferences.forcedProvider || ''}
             onChange={(e) => setPreferences(prev => ({ 
               ...prev, 
               forcedProvider: e.target.value || undefined 
             }))}
-            className="w-full md:w-64 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full md:w-64 px-3 py-2 bg-white border border-gray-10 rounded-md text-black-primary focus:outline-none focus:ring-2 focus:ring-black-primary"
           >
             <option value="">Select provider to force...</option>
             {availableProviders.map((provider) => (
@@ -284,7 +284,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
               </option>
             ))}
           </select>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-sm text-gray-60 mt-2">
             Selected provider will be used for all requests (with automatic fallback if it fails)
           </p>
         </div>
@@ -292,8 +292,8 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Custom Rotation */}
       {preferences.selectionMode === 'custom' && (
-        <div className="bg-gray-800 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">🚫 Exclude from Rotation</h2>
+        <div className="bg-white border border-gray-10 p-6 rounded-lg">
+          <h2 className="text-xl font-semibold mb-4 text-black-primary">🚫 Exclude from Rotation</h2>
           <div className="space-y-2">
             {availableProviders.map((provider) => (
               <label key={provider.provider} className="flex items-center space-x-3 cursor-pointer">
@@ -309,30 +309,30 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                         : prev.excludedProviders.filter(p => p !== providerName)
                     }))
                   }}
-                  className="text-blue-600"
+                  className="text-black-primary"
                 />
-                <span>{provider.provider}</span>
+                <span className="text-black-primary">{provider.provider}</span>
               </label>
             ))}
           </div>
-          <p className="text-sm text-gray-400 mt-3">
+          <p className="text-sm text-gray-60 mt-3">
             Excluded providers will not be used in random rotation
           </p>
         </div>
       )}
 
       {/* Session Settings */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">⏰ Session Settings</h2>
+      <div className="bg-white border border-gray-10 p-6 rounded-lg">
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">⏰ Session Settings</h2>
         <div className="flex items-center space-x-4">
-          <label className="text-sm font-medium">Session Duration:</label>
+          <label className="text-sm font-medium text-black-primary">Session Duration:</label>
           <select
             value={preferences.sessionDuration}
             onChange={(e) => setPreferences(prev => ({ 
               ...prev, 
               sessionDuration: parseInt(e.target.value) 
             }))}
-            className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-white border border-gray-10 rounded-md text-black-primary focus:outline-none focus:ring-2 focus:ring-black-primary"
           >
             <option value={1}>1 hour</option>
             <option value={6}>6 hours</option>
@@ -344,19 +344,19 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
       </div>
 
       {/* Recent Usage */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">📊 Recent Usage</h2>
+      <div className="bg-white border border-gray-10 p-6 rounded-lg">
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">📊 Recent Usage</h2>
         {recentUsage.length > 0 ? (
           <div className="space-y-2">
             {recentUsage.map((usage, index) => (
               <div key={index} className="flex items-center justify-between text-sm">
-                <span className="font-medium text-blue-400">{usage.provider}</span>
-                <span className="text-gray-400">{usage.timestamp}</span>
+                <span className="font-medium text-black-primary">{usage.provider}</span>
+                <span className="text-gray-60">{usage.timestamp}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-gray-400">No recent usage data available</p>
+          <p className="text-gray-60">No recent usage data available</p>
         )}
       </div>
 
@@ -365,21 +365,21 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
         <button
           id="save-button"
           onClick={() => savePreferences(preferences)}
-          className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-md transition duration-200"
+          className="bg-black-primary hover:bg-black-rich text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
           💾 Save Preferences
         </button>
         
         <button
           onClick={clearPreferences}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md transition duration-200"
+          className="bg-red-600 hover:bg-red-700 text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
           🗑️ Clear All
         </button>
         
         <button
           onClick={onUpdate}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-md transition duration-200"
+          className="bg-black-primary hover:bg-black-rich text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
           🔄 Refresh Status
         </button>
@@ -388,7 +388,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
           onClick={() => {
             window.open('/', '_blank')
           }}
-          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-md transition duration-200"
+          className="bg-gray-600 hover:bg-gray-700 text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
           🧪 Test in New Tab
         </button>
