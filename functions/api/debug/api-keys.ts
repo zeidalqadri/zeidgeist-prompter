@@ -65,11 +65,11 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
   // Check all API key configurations
   const apiKeyStatuses: ApiKeyStatus[] = [
     {
-      provider: 'Claude (Anthropic)',
+      provider: 'Claude',
       configured: !!env.CLAUDE_API_KEY,
       keyPreview: createKeyPreview(env.CLAUDE_API_KEY),
       enabled: true,
-      notes: 'Primary AI provider - claude-3-haiku-20240307'
+      notes: 'Primary AI provider - claude-3-haiku-20240307 (Anthropic)'
     },
     {
       provider: 'OpenAI',
@@ -93,11 +93,11 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
       notes: 'DISABLED - Issues with intro/outro text formatting'
     },
     {
-      provider: 'Moonshot (Kimi)',
+      provider: 'Moonshot',
       configured: !!env.MOONSHOT_API_KEY,
       keyPreview: createKeyPreview(env.MOONSHOT_API_KEY),
       enabled: true,
-      notes: 'Alternative AI provider - moonshot-v1-8k'
+      notes: 'Alternative AI provider - moonshot-v1-8k (Kimi)'
     },
     {
       provider: 'Gemini',

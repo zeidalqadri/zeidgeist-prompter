@@ -650,3 +650,7 @@ EOF
 --------------------------------
 2025-09-13T21:48:25.256286 - git status - Verify commit succeeded
 --------------------------------
+2025-09-13T21:50:49.200139 - ls -la functions/api/debug/ - Check debug API directory structure
+--------------------------------
+2025-09-13T21:51:18.352242 - curl -s http://localhost:8787/api/debug/api-keys -H "Authorization: Bearer debug-token-not-set" | head -50 - Test the debug API endpoint locally
+--------------------------------
