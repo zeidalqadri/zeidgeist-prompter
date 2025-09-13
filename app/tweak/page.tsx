@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import LLMProviderSelector from '../../components/llm-provider-selector'
 
 interface ProviderStatus {
-  name: string
+  provider: string
   configured: boolean
   enabled: boolean
   notes?: string
+  keyPreview?: string
 }
 
 export default function TweakPage() {
