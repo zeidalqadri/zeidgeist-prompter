@@ -58,7 +58,7 @@ export default function TweakPage() {
     return (
       <div className="min-h-screen bg-white-pure flex items-center justify-center p-4">
         <div className="bg-white border border-gray-10 p-8 rounded-lg shadow-sm max-w-md w-full">
-          <h1 className="text-2xl font-bold mb-6 text-center text-black-primary">🔧 LLM Tweaker</h1>
+          <h1 className="text-2xl font-bold mb-6 text-center text-black-primary">LLM Tweaker</h1>
           <p className="text-gray-60 mb-6 text-center">
             Secret configuration page for LLM provider selection
           </p>
@@ -100,7 +100,7 @@ export default function TweakPage() {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <h1 className="text-2xl font-bold text-black-primary">🔧 LLM Provider Configuration</h1>
+              <h1 className="text-2xl font-bold text-black-primary">LLM Provider Configuration</h1>
               <span className="bg-red-500 text-xs px-2 py-1 rounded-full text-white">SECRET</span>
             </div>
             <div className="flex items-center space-x-4">
@@ -134,7 +134,7 @@ export default function TweakPage() {
 
         {/* Footer Information */}
         <div className="mt-12 p-4 bg-white-soft border border-gray-10 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3 text-black-primary">🛡️ Security & Usage Notes</h3>
+          <h3 className="text-lg font-semibold mb-3 text-black-primary">Security & Usage Notes</h3>
           <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-60">
             <div>
               <h4 className="font-medium text-black-primary mb-2">Session Storage</h4>

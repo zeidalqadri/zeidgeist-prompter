@@ -76,7 +76,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
         const button = document.getElementById('save-button')
         if (button) {
           const originalText = button.textContent
-          button.textContent = '✅ Saved!'
+          button.textContent = 'Saved!'
           setTimeout(() => {
             button.textContent = originalText
           }, 2000)
@@ -153,7 +153,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
     <div className="space-y-8">
       {/* Selection Mode */}
       <div className="bg-white border border-gray-10 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4 text-black-primary">🎯 Selection Mode</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">Selection Mode</h2>
         <div className="space-y-3">
           <label className="flex items-center space-x-3 cursor-pointer">
             <input
@@ -204,7 +204,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Provider Status */}
       <div className="bg-white border border-gray-10 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4 text-black-primary">⚡ Provider Status</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">Provider Status</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((provider) => (
             <div key={provider.provider} className={`p-4 rounded-lg border ${
@@ -218,13 +218,13 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                 <h3 className="font-medium text-black-primary">{provider.provider}</h3>
                 <div className="flex items-center space-x-2">
                   {provider.configured && provider.enabled && (
-                    <span className="text-green-400 text-sm">✅</span>
+                    <span className="text-green-600 text-xs font-medium px-2 py-1 bg-green-100 rounded">Active</span>
                   )}
                   {provider.configured && !provider.enabled && (
-                    <span className="text-yellow-400 text-sm">⚠️</span>
+                    <span className="text-yellow-600 text-xs font-medium px-2 py-1 bg-yellow-100 rounded">Warning</span>
                   )}
                   {!provider.configured && (
-                    <span className="text-red-400 text-sm">❌</span>
+                    <span className="text-red-600 text-xs font-medium px-2 py-1 bg-red-100 rounded">Inactive</span>
                   )}
                 </div>
               </div>
@@ -253,8 +253,8 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                     </span>
                   ) : (
                     <>
-                      {testResults[provider.provider] === 'success' && '✅ '}
-                      {testResults[provider.provider] === 'error' && '❌ '}
+                      {testResults[provider.provider] === 'success' && 'Success: '}
+                      {testResults[provider.provider] === 'error' && 'Error: '}
                       Test Provider
                     </>
                   )}
@@ -268,7 +268,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
       {/* Forced Provider Selection */}
       {preferences.selectionMode === 'forced' && (
         <div className="bg-white border border-gray-10 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4 text-black-primary">🎯 Force Provider</h2>
+          <h2 className="text-xl font-semibold mb-4 text-black-primary">Force Provider</h2>
           <select
             value={preferences.forcedProvider || ''}
             onChange={(e) => setPreferences(prev => ({ 
@@ -293,7 +293,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
       {/* Custom Rotation */}
       {preferences.selectionMode === 'custom' && (
         <div className="bg-white border border-gray-10 p-6 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4 text-black-primary">🚫 Exclude from Rotation</h2>
+          <h2 className="text-xl font-semibold mb-4 text-black-primary">Exclude from Rotation</h2>
           <div className="space-y-2">
             {availableProviders.map((provider) => (
               <label key={provider.provider} className="flex items-center space-x-3 cursor-pointer">
@@ -323,7 +323,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Session Settings */}
       <div className="bg-white border border-gray-10 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4 text-black-primary">⏰ Session Settings</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">Session Settings</h2>
         <div className="flex items-center space-x-4">
           <label className="text-sm font-medium text-black-primary">Session Duration:</label>
           <select
@@ -345,7 +345,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Recent Usage */}
       <div className="bg-white border border-gray-10 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4 text-black-primary">📊 Recent Usage</h2>
+        <h2 className="text-xl font-semibold mb-4 text-black-primary">Recent Usage</h2>
         {recentUsage.length > 0 ? (
           <div className="space-y-2">
             {recentUsage.map((usage, index) => (
@@ -367,21 +367,21 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
           onClick={() => savePreferences(preferences)}
           className="bg-black-primary hover:bg-black-rich text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
-          💾 Save Preferences
+          Save Preferences
         </button>
         
         <button
           onClick={clearPreferences}
           className="bg-red-600 hover:bg-red-700 text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
-          🗑️ Clear All
+          Clear All
         </button>
         
         <button
           onClick={onUpdate}
           className="bg-black-primary hover:bg-black-rich text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
-          🔄 Refresh Status
+          Refresh Status
         </button>
         
         <button
@@ -390,7 +390,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
           }}
           className="bg-gray-600 hover:bg-gray-700 text-white-pure font-bold py-3 px-6 rounded-md transition duration-200"
         >
-          🧪 Test in New Tab
+          Test in New Tab
         </button>
       </div>
     </div>
