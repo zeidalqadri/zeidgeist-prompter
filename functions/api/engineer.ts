@@ -2,6 +2,7 @@ import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancem
 import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
+import { getProviderPreferences } from "./tweak/provider-preference"
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
@@ -71,13 +72,27 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     console.log('About to enhance prompt...')
     
+    // Check for provider preferences from /tweak page
+    const providerPreferences = getProviderPreferences(request)
+    console.log('🎯 Provider preferences:', providerPreferences?.selectionMode || 'random')
+    
+    // Check for test provider header (from /tweak page testing)
+    const testProvider = request.headers.get('X-Test-Provider')
+    
     // Process the prompt using our LLM-based enhancer
     try {
       console.log('🔧 Calling enhancePrompt function...');
       const enhancementResponse = await enhancePrompt(
         trimmedPrompt, 
         context || "", 
-        { isRefinement: !!isRefinement, isExpansion: !!isExpansion, repeatCount, env }
+        { 
+          isRefinement: !!isRefinement, 
+          isExpansion: !!isExpansion, 
+          repeatCount, 
+          env,
+          providerPreferences,
+          testProvider 
+        }
       )
       console.log('🎉 enhancePrompt returned:', enhancementResponse?.source);
       

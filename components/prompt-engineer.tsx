@@ -6,6 +6,7 @@ import { useEffect, useCallback, useReducer, useMemo, memo, lazy, Suspense } fro
 import { Button } from "./ui/button"
 import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
+import { LLMUsageTracker } from '../app/lib/llm-usage-tracker'
 
 // Lazy load FeedbackForm since it's not immediately needed
 const FeedbackForm = lazy(() => import("./feedback-form"))
@@ -578,13 +579,21 @@ export default function PromptEngineer() {
         
         // Store enhancement source and time information if available
         if (data.metadata) {
+          const source = data.metadata.source || data.source || null;
+          const processingTime = data.metadata.processingTime || null;
+          
           dispatch({ 
             type: 'SET_ENHANCEMENT_METADATA', 
             payload: { 
-              source: data.metadata.source || null, 
-              time: data.metadata.processingTime || null 
+              source: source, 
+              time: processingTime 
             } 
           });
+          
+          // Track LLM usage for /tweak page analytics
+          if (source) {
+            LLMUsageTracker.trackUsage(source, processingTime || undefined);
+          }
         }
       } else {
         throw new Error(data.result || 'Failed to enhance prompt');
