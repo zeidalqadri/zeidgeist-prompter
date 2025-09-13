@@ -579,7 +579,7 @@ export default function PromptEngineer() {
         
         // Store enhancement source and time information if available
         if (data.metadata) {
-          const source = data.metadata.source || data.source || null;
+          const source = data.metadata.source || null;
           const processingTime = data.metadata.processingTime || null;
           
           dispatch({ 
