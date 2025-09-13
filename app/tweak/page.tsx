@@ -30,11 +30,11 @@ export default function TweakPage() {
     }
   }
 
-  // Load current provider status from diagnostic endpoint
+  // Load current provider status from dedicated endpoint
   const loadProviderStatus = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/debug/api-keys', {
+      const response = await fetch('/api/tweak/provider-status', {
         headers: {
           'Authorization': 'Bearer debug-token-not-set'
         }
