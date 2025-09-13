@@ -654,3 +654,34 @@ EOF
 --------------------------------
 2025-09-13T21:51:18.352242 - curl -s http://localhost:8787/api/debug/api-keys -H "Authorization: Bearer debug-token-not-set" | head -50 - Test the debug API endpoint locally
 --------------------------------
+2025-09-13T21:53:08.923308 - git add -A - Stage all changes for commit
+--------------------------------
+2025-09-13T21:53:18.311456 - git commit -m "$(cat <<'EOF'
+[claude] Fix /tweak page not listing available LLM providers
+
+- Updated debug API endpoint provider names to match system expectations
+- Changed 'Claude (Anthropic)' to 'Claude' in api-keys.ts
+- Changed 'Moonshot (Kimi)' to 'Moonshot' in api-keys.ts
+- Moved descriptive information to notes field for clarity
+
+This resolves the provider name mismatch between the debug API and the
+llm-enhancer system. The debug API was returning descriptive provider
+names like 'Claude (Anthropic)' while the enhancement system expected
+simple names like 'claude'. This mismatch prevented the /tweak page
+from properly displaying available providers and enabling forced
+provider selection.
+
+The /tweak page should now correctly:
+- Display all configured and available LLM providers
+- Allow testing individual providers
+- Enable forced provider selection mode
+- Show proper provider status indicators
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit provider name fix with detailed description
+--------------------------------
+2025-09-13T21:53:24.171695 - git status - Verify commit succeeded
+--------------------------------
