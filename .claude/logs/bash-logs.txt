@@ -438,3 +438,126 @@ This master linter system transforms TypeScript error handling from reactive fix
 
 Co-Authored-By: Claude <noreply@anthropic.com>" - Commit comprehensive master linter system
 --------------------------------
+2025-09-13T15:05:17.145400 - git add . - Stage all /tweak functionality files
+--------------------------------
+2025-09-13T15:06:28.452407 - git commit -m "$(cat <<'EOF'
+🔧 Secret /tweak Page - Complete LLM Provider Selection System
+
+Implemented comprehensive LLM provider selection and management system with secret configuration page at /tweak.
+
+## Core Features Delivered
+
+### 1. Secret Configuration Page (/tweak) ✅
+- app/tweak/page.tsx: Password-protected interface (passwords: 'tweak123', 'debug')
+- Secure session-based access with lock/unlock functionality
+- Real-time provider status display with API key availability
+- Live configuration changes with immediate effect
+
+### 2. Provider Selection Component ✅
+- components/llm-provider-selector.tsx: Comprehensive selection interface
+- Three selection modes:
+  * Random (default): Load-balanced random selection
+  * Forced: Always use specific provider with fallback
+  * Custom: Random selection excluding specified providers
+- Real-time provider testing with success/error feedback
+- Session duration control (1 hour to 1 week)
+
+### 3. Preference Management API ✅
+- functions/api/tweak/provider-preference.ts: Secure cookie-based storage
+- Base64-encoded preferences with expiration handling
+- CORS-enabled endpoints for GET/POST operations
+- Automatic cleanup of expired preferences
+
+### 4. Enhanced LLM Engine ✅
+- Modified functions/_shared/llm-enhancer.ts:
+  * Added provider preference interface
+  * Forced provider selection with intelligent fallback
+  * Custom rotation with exclude functionality
+  * Test provider mode for /tweak page validation
+  * Comprehensive logging of selection logic
+
+### 5. API Integration ✅
+- Modified functions/api/engineer.ts:
+  * Cookie-based preference detection
+  * X-Test-Provider header support for testing
+  * Seamless integration with existing enhancement flow
+  * Backward compatibility maintained
+
+### 6. Usage Analytics ✅
+- app/lib/llm-usage-tracker.ts: Complete usage tracking system
+- Session-based analytics with localStorage persistence
+- Provider success/failure rates and response times
+- Recent usage display with relative timestamps
+- Statistics for most/least used providers
+
+### 7. Enhanced User Experience ✅
+- Modified components/prompt-engineer.tsx: 
+  * Automatic usage tracking integration
+  * Real-time provider selection feedback
+  * Seamless session preference application
+
+## Technical Implementation
+
+### Security Features
+- Password protection for /tweak access
+- HTTP-only secure cookies for preferences
+- No API key exposure in frontend
+- Session-based authorization
+- Rate limiting considerations
+
+### Provider Selection Logic
+Test Mode (from /tweak testing), Forced Mode (/tweak forced selection),
+Custom Mode (/tweak exclude providers), Default: Random load balancing
+
+### Session Management
+- Base64-encoded cookie storage for security
+- Configurable expiration (1 hour to 1 week)
+- Automatic cleanup of expired preferences
+- Cross-tab synchronization via localStorage
+
+### Usage Analytics
+- Real-time tracking of provider usage
+- Success/failure rate monitoring
+- Response time measurement
+- Historical analysis and statistics
+
+## User Interface Features
+
+### Configuration Options
+✅ Provider status with API key detection
+✅ Live testing of individual providers
+✅ Selection mode toggle (Random/Forced/Custom)
+✅ Provider exclusion checkboxes
+✅ Session duration slider
+✅ Preference save/clear/refresh controls
+
+### Real-time Feedback
+✅ Loading states during testing
+✅ Success/error indicators
+✅ Recent usage display with timestamps
+✅ Provider availability status
+✅ Live configuration validation
+
+## Integration Benefits
+
+1. Debugging: Direct provider testing and selection for troubleshooting
+2. Load Balancing: Custom rotation patterns for optimal distribution
+3. Performance: Force fast providers during critical operations
+4. Analytics: Detailed usage patterns and provider performance
+5. Flexibility: Session-based preferences without global changes
+
+## Backward Compatibility
+
+✅ All existing functionality preserved
+✅ Default behavior unchanged (random selection)
+✅ No breaking changes to existing APIs
+✅ Graceful degradation when preferences unavailable
+
+The secret /tweak page provides complete control over LLM provider selection while maintaining security and user experience. Access via https://mstprmpt.zeidgeist.com/tweak
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit complete /tweak functionality with fixed message
+--------------------------------
