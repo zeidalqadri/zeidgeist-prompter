@@ -132,7 +132,7 @@ export function getConfig(env?: Record<string, string>): EnvironmentConfig {
       corsOrigins: environment.CORS_ORIGINS?.split(',') || [
         'https://mstprmpt.zeidgeist.com',
         'https://staging.mstprmpt.zeidgeist.com',
-        ...(nodeEnv === 'development' ? ['http://localhost:3000', 'http://localhost:8788'] : [])
+        ...(nodeEnv === 'development' ? ['http://localhost:3333', 'http://localhost:3000', 'http://localhost:8788'] : [])
       ],
       rateLimit: {
         windowMs: parseInt(environment.RATE_LIMIT_WINDOW || '900000'), // 15 minutes

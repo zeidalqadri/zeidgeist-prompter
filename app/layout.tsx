@@ -1,9 +1,7 @@
 import type React from "react"
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
 
-const inter = Inter({ subsets: ["latin"] })
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -22,6 +20,9 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "mstprmpt"
   },
+  other: {
+    'mobile-web-app-capable': 'yes'
+  },
   formatDetection: {
     telephone: false,
     date: false,
@@ -37,7 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-black text-white px-4 py-2 rounded z-50 focus:z-50">
           Skip to main content
         </a>
@@ -46,4 +47,3 @@ export default function RootLayout({
     </html>
   )
 }
-

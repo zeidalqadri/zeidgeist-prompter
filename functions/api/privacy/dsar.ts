@@ -465,7 +465,7 @@ async function processDeletionRequestAsync(requestId: string, userId: string, en
       .where(eq(dsarRequests.id, requestId));
 
     // Execute right to be forgotten
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: any) => {
       // Delete user data
       await tx.delete(promptHistory).where(eq(promptHistory.userId, userId));
       await tx.delete(feedback).where(eq(feedback.userId, userId));
@@ -546,7 +546,7 @@ async function generatePersonalDataExport(userId: string, requestId: string, env
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       },
-      promptHistory: userPromptHistory.map(item => ({
+      promptHistory: userPromptHistory.map((item: any) => ({
         original: item.original,
         refined: item.refined,
         context: item.context,
@@ -554,7 +554,7 @@ async function generatePersonalDataExport(userId: string, requestId: string, env
         metadata: item.metadata ? JSON.parse(item.metadata) : null
       })),
       feedback: userFeedback,
-      sessions: sessions.map(session => ({
+      sessions: sessions.map((session: any) => ({
         createdAt: session.createdAt,
         lastAccessed: session.lastAccessed,
         ipAddress: session.ipAddress,

@@ -435,13 +435,18 @@ function testCleanEnhancedPrompt() {
 }
 
 // DeepSeek enhancement
-async function enhanceWithDeepseek(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithDeepseek(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     throw new Error('DeepSeek API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -463,8 +468,9 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
   }
 
   const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'deepseek',
     metadata: { model: 'deepseek-chat', usage: data.usage }
   };
@@ -608,7 +614,7 @@ ${prompt}
 }
 
 // Mistral enhancement with full optimization pipeline
-async function enhanceWithMistral(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithMistral(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.MISTRAL_API_KEY;
   if (!apiKey) {
     throw new Error('Mistral API key not configured');
@@ -626,7 +632,13 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
   let messages;
   let parameters;
   
-  if (useTemplateOptimization) {
+  if (opts.isTestGreeting) {
+    messages = [
+      { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+      { role: 'user', content: 'Short greeting.' }
+    ];
+    parameters = { temperature: 0.2, max_tokens: 20, top_p: 0.9 };
+  } else if (useTemplateOptimization) {
     // Use specialized template for detected task type
     const taskType = detectMistralTaskType(prompt);
     const templateResult = buildMistralTemplateMessages(prompt, context, taskType);
@@ -667,8 +679,12 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
   const data = await response.json();
   let enhancedContent = data.choices[0].message.content;
   
-  // Apply Mistral-specific post-processing
-  enhancedContent = processMistralResponse(enhancedContent);
+  // Apply post-processing (skip heavy cleanup in test greeting mode)
+  if (opts.isTestGreeting) {
+    enhancedContent = normalizeShortGreeting(enhancedContent);
+  } else {
+    enhancedContent = processMistralResponse(enhancedContent);
+  }
   
   return {
     enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
@@ -930,14 +946,35 @@ function processMistralResponse(response: string): string {
   return cleaned;
 }
 
+// Normalize any provider output into a single short greeting
+function normalizeShortGreeting(text: string): string {
+  let t = (text || '').trim().replace(/^"|"$/g, '');
+  // Take first line/sentence
+  t = t.split(/\r?\n/)[0];
+  // Remove leading label-like words
+  t = t.replace(/^\s*(Response:|Greeting:|Output:)\s*/i, '');
+  // Limit to 10 words
+  const words = t.split(/\s+/).filter(Boolean).slice(0, 10);
+  t = words.join(' ');
+  // If still looks like instruction, fallback
+  if (/\b(generate|write|create|include)\b/i.test(t)) {
+    t = 'Hello!';
+  }
+  // Ensure punctuation
+  if (!/[.!?]$/.test(t)) {
+    t += '!';
+  }
+  return t;
+}
+
 // Claude enhancement (Anthropic)
-async function enhanceWithClaude(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithClaude(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.CLAUDE_API_KEY;
   if (!apiKey) {
     throw new Error('Claude API key not configured');
   }
 
-  const systemPrompt = isRefinement 
+  let systemPrompt = isRefinement 
     ? `<prompt_enhancement_system version="3.0">
   <role expertise="maximum">Elite Prompt Refinement Specialist</role>
   
@@ -1015,6 +1052,11 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
     userMessage = `<prompt_to_enhance>${prompt}</prompt_to_enhance>`;
   }
   
+  if (opts.isTestGreeting) {
+    systemPrompt = 'You are concise. Reply with a single short friendly greeting (<= 10 words). Output only the greeting.';
+    userMessage = 'Short greeting.';
+  }
+  
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -1037,21 +1079,27 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
   }
 
   const data = await response.json();
+  const content = data.content[0].text;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.content[0].text),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'claude',
     metadata: { model: 'claude-3-haiku', usage: data.usage }
   };
 }
 
 // OpenAI enhancement
-async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -1063,7 +1111,7 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.2,
-      max_tokens: 4096
+      max_tokens: opts.isTestGreeting ? 20 : 4096
     })
   });
 
@@ -1073,15 +1121,16 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
   }
 
   const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'openai',
     metadata: { model: 'gpt-4o-mini', usage: data.usage }
   };
 }
 
 // Gemini enhancement (Google)
-async function enhanceWithGemini(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithGemini(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key not configured');
@@ -1090,9 +1139,13 @@ async function enhanceWithGemini(prompt: string, context?: string, isRefinement:
   const startTime = Date.now();
   const model = 'gemini-1.5-pro';
   
-  // Build Gemini-optimized system instructions with few-shot learning
-  const systemInstruction = buildGeminiSystemInstruction(isRefinement);
-  const userContent = buildGeminiUserContent(prompt, context, isRefinement);
+  // Build Gemini-optimized instructions or test greeting
+  const systemInstruction = opts.isTestGreeting
+    ? 'Reply with a single short greeting (<= 10 words). Output only the greeting.'
+    : buildGeminiSystemInstruction(isRefinement);
+  const userContent = opts.isTestGreeting
+    ? 'Short greeting.'
+    : buildGeminiUserContent(prompt, context, isRefinement);
   
   // Gemini API uses a different structure than OpenAI-compatible APIs
   const requestBody = {
@@ -1149,8 +1202,8 @@ async function enhanceWithGemini(prompt: string, context?: string, isRefinement:
   
   let enhancedContent = data.candidates[0].content.parts[0].text;
   
-  // Apply Gemini-specific post-processing
-  enhancedContent = processGeminiResponse(enhancedContent);
+  // Apply Gemini-specific post-processing or test normalization
+  enhancedContent = opts.isTestGreeting ? normalizeShortGreeting(enhancedContent) : processGeminiResponse(enhancedContent);
   
   return {
     enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
@@ -1265,13 +1318,18 @@ function processGeminiResponse(response: string): string {
 }
 
 // Moonshot enhancement (Kimi)
-async function enhanceWithMoonshot(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithMoonshot(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.MOONSHOT_API_KEY;
   if (!apiKey) {
     throw new Error('Moonshot API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
     method: 'POST',
@@ -1293,8 +1351,9 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
   }
 
   const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'moonshot',
     metadata: { model: 'moonshot-v1-8k', usage: data.usage }
   };
@@ -1346,29 +1405,28 @@ export async function enhancePrompt(
   console.log('Available env keys:', Object.keys(env));
   console.log('Claude key:', !!env.CLAUDE_API_KEY);
   console.log('OpenAI key:', !!env.OPENAI_API_KEY);
-  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY, '(DISABLED - too much intro/outro text)');
+  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY);
   console.log('Mistral key:', !!env.MISTRAL_API_KEY);
   console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
   console.log('Gemini key:', !!env.GEMINI_API_KEY);
   
   if (env.CLAUDE_API_KEY) {
-    availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean) => enhanceWithClaude(p, c, r, env) });
+    availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithClaude(p, c, r, env, o) });
   }
   if (env.OPENAI_API_KEY) {
-    availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean) => enhanceWithOpenAI(p, c, r, env) });
+    availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithOpenAI(p, c, r, env, o) });
   }
-  // DeepSeek disabled - too stubborn with intro/outro text despite XML constraints
-  // if (env.DEEPSEEK_API_KEY) {
-  //   availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
-  // }
+  if (env.DEEPSEEK_API_KEY) {
+    availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
+  }
   if (env.MISTRAL_API_KEY) {
-    availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean) => enhanceWithMistral(p, c, r, env) });
+    availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithMistral(p, c, r, env, o) });
   }
   if (env.MOONSHOT_API_KEY) {
-    availableProviders.push({ name: 'moonshot', fn: (p: string, c?: string, r?: boolean) => enhanceWithMoonshot(p, c, r, env) });
+    availableProviders.push({ name: 'moonshot', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithMoonshot(p, c, r, env, o) });
   }
   if (env.GEMINI_API_KEY) {
-    availableProviders.push({ name: 'gemini', fn: (p: string, c?: string, r?: boolean) => enhanceWithGemini(p, c, r, env) });
+    availableProviders.push({ name: 'gemini', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithGemini(p, c, r, env, o) });
   }
 
   if (availableProviders.length === 0) {
@@ -1382,7 +1440,7 @@ export async function enhancePrompt(
         keysChecked: {
           claude: !!env.CLAUDE_API_KEY,
           openai: !!env.OPENAI_API_KEY,
-          deepseek: `${!!env.DEEPSEEK_API_KEY} (DISABLED)`,
+          deepseek: !!env.DEEPSEEK_API_KEY,
           mistral: !!env.MISTRAL_API_KEY,
           moonshot: !!env.MOONSHOT_API_KEY,
           gemini: !!env.GEMINI_API_KEY
@@ -1393,6 +1451,12 @@ export async function enhancePrompt(
 
   // Apply provider preferences from /tweak page
   let selectedProviders = [...availableProviders];
+
+  // Always honor excludedProviders as global on/off toggles
+  if (providerPreferences?.excludedProviders?.length) {
+    const excludedSet = new Set(providerPreferences.excludedProviders.map(p => p.toLowerCase()))
+    selectedProviders = selectedProviders.filter(p => !excludedSet.has(p.name.toLowerCase()))
+  }
   
   // Handle test provider (from /tweak page testing)
   if (testProvider) {
@@ -1446,7 +1510,7 @@ export async function enhancePrompt(
   for (const provider of shuffledProviders) {
     try {
       console.log(`🚀 Trying enhancement with ${provider.name}...`);
-      const result = await provider.fn(prompt, context, isRefinement);
+      const result = await provider.fn(prompt, context, isRefinement, { isTestGreeting: !!testProvider });
       console.log(`✅ Successfully enhanced with ${provider.name}`);
       return result;
     } catch (error) {

@@ -18,7 +18,7 @@ export const promptCategories = pgTable('prompt_categories', {
   parent_id: uuid('parent_id'), // For hierarchical categories
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   nameIdx: index('idx_prompt_categories_name').on(table.name),
   parentIdx: index('idx_prompt_categories_parent').on(table.parent_id)
 }));
@@ -58,7 +58,7 @@ export const prompts = pgTable('prompts', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   hashIdx: uniqueIndex('idx_prompts_text_hash').on(table.text_hash),
   categoryIdx: index('idx_prompts_category').on(table.category_id),
   domainIdx: index('idx_prompts_domain').on(table.domain),
@@ -108,7 +108,7 @@ export const promptVersions = pgTable('prompt_versions', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   promptVersionIdx: index('idx_prompt_versions_prompt_version').on(table.prompt_id, table.version_number),
   qualityIdx: index('idx_prompt_versions_quality').on(table.quality_score),
   sourceIdx: index('idx_prompt_versions_source').on(table.source),
@@ -136,7 +136,7 @@ export const promptTestSuites = pgTable('prompt_test_suites', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   nameIdx: index('idx_prompt_test_suites_name').on(table.name),
   categoryIdx: index('idx_prompt_test_suites_category').on(table.category_id)
 }));
@@ -170,7 +170,7 @@ export const promptTestCases = pgTable('prompt_test_cases', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   suiteIdx: index('idx_prompt_test_cases_suite').on(table.suite_id),
   priorityIdx: index('idx_prompt_test_cases_priority').on(table.priority)
 }));
@@ -195,7 +195,7 @@ export const promptTestResults = pgTable('prompt_test_results', {
   
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   testCaseIdx: index('idx_prompt_test_results_case').on(table.test_case_id),
   versionIdx: index('idx_prompt_test_results_version').on(table.prompt_version_id),
   passedIdx: index('idx_prompt_test_results_passed').on(table.passed),
@@ -230,7 +230,7 @@ export const promptAnalytics = pgTable('prompt_analytics', {
   
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   datePromptIdx: uniqueIndex('idx_prompt_analytics_date_prompt').on(table.date, table.prompt_id),
   dateIdx: index('idx_prompt_analytics_date').on(table.date),
   promptIdx: index('idx_prompt_analytics_prompt').on(table.prompt_id),
@@ -269,7 +269,7 @@ export const abTestExperiments = pgTable('ab_test_experiments', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   nameIdx: index('idx_ab_test_experiments_name').on(table.name),
   statusIdx: index('idx_ab_test_experiments_status').on(table.status),
   dateRangeIdx: index('idx_ab_test_experiments_dates').on(table.start_date, table.end_date)
@@ -292,7 +292,7 @@ export const abTestParticipants = pgTable('ab_test_participants', {
   
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   experimentIdx: index('idx_ab_test_participants_experiment').on(table.experiment_id),
   userIdx: index('idx_ab_test_participants_user').on(table.user_id),
   variantIdx: index('idx_ab_test_participants_variant').on(table.variant),
@@ -337,7 +337,7 @@ export const promptTemplates = pgTable('prompt_templates', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   nameIdx: index('idx_prompt_templates_name').on(table.name),
   categoryIdx: index('idx_prompt_templates_category').on(table.category_id),
   usageIdx: index('idx_prompt_templates_usage').on(table.usage_count),
@@ -380,7 +380,7 @@ export const enhancementPatterns = pgTable('enhancement_patterns', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   typeIdx: index('idx_enhancement_patterns_type').on(table.pattern_type),
   confidenceIdx: index('idx_enhancement_patterns_confidence').on(table.confidence_score),
   successRateIdx: index('idx_enhancement_patterns_success_rate').on(table.success_rate),
@@ -417,7 +417,7 @@ export const promptCache = pgTable('prompt_cache', {
   // Timestamps
   created_at: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
+}, (table: any) => ({
   cacheKeyIdx: uniqueIndex('idx_prompt_cache_key').on(table.cache_key),
   expiresIdx: index('idx_prompt_cache_expires').on(table.expires_at),
   hitCountIdx: index('idx_prompt_cache_hit_count').on(table.hit_count),

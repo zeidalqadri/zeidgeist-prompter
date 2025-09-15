@@ -12,10 +12,13 @@ interface ProviderStatus {
 }
 
 export default function TweakPage() {
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL as string)
+    || 'https://mstprmpt.zeidgeist.com'
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [password, setPassword] = useState('')
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(false)
+  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null)
 
   // Simple password protection (can be enhanced with proper auth)
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -23,10 +26,26 @@ export default function TweakPage() {
     // Simple password check - in production, this could be more secure
     if (password === 'tweak123' || password === 'debug') {
       setIsAuthorized(true)
-      loadProviderStatus()
+      checkApi().then((ok) => {
+        if (ok) {
+          loadProviderStatus()
+        }
+      })
     } else {
       alert('Invalid password')
       setPassword('')
+    }
+  }
+
+  const checkApi = async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/health/liveness`, { method: 'GET' })
+      const ok = res.ok
+      setApiAvailable(ok)
+      return ok
+    } catch {
+      setApiAvailable(false)
+      return false
     }
   }
 
@@ -34,7 +53,10 @@ export default function TweakPage() {
   const loadProviderStatus = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/tweak/provider-status', {
+      if (apiAvailable === false) {
+        return
+      }
+      const response = await fetch(`${API_BASE}/api/tweak/provider-status`, {
         headers: {
           'Authorization': 'Bearer debug-token-not-set'
         }
@@ -47,7 +69,7 @@ export default function TweakPage() {
         console.warn('Could not load provider status')
       }
     } catch (error) {
-      console.error('Error loading provider status:', error)
+      console.warn('Provider status fetch failed (is API running on :8788?)')
     } finally {
       setLoading(false)
     }
@@ -104,6 +126,36 @@ export default function TweakPage() {
               <span className="bg-red-500 text-xs px-2 py-1 rounded-full text-white">SECRET</span>
             </div>
             <div className="flex items-center space-x-4">
+              {/* API status badge */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-60">API:</span>
+                {apiAvailable === null && (
+                  <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700">Unknown</span>
+                )}
+                {apiAvailable === true && (
+                  <span className="inline-flex items-center text-xs px-2 py-1 rounded bg-green-100 text-green-800">
+                    <span className="w-2 h-2 rounded-full bg-green-600 mr-1"></span>
+                    Online
+                  </span>
+                )}
+                {apiAvailable === false && (
+                  <span className="inline-flex items-center text-xs px-2 py-1 rounded bg-red-100 text-red-800">
+                    <span className="w-2 h-2 rounded-full bg-red-600 mr-1"></span>
+                    Offline
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    const ok = await checkApi()
+                    if (ok) {
+                      loadProviderStatus()
+                    }
+                  }}
+                  className="text-sm text-gray-60 hover:text-black-primary underline"
+                >
+                  Retry
+                </button>
+              </div>
               <span className="text-sm text-gray-60">
                 Session: {new Date().toLocaleTimeString()}
               </span>
@@ -123,6 +175,11 @@ export default function TweakPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {apiAvailable === false && (
+          <div className="mb-6 p-4 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-900">
+            API server appears offline. Start Workers dev server: <code className="font-mono">wrangler pages dev dist --port=8788 --no-local</code>
+          </div>
+        )}
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black-primary mx-auto"></div>
