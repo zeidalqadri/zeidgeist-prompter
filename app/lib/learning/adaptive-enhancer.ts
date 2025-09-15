@@ -151,7 +151,7 @@ export class AdaptiveEnhancer {
       .limit(10);
 
     // Filter by keyword relevance
-    return patterns.filter(pattern => {
+    return patterns.filter((pattern: any) => {
       const patternKeywords = new Set(pattern.keywords?.split(', ') || []);
       const overlap = promptWords.filter(w => patternKeywords.has(w)).length;
       return overlap >= Math.min(3, promptWords.length * 0.3);
@@ -333,7 +333,7 @@ export class AdaptiveEnhancer {
       .from(enhancementLogs)
       .where(gte(enhancementLogs.createdAt, oneWeekAgo));
 
-    const localEnhancements = enhancements.filter(e => e.source === 'local');
+    const localEnhancements = enhancements.filter((e: any) => e.source === 'local');
 
     // Get top patterns
     const topPatterns = await db
@@ -346,7 +346,7 @@ export class AdaptiveEnhancer {
       totalEnhancements: enhancements.length,
       localEnhancements: localEnhancements.length,
       averageConfidence: 
-        topPatterns.reduce((sum, p) => sum + (p.quality || 0), 0) / topPatterns.length,
+        topPatterns.reduce((sum: number, p: any) => sum + (p.quality || 0), 0) / topPatterns.length,
       topPatterns,
     };
   }

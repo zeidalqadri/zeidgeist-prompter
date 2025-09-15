@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3333",
     "build": "node scripts/build-cloudflare.js",
     "build:next": "next build",
     "start": "next start",
@@ -36,6 +36,7 @@
     "deploy:production": "wrangler pages deploy dist --env production --config wrangler.pages.toml",
     "cleanup:preview": "node scripts/deployment/cleanup-preview.js",
     "health:check": "curl -f http://localhost:8788/api/health || exit 1",
+    "api:dev": "wrangler pages dev dist --port=8788 --no-local",
     "validate:env": "node -e \"require('./app/lib/config/environment').validateEnvironment(); console.log('✅ Environment validation passed')\"",
     "deployment:readiness": "node scripts/deployment/deployment-readiness.js",
     "preview:test": "node scripts/setup-preview-testing.js"
@@ -46,8 +47,8 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/pg": "^8.15.5",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^3.0.2",
     "critters": "^0.0.23",
@@ -55,14 +56,15 @@
     "drizzle-orm": "0.44.4",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.460.0",
-    "next": "^15.4.5",
+    "next": "^15.5.3",
     "pg": "^8.16.3",
     "postcss": "^8",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "speakeasy": "^2.0.0",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.37.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

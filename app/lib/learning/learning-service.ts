@@ -91,13 +91,13 @@ export class LearningService {
 
     for (const existing of existingPatterns) {
       // Simple similarity check based on prompt text overlap
-      const existingWords = new Set(
-        existing.rawPrompt.toLowerCase().split(/\s+/)
+      const existingWords = new Set<string>(
+        (existing.rawPrompt || '').toLowerCase().split(/\s+/)
       );
-      const patternWords = new Set(pattern.originalText.toLowerCase().split(/\s+/));
+      const patternWords = new Set<string>((pattern.originalText || '').toLowerCase().split(/\s+/));
       
-      const intersection = new Set(
-        [...existingWords].filter(x => patternWords.has(x))
+      const intersection = new Set<string>(
+        [...existingWords].filter((x: string) => patternWords.has(x))
       );
       const overlap = intersection.size / patternWords.size;
 
@@ -203,7 +203,7 @@ export class LearningService {
       .from(trainingExamples)
       .where(gte(trainingExamples.quality, 0.5));
 
-    return patterns.filter(pattern => {
+    return patterns.filter((pattern: any) => {
       const patternWords = new Set(
         pattern.rawPrompt.toLowerCase().split(/\s+/)
       );
@@ -276,7 +276,7 @@ export class LearningService {
     if (recentEnhancements.length === 0) return 1; // Fully dependent
 
     const localEnhancements = recentEnhancements.filter(
-      e => e.source === 'local'
+      (e: any) => e.source === 'local'
     ).length;
     
     return 1 - (localEnhancements / recentEnhancements.length);
@@ -306,7 +306,7 @@ export class LearningService {
     if (localEnhancementsWithFeedback.length === 0) return 0;
 
     const successfulCount = localEnhancementsWithFeedback.filter(
-      e => e.successful === true && (e.score || 0) >= 4
+      (e: any) => e.successful === true && (e.score || 0) >= 4
     ).length;
 
     return successfulCount / localEnhancementsWithFeedback.length;
@@ -322,7 +322,7 @@ export class LearningService {
 
     // Calculate average quality of related patterns
     const avgQuality =
-      relatedPatterns.reduce((sum, p) => sum + p.quality, 0) /
+      relatedPatterns.reduce((sum: number, p: any) => sum + p.quality, 0) /
       relatedPatterns.length;
 
     return avgQuality >= this.LLM_FALLBACK_THRESHOLD;
@@ -337,7 +337,7 @@ export class LearningService {
     if (relatedPatterns.length === 0) return null;
 
     // Sort by quality score and usage count
-    relatedPatterns.sort((a, b) => {
+    relatedPatterns.sort((a: any, b: any) => {
       const scoreA = a.quality * 0.7 + (a.usageCount / 100) * 0.3;
       const scoreB = b.quality * 0.7 + (b.usageCount / 100) * 0.3;
       return scoreB - scoreA;

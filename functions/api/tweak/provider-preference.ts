@@ -12,28 +12,33 @@ interface ProviderPreferences {
 interface Env {
   NODE_ENV?: string
   DEBUG_ACCESS_TOKEN?: string
+  CORS_ORIGINS?: string
+}
+
+function getCorsHeaders(request: Request, env: Env) {
+  const origin = request.headers.get('Origin') || '*'
+  const isDev = (env.NODE_ENV || 'development') !== 'production'
+  const allowed = env.CORS_ORIGINS ? env.CORS_ORIGINS.split(',') : ['https://mstprmpt.zeidgeist.com']
+  const allowOrigin = isDev ? origin : (allowed.includes(origin) ? origin : 'https://mstprmpt.zeidgeist.com')
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin'
+  }
 }
 
 // Handle CORS preflight requests
-export async function onRequestOptions(): Promise<Response> {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Credentials': 'true',
-    },
-  })
+export async function onRequestOptions(context: { env: Env; request: Request }): Promise<Response> {
+  const headers = getCorsHeaders(context.request, context.env)
+  return new Response(null, { status: 200, headers })
 }
 
 // GET: Retrieve current provider preferences
 export async function onRequestGet(context: { env: Env; request: Request }): Promise<Response> {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-    'Access-Control-Allow-Credentials': 'true',
-    'Content-Type': 'application/json',
-  }
+  const corsBase = getCorsHeaders(context.request, context.env)
+  const corsHeaders = { ...corsBase, 'Content-Type': 'application/json' }
 
   try {
     // Parse cookies from request
@@ -67,11 +72,8 @@ export async function onRequestGet(context: { env: Env; request: Request }): Pro
 
 // POST: Save provider preferences
 export async function onRequestPost(context: { env: Env; request: Request }): Promise<Response> {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-    'Access-Control-Allow-Credentials': 'true',
-    'Content-Type': 'application/json',
-  }
+  const corsBase = getCorsHeaders(context.request, context.env)
+  const corsHeaders = { ...corsBase, 'Content-Type': 'application/json' }
 
   try {
     const body = await context.request.json()

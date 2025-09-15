@@ -24,6 +24,9 @@ interface Props {
 }
 
 export default function LLMProviderSelector({ providers, onUpdate }: Props) {
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL as string)
+    || 'https://mstprmpt.zeidgeist.com'
+
   const [preferences, setPreferences] = useState<ProviderPreferences>({
     selectionMode: 'random',
     forcedProvider: undefined,
@@ -34,16 +37,35 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
   const [recentUsage, setRecentUsage] = useState<Array<{provider: string, timestamp: string}>>([])
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | 'pending'>>({})
+  const [testErrors, setTestErrors] = useState<Record<string, string>>({})
+  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null)
 
   // Load current preferences from cookies/localStorage
   useEffect(() => {
-    loadPreferences()
-    loadRecentUsage()
+    ;(async () => {
+      const ok = await checkApi()
+      if (ok) {
+        await loadPreferences()
+      }
+      loadRecentUsage()
+    })()
   }, [])
+
+  const checkApi = async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/health/liveness`, { method: 'GET' })
+      const ok = res.ok
+      setApiAvailable(ok)
+      return ok
+    } catch {
+      setApiAvailable(false)
+      return false
+    }
+  }
 
   const loadPreferences = async () => {
     try {
-      const response = await fetch('/api/tweak/provider-preference', {
+      const response = await fetch(`${API_BASE}/api/tweak/provider-preference`, {
         method: 'GET',
         credentials: 'include'
       })
@@ -55,13 +77,13 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
         }
       }
     } catch (error) {
-      console.error('Error loading preferences:', error)
+      console.warn('Preferences fetch failed (is API running on :8788?)')
     }
   }
 
   const savePreferences = async (newPreferences: ProviderPreferences) => {
     try {
-      const response = await fetch('/api/tweak/provider-preference', {
+      const response = await fetch(`${API_BASE}/api/tweak/provider-preference`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,7 +107,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
         alert('Failed to save preferences')
       }
     } catch (error) {
-      console.error('Error saving preferences:', error)
+      console.warn('Error saving preferences')
       alert('Error saving preferences')
     }
   }
@@ -97,16 +119,21 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
   }
 
   const testProvider = async (providerName: string) => {
+    if (apiAvailable === false) {
+      alert('API server is offline. Start it on :8788 to run tests.')
+      return
+    }
     setTesting(providerName)
     setTestResults(prev => ({ ...prev, [providerName]: 'pending' }))
     
     try {
-      const response = await fetch('/api/engineer', {
+      const response = await fetch(`${API_BASE}/api/engineer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Test-Provider': providerName, // Custom header to force provider
         },
+        credentials: 'include',
         body: JSON.stringify({
           prompt: 'Test prompt: Generate a simple greeting.',
           context: '',
@@ -116,24 +143,57 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       if (response.ok) {
         const data = await response.json()
-        if (data.result && data.source === providerName.toLowerCase()) {
+        const source = data?.metadata?.source?.toLowerCase?.()
+        if (data.result && source === providerName.toLowerCase()) {
           setTestResults(prev => ({ ...prev, [providerName]: 'success' }))
+          setTestErrors(prev => ({ ...prev, [providerName]: '' }))
           LLMUsageTracker.trackUsage(providerName) // Track successful test
         } else {
           setTestResults(prev => ({ ...prev, [providerName]: 'error' }))
+          const msg = !data?.result
+            ? 'No result received from provider'
+            : `Unexpected provider source: ${source || 'unknown'}`
+          setTestErrors(prev => ({ ...prev, [providerName]: msg }))
           LLMUsageTracker.trackFailure(providerName) // Track failed test
         }
       } else {
         setTestResults(prev => ({ ...prev, [providerName]: 'error' }))
+        setTestErrors(prev => ({ ...prev, [providerName]: `HTTP ${response.status} ${response.statusText}` }))
         LLMUsageTracker.trackFailure(providerName) // Track failed test
       }
     } catch (error) {
       console.error(`Error testing ${providerName}:`, error)
       setTestResults(prev => ({ ...prev, [providerName]: 'error' }))
+      setTestErrors(prev => ({ ...prev, [providerName]: error instanceof Error ? error.message : 'Unknown error' }))
       LLMUsageTracker.trackFailure(providerName) // Track failed test
     } finally {
       setTesting(null)
     }
+  }
+
+  const testAllProviders = async () => {
+    for (const p of providers) {
+      if (p.configured && p.enabled) {
+        await testProvider(p.provider)
+      }
+    }
+  }
+
+  // Toggle a provider enabled/disabled by updating excludedProviders
+  const setProviderEnabled = async (providerName: string, enabled: boolean) => {
+    const normalized = providerName
+    const currentlyExcluded = preferences.excludedProviders || []
+    const nextExcluded = enabled
+      ? currentlyExcluded.filter((p) => p !== normalized)
+      : Array.from(new Set([...currentlyExcluded, normalized]))
+
+    const nextPrefs: ProviderPreferences = {
+      ...preferences,
+      excludedProviders: nextExcluded,
+    }
+
+    await savePreferences(nextPrefs)
+    onUpdate()
   }
 
   const clearPreferences = async () => {
@@ -204,7 +264,15 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
 
       {/* Provider Status */}
       <div className="bg-white border border-gray-10 p-6 rounded-lg">
-        <h2 className="text-xl font-semibold mb-4 text-black-primary">Provider Status</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-black-primary">Provider Status</h2>
+          <button
+            onClick={testAllProviders}
+            className="py-2 px-3 text-sm bg-black-primary hover:bg-black-rich text-white-pure rounded-md transition duration-200"
+          >
+            Test All
+          </button>
+        </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((provider) => (
             <div key={provider.provider} className={`p-4 rounded-lg border ${
@@ -233,6 +301,28 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                 {provider.configured ? 'API Key Configured' : 'No API Key'}
                 {provider.notes && ` - ${provider.notes}`}
               </p>
+
+              {/* Enable/Disable switch */}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-gray-60">Enabled</span>
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={provider.enabled}
+                    onChange={(e) => setProviderEnabled(provider.provider, e.target.checked)}
+                    disabled={!provider.configured}
+                  />
+                  <div className={`w-9 h-5 rounded-full transition-colors ${
+                    provider.configured ? 'bg-gray-300 peer-checked:bg-black-primary' : 'bg-gray-200'
+                  } relative`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      provider.enabled ? 'translate-x-4' : ''
+                    }`}></span>
+                  </div>
+                </label>
+              </div>
               
               {provider.keyPreview && (
                 <p className="text-xs text-gray-30 mb-3 font-mono">
@@ -259,6 +349,12 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
                     </>
                   )}
                 </button>
+              )}
+
+              {testResults[provider.provider] === 'error' && testErrors[provider.provider] && (
+                <p className="mt-2 text-xs text-red-700">
+                  {testErrors[provider.provider]}
+                </p>
               )}
             </div>
           ))}

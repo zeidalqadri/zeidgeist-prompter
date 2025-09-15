@@ -57,7 +57,7 @@ export class PromptRepository {
     quality_score?: number;
     source: string;
   }): Promise<string> {
-    return await db.transaction(async (tx) => {
+    return await db.transaction(async (tx: any) => {
       // Check if similar prompt exists
       const existing = await this.findSimilarPrompt(data.original);
       
