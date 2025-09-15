@@ -685,3 +685,37 @@ EOF
 --------------------------------
 2025-09-13T21:53:24.171695 - git status - Verify commit succeeded
 --------------------------------
+2025-09-13T22:24:34.046389 - git add -A - Stage all changes for commit
+--------------------------------
+2025-09-13T22:24:44.722938 - git commit -m "$(cat <<'EOF'
+[claude] Create production-compatible provider status endpoint for /tweak page
+
+- Created new endpoint: functions/api/tweak/provider-status.ts
+  • Works in production environment (no environment restrictions)
+  • Returns provider availability without exposing sensitive debug info
+  • Uses same authentication as debug endpoint
+  • Includes proper CORS headers for cross-origin requests
+  • Returns clean provider status data structure
+
+- Updated app/tweak/page.tsx to use new endpoint
+  • Changed from '/api/debug/api-keys' to '/api/tweak/provider-status'
+  • Maintains same data structure and error handling
+  • Updated comment to reflect dedicated endpoint usage
+
+This resolves the 403 Forbidden error occurring in production where
+the debug API endpoint was blocked due to environment restrictions.
+The debug endpoint only allowed development/staging/preview environments
+but the /tweak page is now deployed in production.
+
+The new endpoint provides only the necessary provider information
+for the /tweak page without exposing sensitive debugging details,
+making it suitable for production use while maintaining security.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)" - Commit new provider status endpoint with detailed description
+--------------------------------
+2025-09-13T22:24:49.195948 - git status - Verify commit succeeded
+--------------------------------
