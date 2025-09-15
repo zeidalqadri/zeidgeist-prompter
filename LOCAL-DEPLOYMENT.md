@@ -6,7 +6,7 @@ The zeidgeist-prompter application has been successfully configured for local de
 
 ## 🌐 Service URLs
 
-- **Frontend (Next.js)**: http://localhost:3000 ✅ **WORKING**
+- **Frontend (Next.js)**: http://localhost:3333 ✅ **WORKING**
 - **API (Cloudflare Workers)**: http://localhost:8788 ⚠️ **PARTIALLY WORKING**
 - **Database (PostgreSQL)**: localhost:5432 ✅ **WORKING**
 - **pgAdmin (optional)**: http://localhost:5050 (when enabled)
@@ -28,7 +28,7 @@ The zeidgeist-prompter application has been successfully configured for local de
    - Extensions enabled: uuid-ossp, pgcrypto
 
 3. **Next.js Frontend** 
-   - Development server running on port 3000
+   - Development server running on port 3333
    - TypeScript compilation successful
    - All security fixes and features working
    - Responsive UI components functional
@@ -86,7 +86,7 @@ docker-compose up -d postgres        # Start
 docker-compose down                   # Stop
 
 # Frontend
-npm run dev                          # Start on :3000
+npm run dev                          # Start on :3333
 # Ctrl+C to stop
 
 # API (after building)

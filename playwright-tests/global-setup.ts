@@ -9,7 +9,7 @@ async function globalSetup(config: FullConfig) {
 
   // Wait for the development server to be ready
   try {
-    await page.goto('http://localhost:3000', { waitUntil: 'networkidle' })
+    await page.goto('http://localhost:3333', { waitUntil: 'networkidle' })
     console.log('✅ Development server is ready')
   } catch (error) {
     console.error('❌ Development server not ready:', error)
