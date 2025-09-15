@@ -1,6 +1,8 @@
 // Provider Status Endpoint for /tweak page
 // Returns provider availability without sensitive debug information
 
+import { getProviderPreferences } from "./provider-preference";
+
 interface Env {
   CLAUDE_API_KEY?: string;
   OPENAI_API_KEY?: string;
@@ -52,43 +54,50 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
     );
   }
 
+  // Read current preferences (used to reflect enabled/disabled state)
+  const prefs = getProviderPreferences(request);
+  const excluded = new Set((prefs?.excludedProviders || []).map(p => p.toLowerCase()));
+
+  // Helper to compute enabled state based on cookie exclusions and key presence
+  const isEnabled = (name: string, configured: boolean) => configured && !excluded.has(name.toLowerCase());
+
   // Check provider configurations (without exposing key details)
   const providerStatuses: ProviderStatus[] = [
     {
       provider: 'Claude',
       configured: !!env.CLAUDE_API_KEY,
-      enabled: true,
-      notes: 'Primary AI provider - claude-3-haiku-20240307'
+      enabled: isEnabled('Claude', !!env.CLAUDE_API_KEY),
+      notes: 'Primary provider (Anthropic)'
     },
     {
       provider: 'OpenAI',
       configured: !!env.OPENAI_API_KEY,
-      enabled: true,
-      notes: 'Secondary AI provider - gpt-4o-mini'
+      enabled: isEnabled('OpenAI', !!env.OPENAI_API_KEY),
+      notes: 'OpenAI compatible (gpt-4o-mini)'
     },
     {
       provider: 'Mistral',
       configured: !!env.MISTRAL_API_KEY,
-      enabled: true,
-      notes: 'Tertiary AI provider - mistral-large-latest'
+      enabled: isEnabled('Mistral', !!env.MISTRAL_API_KEY),
+      notes: 'Mistral (large/latest)'
     },
     {
       provider: 'DeepSeek',
       configured: !!env.DEEPSEEK_API_KEY,
-      enabled: false,
-      notes: 'DISABLED - Issues with intro/outro text formatting'
+      enabled: isEnabled('DeepSeek', !!env.DEEPSEEK_API_KEY),
+      notes: 'DeepSeek chat model'
     },
     {
       provider: 'Moonshot',
       configured: !!env.MOONSHOT_API_KEY,
-      enabled: true,
-      notes: 'Alternative AI provider - moonshot-v1-8k'
+      enabled: isEnabled('Moonshot', !!env.MOONSHOT_API_KEY),
+      notes: 'Moonshot (kimi)'
     },
     {
       provider: 'Gemini',
       configured: !!env.GEMINI_API_KEY,
-      enabled: false,
-      notes: 'Not implemented in Cloudflare Functions version'
+      enabled: isEnabled('Gemini', !!env.GEMINI_API_KEY),
+      notes: 'Google Gemini 1.5 Pro'
     }
   ];
 
