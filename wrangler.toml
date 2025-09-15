@@ -11,6 +11,11 @@ compatibility_flags = ["nodejs_compat"]
 # ]
 workers_dev = true
 
+# Production route
+routes = [
+  { pattern = "api.mstprmpt.zeidgeist.com/*", zone_name = "zeidgeist.com" }
+]
+
 [vars]
 NODE_ENV = "production"
 APP_ENV = "production"
@@ -32,4 +37,3 @@ script_name = "rate-limiter"
 
 [observability]
 enabled = true
-
