@@ -1,7 +1,16 @@
 /** @type {import('next').NextConfig} */
+const isDev = process.env.NODE_ENV !== 'production'
+
+const buildCsp = () => {
+  if (isDev) {
+    return "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:8788 https://mstprmpt.zeidgeist.com ws: wss: https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';";
+  }
+  return "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://mstprmpt.zeidgeist.com https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
+}
+
 const nextConfig = {
-  // Enable static exports for Cloudflare Pages
-  output: 'export',
+  // Enable static exports for Cloudflare Pages only in production
+  output: isDev ? undefined : 'export',
   trailingSlash: true,
   
   // Performance optimizations
@@ -87,7 +96,7 @@ const nextConfig = {
   
   // Experimental features for better performance
   experimental: {
-    optimizeCss: true,
+    optimizeCss: false,
     webVitalsAttribution: ['CLS', 'LCP'],
     scrollRestoration: true,
     optimizePackageImports: ['lucide-react'],
@@ -121,7 +130,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
+            value: buildCsp(),
           },
           {
             key: 'Permissions-Policy',
