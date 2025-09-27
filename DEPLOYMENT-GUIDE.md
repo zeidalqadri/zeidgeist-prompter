@@ -303,7 +303,7 @@ node --version  # Should be 18+
 #### 3. Environment Variables Not Loading
 ```bash
 # Verify secrets in GitHub
-# Check wrangler.toml configuration
+# Check wrangler.api.toml configuration
 # Validate environment names match
 ```
 

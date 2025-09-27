@@ -38,11 +38,13 @@ interface RequestContext {
 }
 
 // Handle CORS preflight requests
-export async function onRequestOptions(): Promise<Response> {
+export async function onRequestOptions(context?: any): Promise<Response> {
+  const req: Request | undefined = context?.request
+  const origin = req?.headers.get('Origin') || undefined
   return new Response(null, {
     status: 200,
     headers: {
-      ...getSecurityHeaders(),
+      ...getSecurityHeaders(origin),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
@@ -67,7 +69,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   const requestContext = await extractRequestContext(request, env)
   
   const corsHeaders = {
-    ...getSecurityHeaders(),
+    ...getSecurityHeaders(request.headers.get('Origin') || undefined),
     'Content-Type': 'application/json',
     'Cache-Control': 'private, no-store',
     'X-Auth-Method': requestContext.authMethod,
@@ -252,7 +254,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   const requestContext = await extractRequestContext(request, env)
   
   const corsHeaders = {
-    ...getSecurityHeaders(),
+    ...getSecurityHeaders(request.headers.get('Origin') || undefined),
     'Content-Type': 'application/json',
     'X-Auth-Method': requestContext.authMethod
   }

@@ -15,7 +15,7 @@ This project is configured for deployment on Cloudflare Pages with Functions sup
 - ✅ Static assets served directly
 - ✅ Proper exclusions for performance
 
-### 3. Wrangler Configuration (`wrangler.toml`)
+### 3. Wrangler Configuration (`wrangler.api.toml`)
 - ✅ Node.js compatibility enabled
 - ✅ Environment variable bindings
 - ✅ Proper build commands

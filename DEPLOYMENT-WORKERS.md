@@ -6,7 +6,7 @@ This project supports a standalone Cloudflare Worker for the API using workers.d
 - Worker (prod): `zeidgeist-prompter-api.zeidalqadri.workers.dev`
 - Worker (preview): `zeidgeist-prompter-api-preview.zeidalqadri.workers.dev`
 - Entry: `src/worker.ts` routes `/api/*` to `functions/api/*` (engineer, tweak, health).
-- Config: `wrangler.toml` (+ optional routes if you later add custom domains).
+- Config: `wrangler.api.toml` (+ optional routes if you later add custom domains).
 - CI: `.github/workflows/deploy-worker.yml` deploys prod on `main/master`, preview on `develop` and `pull_request`.
 
 ## Cloudflare Setup
@@ -39,10 +39,9 @@ This project supports a standalone Cloudflare Worker for the API using workers.d
      --data '{"prompt":"Test prompt: Generate a simple greeting.","context":"","isRefinement":false}'`
 
 ## Optional: Custom Domains Later
-- If desired, add routes to `wrangler.toml` and DNS records for `api.mstprmpt.zeidgeist.com` and `api.preview.mstprmpt.zeidgeist.com`.
+- If desired, add routes to `wrangler.api.toml` and DNS records for `api.mstprmpt.zeidgeist.com` and `api.preview.mstprmpt.zeidgeist.com`.
 - Update CSP and `NEXT_PUBLIC_API_URL` accordingly.
 
 ## Local Dev
 - Default dev calls prod Workers.
 - To use local Workers: `NEXT_PUBLIC_API_URL=http://localhost:8788` → `npm run api:dev` and `npm run dev`.
-
