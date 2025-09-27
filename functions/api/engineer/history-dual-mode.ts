@@ -167,13 +167,25 @@ export async function onRequestGet(context: any): Promise<Response> {
     })
 
     // Transform data for client response
-    const items = history.map((item: any) => ({
-      original: item.original,
-      refined: item.refined,
-      context: item.context || undefined,
-      timestamp: item.timestamp ? item.timestamp.toISOString() : new Date().toISOString(),
-      metadata: item.metadata ? JSON.parse(item.metadata) : undefined
-    }))
+    const items = history.map((item: any) => {
+      let safeMetadata: any = undefined
+      if (item.metadata) {
+        try {
+          safeMetadata = JSON.parse(item.metadata)
+        } catch (e) {
+          console.warn('Invalid metadata JSON in prompt_history row; sending without metadata')
+          safeMetadata = undefined
+        }
+      }
+
+      return {
+        original: item.original,
+        refined: item.refined,
+        context: item.context || undefined,
+        timestamp: item.timestamp ? item.timestamp.toISOString() : new Date().toISOString(),
+        metadata: safeMetadata,
+      }
+    })
 
     // Include migration prompt for IP-based users if applicable
     const response: any = { 
