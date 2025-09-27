@@ -217,10 +217,12 @@ export async function generateSessionFingerprint(request: Request): Promise<stri
 /**
  * Enhanced CORS headers with security best practices
  */
-export function getSecurityHeaders(origin: string = 'https://mstprmpt.zeidgeist.com'): Record<string, string> {
+export function getSecurityHeaders(origin?: string): Record<string, string> {
+  const allowOrigin = origin || '*'
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Credentials': 'false',
+    'Vary': 'Origin',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
