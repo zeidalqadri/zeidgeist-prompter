@@ -180,11 +180,21 @@ export async function onRequestGet(context: any): Promise<Response> {
         }
       }
 
+      // Normalize timestamp to ISO string safely
+      let isoTimestamp: string
+      try {
+        const ts: any = item.timestamp
+        const d = ts instanceof Date ? ts : new Date(ts)
+        isoTimestamp = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+      } catch {
+        isoTimestamp = new Date().toISOString()
+      }
+
       return {
         original: item.original,
         refined: item.refined,
         context: item.context || undefined,
-        timestamp: item.timestamp ? item.timestamp.toISOString() : new Date().toISOString(),
+        timestamp: isoTimestamp,
         metadata: safeMetadata,
       }
     })
