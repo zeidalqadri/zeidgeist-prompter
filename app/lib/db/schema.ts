@@ -38,6 +38,7 @@ export const promptHistory = pgTable('prompt_history', {
   context: text('context'),
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   metadata: text('metadata'), // JSON string for source, processing time, etc.
+  ipAddress: text('ip_address'), // Store user's IP for legacy isolation
   userId: uuid('user_id').references(() => users.id), // GDPR-compliant user-based isolation
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
@@ -53,6 +54,7 @@ export const feedback = pgTable('feedback', {
   score: integer('score').default(0),
   feedbackText: text('feedback_text'),
   userAgent: text('user_agent'),
+  ipAddress: text('ip_address'), // Legacy
   userId: uuid('user_id').references(() => users.id), // GDPR-compliant user-based isolation
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
