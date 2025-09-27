@@ -86,6 +86,20 @@ if (!fs.existsSync('dist/404.html')) {
   }
 }
 
+// Sanitize build output: remove unintended hidden artifacts
+try {
+  const hiddenDirsToRemove = ['.claude', '.claude-backup'];
+  for (const dir of hiddenDirsToRemove) {
+    const p = path.join('dist', dir);
+    if (fs.existsSync(p)) {
+      fs.rmSync(p, { recursive: true, force: true });
+      console.log(`🧹 Removed hidden build artifact: ${dir}`);
+    }
+  }
+} catch (err) {
+  console.warn('⚠️  Failed to sanitize hidden artifacts:', err.message);
+}
+
 // Optimize static assets
 console.log('⚡ Optimizing static assets...');
 try {
