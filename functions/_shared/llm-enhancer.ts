@@ -462,7 +462,7 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
     throw new Error(`DeepSeek API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return {
     enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'deepseek',
@@ -498,7 +498,7 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
     throw new Error(`Mistral API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return {
     enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'mistral',
@@ -612,7 +612,7 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
     throw new Error(`Claude API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return {
     enhancedPrompt: cleanEnhancedPrompt(data.content[0].text),
     source: 'claude',
@@ -648,7 +648,7 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
     throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return {
     enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'openai',
@@ -684,7 +684,7 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
     throw new Error(`Moonshot API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return {
     enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
     source: 'moonshot',

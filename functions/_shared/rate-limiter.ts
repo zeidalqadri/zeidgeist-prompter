@@ -156,7 +156,7 @@ export class DistributedRateLimiter {
         remaining: 0,
         resetTime,
         retryAfter,
-        blocked: shouldBlock
+        blocked: Boolean(shouldBlock)
       };
     }
 
@@ -323,7 +323,7 @@ export function createRateLimitResponse(
   result: RateLimitResult,
   corsHeaders: Record<string, string> = {}
 ): Response {
-  const headers = {
+  const headers: Record<string, string> = {
     ...corsHeaders,
     'Content-Type': 'application/json',
     'X-RateLimit-Limit': result.limit.toString(),

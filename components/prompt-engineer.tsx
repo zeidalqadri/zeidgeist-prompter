@@ -638,7 +638,7 @@ export default function PromptEngineer() {
         body: JSON.stringify({ prompt: state.result, context: state.context }),
       })
 
-      const data = await response.json()
+      const data = await response.json() as any
 
       if (!response.ok) {
         // Don't throw an error, just log it and handle gracefully

@@ -84,7 +84,7 @@ async function enhanceWithDeepseek(
       throw new Error(`DeepSeek API error: ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.choices[0].message.content;
 
     return {
@@ -135,7 +135,7 @@ async function enhanceWithMistral(
       throw new Error(`Mistral API error: ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.choices[0].message.content;
 
     return {
@@ -216,7 +216,7 @@ async function enhanceWithGemini(
       throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.candidates[0].content.parts[0].text;
 
     return {

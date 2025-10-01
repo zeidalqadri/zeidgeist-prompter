@@ -205,17 +205,17 @@ export class DatabaseConnectionManager {
    * Execute a transaction with automatic rollback on error
    */
   async transaction<T>(
-    operation: (tx: DatabaseClient) => Promise<T>
+    operation: (tx: any) => Promise<T>
   ): Promise<T> {
     const client = this.getClient();
 
     try {
       // Drizzle automatically handles transactions
       return await client.transaction(async (tx) => {
-        return await operation(tx as DatabaseClient);
+        return await operation(tx);
       });
     } catch (error) {
-      console.error('Transaction failed:', error);
+      logger.error('Transaction failed', error as Error);
 
       if (error instanceof Error) {
         throw new DatabaseError(

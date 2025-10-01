@@ -158,7 +158,7 @@ export const registerRequestSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   username: usernameSchema.optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional()
 }).strict(); // Reject unknown fields
 
 /**
@@ -268,7 +268,7 @@ export const patternSubmissionSchema = z.object({
   enhancedPrompt: promptTextSchema,
   quality: z.number().min(0).max(1),
   domain: z.string().max(50).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional()
 }).strict();
 
 // ============================================================================
@@ -315,7 +315,7 @@ export function validateRequestBody<T extends z.ZodType>(
     }
 
     // Format Zod errors for user-friendly messages
-    const errors = result.error.errors.map(err => {
+    const errors = result.error.issues.map(err => {
       const path = err.path.join('.');
       return path ? `${path}: ${err.message}` : err.message;
     });

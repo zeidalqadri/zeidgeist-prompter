@@ -68,11 +68,11 @@ export class PromptEngineerService {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
         throw new Error(error.error || `Enhancement failed with status ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const processingTime = Date.now() - startTime;
 
       return {
@@ -109,7 +109,7 @@ export class PromptEngineerService {
         throw new Error(`Failed to fetch history: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
 
       // Transform API response to HistoryItem format
       return (data.items || []).map((item: any) => ({

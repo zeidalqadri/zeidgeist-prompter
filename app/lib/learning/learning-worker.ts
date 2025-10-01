@@ -121,7 +121,8 @@ export class LearningWorker {
 
     try {
       // Extract patterns from highly-rated feedback
-      if (feedbackData.score && feedbackData.score >= 4) {
+      const data = feedbackData as any;
+      if (data.score && data.score >= 4) {
         await this.learningService.runLearningCycle();
       }
 

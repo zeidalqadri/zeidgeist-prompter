@@ -259,7 +259,7 @@ export class DeepSeekProvider extends BaseLLMProvider {
       throw new Error(`DeepSeek API error (${response.status}): ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.choices[0].message.content;
 
     this.validateResponse(enhancedPrompt, request.prompt);
@@ -308,7 +308,7 @@ export class MistralProvider extends BaseLLMProvider {
       throw new Error(`Mistral API error (${response.status}): ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.choices[0].message.content;
 
     this.validateResponse(enhancedPrompt, request.prompt);
@@ -373,7 +373,7 @@ export class GeminiProvider extends BaseLLMProvider {
       throw new Error(`Gemini API error (${response.status}): ${JSON.stringify(error)}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const enhancedPrompt = data.candidates[0].content.parts[0].text;
 
     this.validateResponse(enhancedPrompt, request.prompt);
