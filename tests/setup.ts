@@ -62,6 +62,15 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   server.resetHandlers()
+
+  // Clear test data stores
+  if (typeof global !== 'undefined') {
+    const g = global as any
+    if (g.__registeredEmails) g.__registeredEmails.length = 0
+    if (g.__loginAttempts) g.__loginAttempts = {}
+    if (g.__historyStore) g.__historyStore = {}
+    if (g.__rateLimits) g.__rateLimits = {}
+  }
 })
 
 afterAll(() => {
