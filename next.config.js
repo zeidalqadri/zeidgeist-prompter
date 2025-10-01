@@ -29,30 +29,16 @@ const nextConfig = {
   
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
-    // Production optimizations - minimal splitting for static export
+    // Let OpenNext handle chunk splitting - custom splitChunks breaks bundler
+    // Only apply tree-shaking optimizations
     if (!dev) {
       config.optimization = {
         ...config.optimization,
         usedExports: true,
         sideEffects: false,
         moduleIds: 'deterministic',
-        chunkIds: 'deterministic',
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            default: false,
-            vendors: false,
-            // Only split React runtime
-            react: {
-              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
-              name: 'react',
-              priority: 20,
-              chunks: 'all',
-            },
-          },
-        },
       }
-      
+
       // Bundle analyzer in development
       if (process.env.ANALYZE === 'true') {
         const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer')
@@ -64,7 +50,7 @@ const nextConfig = {
         )
       }
     }
-    
+
     return config
   },
   

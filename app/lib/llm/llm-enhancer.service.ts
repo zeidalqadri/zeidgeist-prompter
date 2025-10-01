@@ -227,13 +227,42 @@ export class LLMEnhancerService {
 
   /**
    * Get enhancement metrics
+   * Aggregates real-time metrics from in-memory store
    */
   async getMetrics(env: any): Promise<Record<string, unknown>> {
-    // TODO: Implement metrics aggregation from database
+    const { getMetricsJSON } = await import('@/app/lib/observability/metrics');
+    const rawMetrics = getMetricsJSON() as any;
+
+    // Aggregate LLM metrics
+    const llmRequests = rawMetrics.counters.filter((c: any) =>
+      c.name === 'llm_requests_total'
+    );
+
+    const providerUsage: Record<string, number> = {};
+    let totalEnhancements = 0;
+
+    llmRequests.forEach((counter: any) => {
+      const provider = counter.labels?.provider || 'unknown';
+      providerUsage[provider] = (providerUsage[provider] || 0) + counter.value;
+      totalEnhancements += counter.value;
+    });
+
+    // Calculate average processing time from histogram
+    const latencyHistograms = rawMetrics.histograms.filter((h: any) =>
+      h.name === 'prompt_enhancement_duration_ms'
+    );
+
+    let averageProcessingTime = 0;
+    if (latencyHistograms.length > 0) {
+      const totalSum = latencyHistograms.reduce((sum: number, h: any) => sum + h.sum, 0);
+      const totalCount = latencyHistograms.reduce((count: number, h: any) => count + h.count, 0);
+      averageProcessingTime = totalCount > 0 ? totalSum / totalCount : 0;
+    }
+
     return {
-      totalEnhancements: 0,
-      providerUsage: {},
-      averageProcessingTime: 0
+      totalEnhancements,
+      providerUsage,
+      averageProcessingTime: Math.round(averageProcessingTime)
     };
   }
 }
