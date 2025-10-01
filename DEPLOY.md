@@ -172,7 +172,7 @@ The deployment configuration has been updated to fix 404 errors and routing issu
    - Creates 404.html for proper error handling
 
 5. **Key Configuration Files**:
-   - `wrangler.toml`: Cloudflare Pages configuration
+   - `wrangler.pages.toml`: Cloudflare Pages configuration
    - `_routes.json`: API routing rules
    - `_headers`: Security and caching headers
    - `next.config.js`: Static export configuration

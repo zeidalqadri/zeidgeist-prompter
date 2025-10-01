@@ -2,7 +2,7 @@
 
 interface EnhancementResponse {
   enhancedPrompt: string;
-  source: 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'local';
+  source: 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'gemini' | 'local';
   metadata?: Record<string, unknown>;
 }
 
@@ -435,13 +435,18 @@ function testCleanEnhancedPrompt() {
 }
 
 // DeepSeek enhancement
-async function enhanceWithDeepseek(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithDeepseek(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     throw new Error('DeepSeek API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
     method: 'POST',
@@ -462,22 +467,196 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
     throw new Error(`DeepSeek API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json() as any;
+  const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'deepseek',
     metadata: { model: 'deepseek-chat', usage: data.usage }
   };
 }
 
-// Mistral enhancement
-async function enhanceWithMistral(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+// Build Mistral-specific enhancement messages optimized for Mistral's capabilities
+function buildMistralPromptEnhancementMessages(prompt: string, context?: string, isRefinement: boolean = false) {
+  // Mistral-optimized system prompt using their documented best practices
+  const systemPrompt = isRefinement 
+    ? `### PROMPT REFINEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt refinement expert specializing in iterative improvement of existing prompts. Your expertise lies in identifying gaps and enhancing clarity while preserving original intent.
+<<<END_ROLE>>>
+
+<<<TASK_INSTRUCTIONS>>>
+Your task is to refine an already-enhanced prompt by:
+
+**Step 1: ANALYSIS**
+- Identify remaining ambiguities or gaps
+- Assess completeness of specifications
+- Evaluate clarity of success criteria
+
+**Step 2: ENHANCEMENT STRATEGY**
+- Add missing edge case handling
+- Strengthen specificity without redundancy
+- Improve structural organization
+- Enhance actionability
+
+**Step 3: REFINEMENT EXECUTION**
+- Build upon existing quality (don't restart)
+- Add substantial improvements (not minor changes)
+- Include concrete examples where helpful
+- Ensure measurable success criteria
+
+**Step 4: VALIDATION**
+- Verify all constraints are addressed
+- Confirm enhanced specificity
+- Ensure actionable outcomes
+<<<END_TASK_INSTRUCTIONS>>>
+
+<<<OUTPUT_CONSTRAINTS>>>
+- OUTPUT FORMAT: Enhanced prompt text only
+- NO META-TEXT: Never include "Here's...", "This is...", "Below is..."
+- NO EXPLANATIONS: Just the refined prompt
+- SUBSTANTIAL CHANGES: Must be meaningfully different from input
+- DIRECT DELIVERY: Start immediately with the enhanced content
+<<<END_OUTPUT_CONSTRAINTS>>>
+
+<<<QUALITY_CHECKLIST>>>
+☐ Eliminates remaining ambiguity
+☐ Adds concrete specifications  
+☐ Includes success/failure criteria
+☐ Provides actionable steps
+☐ Contains relevant examples
+☐ Maintains original intent
+☐ Significantly improves upon input
+<<<END_QUALITY_CHECKLIST>>>`
+
+    : `### PROMPT ENHANCEMENT SPECIALIST ###
+
+<<<ROLE>>>
+You are an elite prompt engineering expert with deep expertise in transforming vague requests into crystal-clear, actionable prompts that deliver exceptional results.
+<<<END_ROLE>>>
+
+<<<TASK_METHODOLOGY>>>
+Follow this systematic approach:
+
+**Step 1: INTENT EXTRACTION**
+- Identify core purpose and domain
+- Determine target audience and use case
+- Extract key requirements and constraints
+
+**Step 2: GAP ANALYSIS**
+- What specific information is missing?
+- What ambiguities need clarification?
+- What edge cases should be addressed?
+
+**Step 3: ENHANCEMENT DESIGN**
+- Structure with clear sections and hierarchy
+- Add domain-specific requirements
+- Include success criteria and quality standards
+- Specify desired format and style
+
+**Step 4: OPTIMIZATION**
+- Remove redundancy while maintaining clarity
+- Add concrete examples where beneficial
+- Ensure actionable and measurable outcomes
+- Include error handling and constraints
+<<<END_TASK_METHODOLOGY>>>
+
+<<<ENHANCEMENT_FRAMEWORK>>>
+Transform basic prompts by adding:
+• **Context**: Background information and domain specifics
+• **Specificity**: Precise requirements and parameters
+• **Structure**: Clear organization and logical flow
+• **Examples**: Concrete demonstrations where helpful
+• **Constraints**: Boundaries, limitations, and quality standards
+• **Success Criteria**: Measurable outcomes and evaluation methods
+• **Format**: Desired output structure and presentation
+<<<END_ENHANCEMENT_FRAMEWORK>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+- DIRECT OUTPUT: Provide only the enhanced prompt text
+- NO INTRODUCTIONS: Never start with "Here's..." or similar phrases
+- NO EXPLANATIONS: Don't explain what you're doing
+- SUBSTANTIAL IMPROVEMENT: Create meaningfully better prompts
+- ACTIONABLE CONTENT: Ensure clear, executable instructions
+<<<END_OUTPUT_REQUIREMENTS>>>
+
+<<<EXAMPLE_TRANSFORMATIONS>>>
+Basic: "website for a doctor"
+Enhanced: "Design a professional medical practice website featuring: patient portal integration, appointment scheduling system, service descriptions with pricing, doctor credentials and specializations, patient testimonials, insurance information, contact details with maps, HIPAA-compliant contact forms, mobile-responsive design, and accessibility compliance (WCAG 2.1 AA standards)."
+
+Basic: "write about climate change"  
+Enhanced: "Compose a comprehensive 2000-word analysis of climate change covering: scientific evidence from IPCC reports, primary causes (greenhouse gas emissions, deforestation), current global impacts (temperature rise, extreme weather patterns), regional variations in effects, evidence-based mitigation strategies, adaptation measures, economic implications, and actionable steps for individuals and organizations. Include data visualizations, peer-reviewed sources, and specific examples from at least three different continents."
+<<<END_EXAMPLE_TRANSFORMATIONS>>>`
+
+  const messages = [
+    { role: "system", content: systemPrompt }
+  ];
+
+  // Format user input with clear delimiters (Mistral best practice)
+  let userMessage = '';
+  if (context && context.trim()) {
+    userMessage = `<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  } else {
+    userMessage = `<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  }
+
+  messages.push({ role: "user", content: userMessage });
+  return messages;
+}
+
+// Mistral enhancement with full optimization pipeline
+async function enhanceWithMistral(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.MISTRAL_API_KEY;
   if (!apiKey) {
     throw new Error('Mistral API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const startTime = Date.now();
+
+  // Detect optimal model based on complexity
+  const model = selectMistralModel(prompt, context);
+  const complexity = assessPromptComplexity(prompt);
+  
+  // Use template-based enhancement for better results
+  const useTemplateOptimization = !isRefinement && shouldUseTemplateOptimization(prompt);
+  
+  let messages;
+  let parameters;
+  
+  if (opts.isTestGreeting) {
+    messages = [
+      { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+      { role: 'user', content: 'Short greeting.' }
+    ];
+    parameters = { temperature: 0.2, max_tokens: 20, top_p: 0.9 };
+  } else if (useTemplateOptimization) {
+    // Use specialized template for detected task type
+    const taskType = detectMistralTaskType(prompt);
+    const templateResult = buildMistralTemplateMessages(prompt, context, taskType);
+    messages = templateResult.messages;
+    parameters = templateResult.parameters;
+    
+    console.log(`🎯 Using Mistral template optimization: ${taskType} (${model})`);
+  } else {
+    // Use general Mistral-optimized messages
+    messages = buildMistralPromptEnhancementMessages(prompt, context, isRefinement);
+    parameters = {
+      temperature: 0.2,
+      max_tokens: 4096,
+      top_p: 0.95,
+      safe_prompt: false,
+      random_seed: 42
+    };
+  }
   
   const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
@@ -486,10 +665,9 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'mistral-large-latest',
+      model,
       messages,
-      temperature: 0.2,
-      max_tokens: 4096
+      ...parameters
     })
   });
 
@@ -498,22 +676,305 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
     throw new Error(`Mistral API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json() as any;
+  const data = await response.json();
+  let enhancedContent = data.choices[0].message.content;
+  
+  // Apply post-processing (skip heavy cleanup in test greeting mode)
+  if (opts.isTestGreeting) {
+    enhancedContent = normalizeShortGreeting(enhancedContent);
+  } else {
+    enhancedContent = processMistralResponse(enhancedContent);
+  }
+  
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
     source: 'mistral',
-    metadata: { model: 'mistral-large-latest', usage: data.usage }
+    metadata: { 
+      model,
+      usage: data.usage,
+      optimization: useTemplateOptimization ? 'mistral-template-v1.0' : 'mistral-specific-v1.0',
+      complexity,
+      taskType: useTemplateOptimization ? detectMistralTaskType(prompt) : undefined,
+      processTime: Date.now() - startTime
+    }
   };
 }
 
+// Mistral model selection based on complexity
+function selectMistralModel(prompt: string, context?: string): string {
+  const totalLength = prompt.length + (context?.length || 0);
+  const complexity = assessPromptComplexity(prompt);
+  
+  // Use smaller, faster models for simple tasks (cost optimization)
+  if (complexity === 'simple' && totalLength < 500) {
+    return 'mistral-small-latest';
+  }
+  
+  // Use medium model for moderate complexity
+  if (complexity === 'moderate' && totalLength < 2000) {
+    return 'mistral-medium-latest';
+  }
+  
+  // Use large model for complex tasks or long content
+  return 'mistral-large-latest';
+}
+
+// Assess prompt complexity for optimization
+function assessPromptComplexity(prompt: string): 'simple' | 'moderate' | 'complex' {
+  // Simple: basic transformations, short prompts
+  if (prompt.length < 100 && !hasComplexPatterns(prompt)) {
+    return 'simple';
+  }
+  
+  // Complex: technical content, multiple requirements, long prompts
+  if (prompt.length > 500 || hasComplexPatterns(prompt)) {
+    return 'complex';
+  }
+  
+  return 'moderate';
+}
+
+// Check for complex patterns requiring advanced processing
+function hasComplexPatterns(prompt: string): boolean {
+  const complexPatterns = [
+    /\b(analysis|evaluation|comparison|synthesis)\b/i,
+    /\b(step-by-step|methodology|framework|strategy)\b/i,
+    /\b(requirements|specifications|criteria|constraints)\b/i,
+    /\b(technical|professional|academic|scientific)\b/i,
+    /[0-9]+\s*(steps|phases|sections|parts)/i
+  ];
+  
+  return complexPatterns.some(pattern => pattern.test(prompt));
+}
+
+// Detect Mistral task type for template optimization
+function detectMistralTaskType(prompt: string): string {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Classification indicators (Mistral's strength)
+  if (hasPatterns(lowerPrompt, ['classify', 'categorize', 'label', 'tag', 'type of', 'which category'])) {
+    return 'classification';
+  }
+  
+  // Summarization indicators (Mistral excels here)
+  if (hasPatterns(lowerPrompt, ['summarize', 'summary', 'brief', 'overview', 'key points', 'tldr'])) {
+    return 'summarization';
+  }
+  
+  // Evaluation indicators (Another Mistral strength)
+  if (hasPatterns(lowerPrompt, ['evaluate', 'assess', 'review', 'rate', 'score', 'judge', 'analyze quality'])) {
+    return 'evaluation';
+  }
+  
+  // Analysis indicators
+  if (hasPatterns(lowerPrompt, ['analyze', 'analysis', 'examine', 'investigate', 'research', 'study'])) {
+    return 'analysis';
+  }
+  
+  // Default to general enhancement
+  return 'general';
+}
+
+// Check for specific patterns in text
+function hasPatterns(text: string, patterns: string[]): boolean {
+  return patterns.some(pattern => text.includes(pattern));
+}
+
+// Determine if template optimization should be used
+function shouldUseTemplateOptimization(prompt: string): boolean {
+  const taskType = detectMistralTaskType(prompt);
+  // Use template optimization for specific task types where Mistral excels
+  return ['classification', 'summarization', 'evaluation', 'analysis'].includes(taskType);
+}
+
+// Build template-optimized messages (simplified version for server-side)
+function buildMistralTemplateMessages(prompt: string, context: string | undefined, taskType: string) {
+  // Simplified template system for server-side use
+  const templates = {
+    classification: {
+      systemPrompt: `### CLASSIFICATION SPECIALIST ###
+
+<<<ROLE>>>
+You are an expert classification specialist transforming vague prompts into precise categorization and labeling instructions with clear criteria and systematic approaches.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define clear classification categories and criteria
+- Add systematic evaluation methodology  
+- Include confidence scoring requirements
+- Specify output format and structure
+- Add validation and quality control steps
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with clear classification framework, structured approach, and measurable criteria.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.1, top_p: 0.9, max_tokens: 2048 }
+    },
+    
+    summarization: {
+      systemPrompt: `### SUMMARIZATION EXPERT ###
+
+<<<ROLE>>>
+You are a master summarization specialist enhancing prompts to create comprehensive, accurate, and well-structured summary instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define summarization scope and depth requirements
+- Add structure and organization guidelines
+- Specify key information extraction criteria  
+- Include length and format specifications
+- Add quality and accuracy validation methods
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with clear summarization framework, content priorities, and structured approach.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.2, top_p: 0.95, max_tokens: 3072 }
+    },
+    
+    evaluation: {
+      systemPrompt: `### EVALUATION SPECIALIST ###
+
+<<<ROLE>>>
+You are an expert evaluation specialist enhancing prompts to create systematic, objective, and comprehensive assessment instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define clear evaluation criteria and scoring scales
+- Add systematic assessment methodology
+- Include evidence and justification requirements
+- Specify structured output format with scores
+- Add consistency and bias reduction measures
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with evaluation framework, scoring systems, and systematic assessment approach.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.1, top_p: 0.9, max_tokens: 2560 }
+    },
+    
+    analysis: {
+      systemPrompt: `### ANALYSIS EXPERT ###
+
+<<<ROLE>>>
+You are a skilled analytical expert enhancing prompts to create thorough, multi-dimensional, and insightful analysis instructions.
+<<<END_ROLE>>>
+
+<<<ENHANCEMENT_FOCUS>>>
+- Define comprehensive analysis scope and methodology
+- Add multi-perspective examination requirements
+- Include pattern recognition and insight generation
+- Specify evidence-based conclusion requirements
+- Add structured reporting and recommendation formats
+<<<END_ENHANCEMENT_FOCUS>>>
+
+<<<OUTPUT_REQUIREMENTS>>>
+Provide only the enhanced prompt text with analytical framework, systematic approach, and comprehensive investigation methods.
+<<<END_OUTPUT_REQUIREMENTS>>>`,
+      parameters: { temperature: 0.3, top_p: 0.95, max_tokens: 4096 }
+    }
+  };
+  
+  const template = templates[taskType as keyof typeof templates] || templates.analysis;
+  
+  const messages = [
+    { role: 'system', content: template.systemPrompt }
+  ];
+  
+  // Format user input with delimiters
+  let userMessage = '';
+  if (context && context.trim()) {
+    userMessage = `<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  } else {
+    userMessage = `<<<PROMPT_TO_ENHANCE>>>
+${prompt}
+<<<END_PROMPT_TO_ENHANCE>>>`;
+  }
+  
+  messages.push({ role: 'user', content: userMessage });
+  
+  return {
+    messages,
+    parameters: template.parameters
+  };
+}
+
+// Process Mistral response with specific optimizations
+function processMistralResponse(response: string): string {
+  let cleaned = response.trim();
+  
+  // Remove Mistral-specific artifacts
+  cleaned = cleaned.replace(/<<<[^>]*>>>/g, ''); // Remove delimiter artifacts
+  cleaned = cleaned.replace(/###[^#]*###/g, ''); // Remove header artifacts
+  cleaned = cleaned.replace(/\*\*\*[^*]*\*\*\*/g, ''); // Remove emphasis artifacts
+  
+  // Remove meta-text patterns
+  const metaPatterns = [
+    /^(Here's|Here is|This is|Below is).*?:/i,
+    /^(The enhanced|The improved|The refined).*?:/i,
+    /^(Enhanced prompt|Improved prompt|Refined prompt).*?:/i
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Normalize formatting
+  cleaned = cleaned
+    .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive line breaks
+    .replace(/[ \t]+/g, ' ')     // Normalize spaces
+    .replace(/\n /g, '\n')       // Remove leading spaces after line breaks
+    .trim();
+  
+  // Ensure minimum quality standards
+  if (cleaned.length < 50) {
+    cleaned += '. Include comprehensive information and well-organized sections for optimal results.';
+  }
+  
+  // Ensure proper sentence endings
+  if (!cleaned.match(/[.!?]$/)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
+}
+
+// Normalize any provider output into a single short greeting
+function normalizeShortGreeting(text: string): string {
+  let t = (text || '').trim().replace(/^"|"$/g, '');
+  // Take first line/sentence
+  t = t.split(/\r?\n/)[0];
+  // Remove leading label-like words
+  t = t.replace(/^\s*(Response:|Greeting:|Output:)\s*/i, '');
+  // Limit to 10 words
+  const words = t.split(/\s+/).filter(Boolean).slice(0, 10);
+  t = words.join(' ');
+  // If still looks like instruction, fallback
+  if (/\b(generate|write|create|include)\b/i.test(t)) {
+    t = 'Hello!';
+  }
+  // Ensure punctuation
+  if (!/[.!?]$/.test(t)) {
+    t += '!';
+  }
+  return t;
+}
+
 // Claude enhancement (Anthropic)
-async function enhanceWithClaude(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithClaude(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.CLAUDE_API_KEY;
   if (!apiKey) {
     throw new Error('Claude API key not configured');
   }
 
-  const systemPrompt = isRefinement 
+  let systemPrompt = isRefinement 
     ? `<prompt_enhancement_system version="3.0">
   <role expertise="maximum">Elite Prompt Refinement Specialist</role>
   
@@ -591,6 +1052,11 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
     userMessage = `<prompt_to_enhance>${prompt}</prompt_to_enhance>`;
   }
   
+  if (opts.isTestGreeting) {
+    systemPrompt = 'You are concise. Reply with a single short friendly greeting (<= 10 words). Output only the greeting.';
+    userMessage = 'Short greeting.';
+  }
+  
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -612,22 +1078,28 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
     throw new Error(`Claude API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json() as any;
+  const data = await response.json();
+  const content = data.content[0].text;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.content[0].text),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'claude',
     metadata: { model: 'claude-3-haiku', usage: data.usage }
   };
 }
 
 // OpenAI enhancement
-async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OpenAI API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -639,7 +1111,7 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.2,
-      max_tokens: 4096
+      max_tokens: opts.isTestGreeting ? 20 : 4096
     })
   });
 
@@ -648,22 +1120,216 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
     throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json() as any;
+  const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'openai',
     metadata: { model: 'gpt-4o-mini', usage: data.usage }
   };
 }
 
+// Gemini enhancement (Google)
+async function enhanceWithGemini(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
+  const apiKey = env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  const startTime = Date.now();
+  const model = 'gemini-1.5-pro';
+  
+  // Build Gemini-optimized instructions or test greeting
+  const systemInstruction = opts.isTestGreeting
+    ? 'Reply with a single short greeting (<= 10 words). Output only the greeting.'
+    : buildGeminiSystemInstruction(isRefinement);
+  const userContent = opts.isTestGreeting
+    ? 'Short greeting.'
+    : buildGeminiUserContent(prompt, context, isRefinement);
+  
+  // Gemini API uses a different structure than OpenAI-compatible APIs
+  const requestBody = {
+    contents: [{
+      parts: [{
+        text: `${systemInstruction}\n\n${userContent}`
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.2,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      stopSequences: []
+    },
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE'
+      }
+    ]
+  };
+  
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  
+  if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+    throw new Error('Gemini API returned no content');
+  }
+  
+  let enhancedContent = data.candidates[0].content.parts[0].text;
+  
+  // Apply Gemini-specific post-processing or test normalization
+  enhancedContent = opts.isTestGreeting ? normalizeShortGreeting(enhancedContent) : processGeminiResponse(enhancedContent);
+  
+  return {
+    enhancedPrompt: cleanEnhancedPrompt(enhancedContent),
+    source: 'gemini',
+    metadata: { 
+      model,
+      usage: data.usageMetadata,
+      optimization: 'gemini-optimized-v1.0',
+      processTime: Date.now() - startTime,
+      finishReason: data.candidates[0].finishReason
+    }
+  };
+}
+
+// Build Gemini-specific system instruction with few-shot learning
+function buildGeminiSystemInstruction(isRefinement: boolean = false): string {
+  const baseInstruction = isRefinement 
+    ? `You are an expert prompt refinement specialist. Your task is to refine already-enhanced prompts by adding missing details, improving clarity, and strengthening specifications while preserving the original intent.
+
+Key principles:
+1. Build upon existing quality (don't restart from scratch)
+2. Add substantial improvements (not minor tweaks)
+3. Include concrete examples where beneficial
+4. Ensure all constraints and requirements are explicit
+5. Output ONLY the refined prompt text - no introductions or explanations`
+    : `You are an expert prompt engineering specialist. Your task is to transform basic prompts into comprehensive, actionable instructions that deliver exceptional results.
+
+Key principles:
+1. Extract and clarify the core intent
+2. Add specific requirements and constraints
+3. Structure with clear hierarchy and organization
+4. Include success criteria and quality standards
+5. Specify desired format and output structure
+6. Output ONLY the enhanced prompt text - no introductions or explanations`;
+
+  // Add few-shot learning examples
+  const examples = `
+Few-shot examples:
+
+Basic: "write about climate change"
+Enhanced: "Compose a comprehensive 1500-word analysis of climate change covering: current scientific evidence from IPCC reports, primary causes (greenhouse gas emissions, deforestation, industrial processes), observable global impacts (temperature rise, sea level changes, extreme weather patterns), regional variations in effects, evidence-based mitigation strategies, adaptation measures being implemented worldwide, economic implications for different sectors, and specific actionable steps for individuals, businesses, and governments. Include recent data from peer-reviewed sources, cite specific examples from at least three different continents, and structure the analysis with clear sections and subheadings."
+
+Basic: "create a website"
+Enhanced: "Design a professional business website including: modern responsive layout compatible with desktop, tablet, and mobile devices, homepage with clear value proposition and call-to-action, about us page with team credentials and company history, services/products page with detailed descriptions and pricing, testimonials section with customer reviews and case studies, contact page with multiple contact methods and location map, blog section for content marketing, SEO optimization with proper meta tags and schema markup, fast loading speed (under 3 seconds), accessibility compliance (WCAG 2.1 AA standards), and integration with analytics tracking and lead capture forms."
+
+Basic: "analyze data"
+Enhanced: "Conduct a comprehensive data analysis including: initial data exploration with summary statistics and distribution analysis, data quality assessment identifying missing values, outliers, and inconsistencies, appropriate statistical tests or modeling techniques based on data type and research questions, visualizations including histograms, scatter plots, correlation matrices, and trend charts, interpretation of results with confidence intervals and statistical significance testing, identification of key patterns, relationships, and anomalies, actionable insights and recommendations based on findings, methodology documentation explaining approach and assumptions, and executive summary highlighting the most important discoveries with business implications."${isRefinement ? 
+    `
+
+Refinement example:
+Already-Enhanced: "Design a professional medical practice website featuring patient portal integration, appointment scheduling, and service descriptions."
+Refined: "Design a comprehensive medical practice website featuring: HIPAA-compliant patient portal with secure login, medical records access, and prescription refill requests; intelligent appointment scheduling system with automated reminders via email/SMS, availability calendar, and waiting list management; detailed service descriptions organized by specialty with treatment explanations, preparation instructions, and expected outcomes; doctor profiles with credentials, specializations, education, and patient reviews; insurance verification tools with real-time eligibility checking and pre-authorization workflows; telemedicine integration for virtual consultations with video calling and secure messaging; patient education library with condition-specific resources, post-treatment care instructions, and medication guides; accessibility compliance meeting ADA and WCAG 2.1 AA standards; mobile-responsive design optimized for tablet/smartphone usage; and multilingual support for diverse patient populations."` : ''}`;
+
+  return baseInstruction + examples;
+}
+
+// Build Gemini-specific user content
+function buildGeminiUserContent(prompt: string, context?: string, isRefinement: boolean = false): string {
+  const taskType = isRefinement ? 'REFINE' : 'ENHANCE';
+  
+  let content = `Task: ${taskType} the following prompt\n\n`;
+  
+  if (context && context.trim()) {
+    content += `Context: ${context}\n\n`;
+  }
+  
+  content += `Prompt to ${taskType.toLowerCase()}: ${prompt}\n\n`;
+  content += `Provide only the ${isRefinement ? 'refined' : 'enhanced'} prompt text. Do not include introductions, explanations, or meta-text.`;
+  
+  return content;
+}
+
+// Process Gemini response with specific optimizations
+function processGeminiResponse(response: string): string {
+  let cleaned = response.trim();
+  
+  // Remove common Gemini meta-text patterns
+  const metaPatterns = [
+    /^(Here's the|Here is the)\s+(enhanced|refined|improved)\s+prompt:?\s*/i,
+    /^(The|This)\s+(enhanced|refined|improved)\s+prompt\s+is:?\s*/i,
+    /^(Enhanced|Refined|Improved)\s+prompt:?\s*/i,
+    /^\*\*(Enhanced|Refined|Improved)\s+Prompt\*\*:?\s*/i,
+    /^Task:\s+(ENHANCE|REFINE).*?\n\n/i
+  ];
+  
+  metaPatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, '');
+  });
+  
+  // Remove markdown artifacts that Gemini sometimes includes
+  cleaned = cleaned.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+  cleaned = cleaned.replace(/^---\n?/, '').replace(/\n?---$/, '');
+  
+  // Normalize formatting
+  cleaned = cleaned
+    .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive line breaks
+    .replace(/[ \t]+/g, ' ')     // Normalize spaces
+    .replace(/\n /g, '\n')       // Remove leading spaces after line breaks
+    .trim();
+  
+  // Ensure minimum quality standards
+  if (cleaned.length < 50) {
+    cleaned += '. Include comprehensive details, clear structure, and specific requirements for optimal results.';
+  }
+  
+  // Ensure proper sentence endings
+  if (!cleaned.match(/[.!?]$/)) {
+    cleaned += '.';
+  }
+  
+  return cleaned;
+}
+
 // Moonshot enhancement (Kimi)
-async function enhanceWithMoonshot(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}): Promise<EnhancementResponse> {
+async function enhanceWithMoonshot(prompt: string, context?: string, isRefinement: boolean = false, env: Record<string, string> = {}, opts: { isTestGreeting?: boolean } = {}): Promise<EnhancementResponse> {
   const apiKey = env.MOONSHOT_API_KEY;
   if (!apiKey) {
     throw new Error('Moonshot API key not configured');
   }
 
-  const messages = buildPromptEnhancementMessages(prompt, context, isRefinement);
+  const messages = opts.isTestGreeting
+    ? [
+        { role: 'system', content: 'Reply with a single short friendly greeting. Max 10 words. Output only the greeting.' },
+        { role: 'user', content: 'Short greeting.' }
+      ]
+    : buildPromptEnhancementMessages(prompt, context, isRefinement);
   
   const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
     method: 'POST',
@@ -684,9 +1350,10 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
     throw new Error(`Moonshot API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json() as any;
+  const data = await response.json();
+  const content = data.choices[0].message.content;
   return {
-    enhancedPrompt: cleanEnhancedPrompt(data.choices[0].message.content),
+    enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
     source: 'moonshot',
     metadata: { model: 'moonshot-v1-8k', usage: data.usage }
   };
@@ -702,6 +1369,15 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+// Provider preferences interface
+interface ProviderPreferences {
+  selectionMode: 'random' | 'forced' | 'custom'
+  forcedProvider?: string
+  excludedProviders: string[]
+  sessionDuration: number
+  timestamp: number
+}
+
 // Main enhancement function with random rotation
 export async function enhancePrompt(
   prompt: string,
@@ -711,9 +1387,16 @@ export async function enhancePrompt(
     isExpansion?: boolean;
     repeatCount?: number;
     env?: Record<string, string>;
+    providerPreferences?: ProviderPreferences | null;
+    testProvider?: string | null;
   } = {}
 ): Promise<EnhancementResponse> {
-  const { isRefinement = false, env = {} } = options;
+  const { 
+    isRefinement = false, 
+    env = {}, 
+    providerPreferences, 
+    testProvider 
+  } = options;
 
   // Check which API keys are configured
   const availableProviders = [];
@@ -722,25 +1405,28 @@ export async function enhancePrompt(
   console.log('Available env keys:', Object.keys(env));
   console.log('Claude key:', !!env.CLAUDE_API_KEY);
   console.log('OpenAI key:', !!env.OPENAI_API_KEY);
-  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY, '(DISABLED - too much intro/outro text)');
+  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY);
   console.log('Mistral key:', !!env.MISTRAL_API_KEY);
   console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
+  console.log('Gemini key:', !!env.GEMINI_API_KEY);
   
   if (env.CLAUDE_API_KEY) {
-    availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean) => enhanceWithClaude(p, c, r, env) });
+    availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithClaude(p, c, r, env, o) });
   }
   if (env.OPENAI_API_KEY) {
-    availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean) => enhanceWithOpenAI(p, c, r, env) });
+    availableProviders.push({ name: 'openai', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithOpenAI(p, c, r, env, o) });
   }
-  // DeepSeek disabled - too stubborn with intro/outro text despite XML constraints
-  // if (env.DEEPSEEK_API_KEY) {
-  //   availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
-  // }
+  if (env.DEEPSEEK_API_KEY) {
+    availableProviders.push({ name: 'deepseek', fn: (p: string, c?: string, r?: boolean) => enhanceWithDeepseek(p, c, r, env) });
+  }
   if (env.MISTRAL_API_KEY) {
-    availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean) => enhanceWithMistral(p, c, r, env) });
+    availableProviders.push({ name: 'mistral', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithMistral(p, c, r, env, o) });
   }
   if (env.MOONSHOT_API_KEY) {
-    availableProviders.push({ name: 'moonshot', fn: (p: string, c?: string, r?: boolean) => enhanceWithMoonshot(p, c, r, env) });
+    availableProviders.push({ name: 'moonshot', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithMoonshot(p, c, r, env, o) });
+  }
+  if (env.GEMINI_API_KEY) {
+    availableProviders.push({ name: 'gemini', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithGemini(p, c, r, env, o) });
   }
 
   if (availableProviders.length === 0) {
@@ -754,23 +1440,77 @@ export async function enhancePrompt(
         keysChecked: {
           claude: !!env.CLAUDE_API_KEY,
           openai: !!env.OPENAI_API_KEY,
-          deepseek: `${!!env.DEEPSEEK_API_KEY} (DISABLED)`,
+          deepseek: !!env.DEEPSEEK_API_KEY,
           mistral: !!env.MISTRAL_API_KEY,
-          moonshot: !!env.MOONSHOT_API_KEY
+          moonshot: !!env.MOONSHOT_API_KEY,
+          gemini: !!env.GEMINI_API_KEY
         }
       }
     };
   }
 
-  // Randomly shuffle providers for load balancing and diversity
-  const shuffledProviders = shuffleArray(availableProviders);
-  console.log(`Available providers: ${shuffledProviders.map(p => p.name).join(', ')}`);
+  // Apply provider preferences from /tweak page
+  let selectedProviders = [...availableProviders];
 
-  // Try providers in random order
+  // Always honor excludedProviders as global on/off toggles
+  if (providerPreferences?.excludedProviders?.length) {
+    const excludedSet = new Set(providerPreferences.excludedProviders.map(p => p.toLowerCase()))
+    selectedProviders = selectedProviders.filter(p => !excludedSet.has(p.name.toLowerCase()))
+  }
+  
+  // Handle test provider (from /tweak page testing)
+  if (testProvider) {
+    console.log(`🧪 Test mode: forcing provider ${testProvider}`);
+    const testProviderObj = availableProviders.find(p => 
+      p.name.toLowerCase() === testProvider.toLowerCase()
+    );
+    if (testProviderObj) {
+      selectedProviders = [testProviderObj];
+    } else {
+      console.warn(`⚠️ Test provider ${testProvider} not available or configured`);
+    }
+  }
+  // Handle forced provider selection
+  else if (providerPreferences?.selectionMode === 'forced' && providerPreferences.forcedProvider) {
+    console.log(`🎯 Forced provider mode: ${providerPreferences.forcedProvider}`);
+    const forcedProviderObj = availableProviders.find(p => 
+      p.name.toLowerCase() === providerPreferences.forcedProvider?.toLowerCase()
+    );
+    if (forcedProviderObj) {
+      selectedProviders = [forcedProviderObj, ...availableProviders.filter(p => p !== forcedProviderObj)];
+      console.log(`✅ Forcing ${providerPreferences.forcedProvider} with fallback to others`);
+    } else {
+      console.warn(`⚠️ Forced provider ${providerPreferences.forcedProvider} not available, using random`);
+    }
+  }
+  // Handle custom rotation (exclude specified providers)
+  else if (providerPreferences?.selectionMode === 'custom' && providerPreferences.excludedProviders.length > 0) {
+    console.log(`🚫 Custom rotation: excluding ${providerPreferences.excludedProviders.join(', ')}`);
+    selectedProviders = availableProviders.filter(p => 
+      !providerPreferences.excludedProviders.some(excluded => 
+        excluded.toLowerCase() === p.name.toLowerCase()
+      )
+    );
+    console.log(`✅ Custom rotation will use: ${selectedProviders.map(p => p.name).join(', ')}`);
+    
+    if (selectedProviders.length === 0) {
+      console.warn('⚠️ All providers excluded, falling back to all available providers');
+      selectedProviders = [...availableProviders];
+    }
+  }
+  
+  // Randomly shuffle providers for load balancing and diversity (unless in forced/test mode)
+  const shuffledProviders = testProvider || (providerPreferences?.selectionMode === 'forced' && providerPreferences.forcedProvider) 
+    ? selectedProviders 
+    : shuffleArray(selectedProviders);
+  
+  console.log(`🎲 Selected providers (${providerPreferences?.selectionMode || 'random'}): ${shuffledProviders.map(p => p.name).join(', ')}`);
+
+  // Try providers in preferred order
   for (const provider of shuffledProviders) {
     try {
       console.log(`🚀 Trying enhancement with ${provider.name}...`);
-      const result = await provider.fn(prompt, context, isRefinement);
+      const result = await provider.fn(prompt, context, isRefinement, { isTestGreeting: !!testProvider });
       console.log(`✅ Successfully enhanced with ${provider.name}`);
       return result;
     } catch (error) {

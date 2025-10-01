@@ -3,15 +3,26 @@ import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 
+function getCorsHeaders(request: Request, env: any) {
+  const origin = request.headers.get('Origin') || '*'
+  const nodeEnv = (env?.NODE_ENV || 'development')
+  const isDev = nodeEnv !== 'production'
+  const allowOrigin = isDev ? origin : 'https://mstprmpt.zeidgeist.com'
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization, X-Test-Provider',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin'
+  }
+}
+import { getProviderPreferences } from "./tweak/provider-preference"
+
 // Handle CORS preflight requests
-export async function onRequestOptions(): Promise<Response> {
+export async function onRequestOptions(context: any): Promise<Response> {
   return new Response(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
-    },
+    headers: getCorsHeaders(context.request, context.env),
   })
 }
 
@@ -23,9 +34,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   
   // Add CORS headers with performance optimizations
   const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization',
+    ...getCorsHeaders(request, env),
     'Content-Type': 'application/json',
     'Content-Encoding': 'gzip', // Enable compression
     'Cache-Control': 'no-cache, no-store, must-revalidate', // Prevent caching of sensitive data
@@ -71,13 +80,27 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     console.log('About to enhance prompt...')
     
+    // Check for provider preferences from /tweak page
+    const providerPreferences = getProviderPreferences(request)
+    console.log('🎯 Provider preferences:', providerPreferences?.selectionMode || 'random')
+    
+    // Check for test provider header (from /tweak page testing)
+    const testProvider = request.headers.get('X-Test-Provider')
+    
     // Process the prompt using our LLM-based enhancer
     try {
       console.log('🔧 Calling enhancePrompt function...');
       const enhancementResponse = await enhancePrompt(
         trimmedPrompt, 
         context || "", 
-        { isRefinement: !!isRefinement, isExpansion: !!isExpansion, repeatCount, env }
+        { 
+          isRefinement: !!isRefinement, 
+          isExpansion: !!isExpansion, 
+          repeatCount, 
+          env,
+          providerPreferences,
+          testProvider 
+        }
       )
       console.log('🎉 enhancePrompt returned:', enhancementResponse?.source);
       

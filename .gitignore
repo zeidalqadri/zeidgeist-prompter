@@ -38,3 +38,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# wrangler local artifacts
+.wrangler/
+
+# local PR drafts
+PR_BODY.md

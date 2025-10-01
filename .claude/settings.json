@@ -107,7 +107,7 @@
         ]
       },
       {
-        "matcher": "mcp__*",
+        "matcher": "mcp",
         "hooks": [
           {
             "type": "command",

@@ -69,12 +69,20 @@ PRODUCTION_NEXTAUTH_SECRET=your_production_nextauth_secret
 STAGING_JWT_SECRET=your_staging_jwt_secret
 STAGING_NEXTAUTH_SECRET=your_staging_nextauth_secret
 
-# API Keys (at least one required)
-CLAUDE_API_KEY=your_claude_api_key
-OPENAI_API_KEY=your_openai_api_key
-MISTRAL_API_KEY=your_mistral_api_key
-DEEPSEEK_API_KEY=your_deepseek_api_key
-MOONSHOT_API_KEY=your_moonshot_api_key
+# AI Provider API Keys (CRITICAL: Multiple keys required for random selection)
+# ⚠️  IMPORTANT: Configure multiple keys for proper load balancing
+# If only one key is configured, that provider will be used exclusively
+
+# Primary providers (recommended)
+CLAUDE_API_KEY=sk-ant-api03-your_claude_api_key          # Primary AI provider
+OPENAI_API_KEY=sk-your_openai_api_key                    # Reliable fallback
+MISTRAL_API_KEY=your_mistral_api_key                     # Additional provider
+
+# Additional providers (optional but recommended)
+MOONSHOT_API_KEY=your_moonshot_api_key                   # Kimi/Moonshot provider
+
+# ❌ DO NOT SET: DeepSeek is intentionally disabled due to formatting issues
+# DEEPSEEK_API_KEY=your_deepseek_api_key                # DISABLED - causes output issues
 ```
 
 #### Optional Secrets
@@ -141,6 +149,55 @@ npm run deploy:production
 npm run deploy:post https://your-domain.com
 ```
 
+## AI Provider Configuration
+
+### Critical Requirement: Multiple API Keys
+The application uses **random provider selection** for load balancing and redundancy. This feature **requires multiple AI provider API keys** to function correctly.
+
+#### ⚠️  Common Issue: Only OpenAI Being Used
+If your deployed app only uses OpenAI for prompt enhancement, it means **only the OpenAI API key is configured**. This is the most common deployment issue.
+
+#### Required Configuration
+Configure **at least 2-3 AI provider API keys** in both:
+1. **GitHub Secrets** (for CI/CD)
+2. **Cloudflare Pages Environment Variables** (for runtime)
+
+#### Supported Providers
+| Provider | Status | Model | Configuration |
+|----------|---------|--------|---------------|
+| **Claude** | ✅ Recommended | `claude-3-haiku-20240307` | `CLAUDE_API_KEY` |
+| **OpenAI** | ✅ Reliable | `gpt-4o-mini` | `OPENAI_API_KEY` |
+| **Mistral** | ✅ Good Quality | `mistral-large-latest` | `MISTRAL_API_KEY` |
+| **Moonshot** | ✅ Alternative | `moonshot-v1-8k` | `MOONSHOT_API_KEY` |
+| **DeepSeek** | ❌ Disabled | `deepseek-chat` | Not recommended |
+
+#### Setting Up Cloudflare Environment Variables
+1. Go to **Cloudflare Dashboard** → **Pages** → **Your Project**
+2. Navigate to **Settings** → **Environment variables**
+3. Add variables for **both Production and Preview environments**:
+   ```
+   CLAUDE_API_KEY = sk-ant-api03-[your-key]
+   OPENAI_API_KEY = sk-[your-key] 
+   MISTRAL_API_KEY = [your-key]
+   MOONSHOT_API_KEY = [your-key]
+   ```
+
+#### Verification
+Use the diagnostic endpoint to verify configuration:
+```bash
+# For staging/preview (not available in production for security)
+curl https://your-staging-url.com/api/debug/api-keys
+```
+
+### Troubleshooting AI Providers
+If experiencing issues:
+1. **Check logs** - Look for "Available providers: ..." messages
+2. **Verify API keys** - Ensure keys are valid and have quota
+3. **Test multiple requests** - Should see different providers being used
+4. **Check provider status** - Verify provider APIs are operational
+
+For detailed troubleshooting, see: `AI_PROVIDER_TROUBLESHOOTING.md`
+
 ## Environment Configuration
 
 ### Production Environment Variables
@@ -166,6 +223,12 @@ CORS_ORIGINS=https://your-domain.com
 # Rate Limiting
 RATE_LIMIT_WINDOW=900000
 RATE_LIMIT_MAX=100
+
+# AI Provider API Keys (CRITICAL: Set multiple keys)
+CLAUDE_API_KEY=your_claude_api_key
+OPENAI_API_KEY=your_openai_api_key
+MISTRAL_API_KEY=your_mistral_api_key
+MOONSHOT_API_KEY=your_moonshot_api_key
 
 # Features
 ENABLE_ANALYTICS=true
@@ -240,11 +303,41 @@ node --version  # Should be 18+
 #### 3. Environment Variables Not Loading
 ```bash
 # Verify secrets in GitHub
-# Check wrangler.toml configuration
+# Check wrangler.api.toml configuration
 # Validate environment names match
 ```
 
-#### 4. Health Checks Failing
+#### 4. AI Provider Issues - Only Using OpenAI
+This is the most common deployment issue.
+
+**Symptoms:**
+- All prompt enhancements use OpenAI only
+- No random provider selection occurring
+- Logs show "Available providers: openai" only
+
+**Diagnosis:**
+```bash
+# Check available providers (staging/preview only)
+curl https://your-staging-url.com/api/debug/api-keys
+
+# Look for these log messages in Cloudflare dashboard:
+# "🔍 Checking API keys..."
+# "Available providers: openai, claude, mistral, moonshot"
+```
+
+**Solution:**
+1. Add missing API keys to Cloudflare Pages environment variables
+2. Ensure keys are set for both Production and Preview environments  
+3. Verify API key format and validity
+4. Redeploy to pick up new environment variables
+
+**Required Keys for Random Selection:**
+- `CLAUDE_API_KEY` (primary)
+- `MISTRAL_API_KEY` (secondary) 
+- `MOONSHOT_API_KEY` (optional)
+- Keep `OPENAI_API_KEY` as fallback
+
+#### 5. Health Checks Failing
 ```bash
 # Check deployment status
 curl -f https://your-domain.com/api/health

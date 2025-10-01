@@ -217,10 +217,12 @@ export async function generateSessionFingerprint(request: Request): Promise<stri
 /**
  * Enhanced CORS headers with security best practices
  */
-export function getSecurityHeaders(origin: string = 'https://mstprmpt.zeidgeist.com'): Record<string, string> {
+export function getSecurityHeaders(origin?: string): Record<string, string> {
+  const allowOrigin = resolveAllowedOrigin(origin)
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Credentials': 'false',
+    'Vary': 'Origin',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
@@ -229,6 +231,33 @@ export function getSecurityHeaders(origin: string = 'https://mstprmpt.zeidgeist.
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()'
   };
+}
+
+function resolveAllowedOrigin(origin?: string): string {
+  if (!origin) return 'https://mstprmpt.zeidgeist.com'
+
+  try {
+    const url = new URL(origin)
+    const host = url.host
+
+    // Explicit allowlist
+    const allowedHosts = new Set([
+      'mstprmpt.zeidgeist.com',
+      'preview.mstprmpt.zeidgeist.com',
+      'localhost:3333',
+      'localhost:8788',
+    ])
+
+    if (allowedHosts.has(host)) return origin
+
+    // Allow Cloudflare Pages preview subdomains
+    if (host.endsWith('.pages.dev')) return origin
+
+    // Otherwise, do not reflect arbitrary origins. Default to primary domain.
+    return 'https://mstprmpt.zeidgeist.com'
+  } catch {
+    return 'https://mstprmpt.zeidgeist.com'
+  }
 }
 
 export default {

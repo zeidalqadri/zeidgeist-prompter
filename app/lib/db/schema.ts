@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, boolean, integer, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
 // User authentication tables (defined first for foreign key references)
@@ -17,12 +17,7 @@ export const users = pgTable('users', {
   metadata: text('metadata'), // JSON string
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // Email index for login performance (partial index for active users only)
-  emailActiveIdx: index('idx_users_email_active').on(table.email).where(sql`is_active = true`),
-  // Account lockout index for security
-  lockedUntilIdx: index('idx_users_locked_until').on(table.lockedUntil).where(sql`locked_until IS NOT NULL AND locked_until > now()`)
-}))
+})
 
 export const userSessions = pgTable('user_sessions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -33,14 +28,7 @@ export const userSessions = pgTable('user_sessions', {
   isRevoked: boolean('is_revoked').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   lastAccessed: timestamp('last_accessed', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // CRITICAL: Session validation index (called on EVERY authenticated request)
-  tokenExpiresIdx: index('idx_user_sessions_token_expires').on(table.tokenHash, table.expiresAt).where(sql`is_revoked = false`),
-  // User session listing
-  userIdExpiresIdx: index('idx_user_sessions_user_id').on(table.userId, table.expiresAt).where(sql`is_revoked = false`),
-  // Expired session cleanup
-  expiresAtIdx: index('idx_user_sessions_expires_at').on(table.expiresAt).where(sql`is_revoked = false`)
-}))
+})
 
 // Prompt history table for storing enhancement records
 export const promptHistory = pgTable('prompt_history', {
@@ -50,15 +38,11 @@ export const promptHistory = pgTable('prompt_history', {
   context: text('context'),
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   metadata: text('metadata'), // JSON string for source, processing time, etc.
+  ipAddress: text('ip_address'), // Store user's IP for legacy isolation
   userId: uuid('user_id').references(() => users.id), // GDPR-compliant user-based isolation
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // CRITICAL: User-scoped prompt history (most common query pattern)
-  userTimestampIdx: index('idx_prompt_history_user_timestamp').on(table.userId, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // GDPR compliance: User data export
-  userCreatedAtIdx: index('idx_prompt_history_user_created_at').on(table.userId, table.createdAt).where(sql`user_id IS NOT NULL`)
-}))
+})
 
 // Feedback table for storing user ratings and comments
 export const feedback = pgTable('feedback', {
@@ -70,17 +54,11 @@ export const feedback = pgTable('feedback', {
   score: integer('score').default(0),
   feedbackText: text('feedback_text'),
   userAgent: text('user_agent'),
+  ipAddress: text('ip_address'), // Legacy
   userId: uuid('user_id').references(() => users.id), // GDPR-compliant user-based isolation
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // User-scoped feedback queries
-  userTimestampIdx: index('idx_feedback_user_timestamp').on(table.userId, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // User feedback with success filtering
-  userSuccessfulTimestampIdx: index('idx_feedback_user_successful_timestamp').on(table.userId, table.wasSuccessful, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // GDPR compliance: User data deletion
-  userIdIdx: index('idx_feedback_user_id').on(table.userId).where(sql`user_id IS NOT NULL`)
-}))
+})
 
 // Enhancement logs table for monitoring and analytics
 export const enhancementLogs = pgTable('enhancement_logs', {
@@ -102,14 +80,7 @@ export const enhancementLogs = pgTable('enhancement_logs', {
   userId: uuid('user_id').references(() => users.id), // User-based isolation (new)
   timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // User-scoped analytics
-  userTimestampIdx: index('idx_enhancement_logs_user_timestamp').on(table.userId, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // User-scoped with source filtering
-  userSourceTimestampIdx: index('idx_enhancement_logs_user_source_timestamp').on(table.userId, table.source, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // GDPR compliance: User data deletion
-  userIdIdx: index('idx_enhancement_logs_user_id').on(table.userId).where(sql`user_id IS NOT NULL`)
-}))
+})
 
 // Centralized prompts repository tables
 export const prompts = pgTable('prompts', {
@@ -123,14 +94,7 @@ export const prompts = pgTable('prompts', {
   isPublic: boolean('is_public').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // Deduplication via hash
-  textHashIdx: index('idx_prompts_text_hash').on(table.textHash),
-  // Public prompts discovery
-  publicQualityIdx: index('idx_prompts_public_quality').on(table.isPublic, table.avgQualityScore).where(sql`is_public = true`),
-  // Trending prompts
-  totalUsesIdx: index('idx_prompts_total_uses').on(table.totalUses).where(sql`is_public = true`)
-}))
+})
 
 export const promptVersions = pgTable('prompt_versions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -142,12 +106,7 @@ export const promptVersions = pgTable('prompt_versions', {
   metricsData: text('metrics_data'), // JSON
   isBaseline: boolean('is_baseline').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // Version history retrieval
-  promptIdVersionIdx: index('idx_prompt_versions_prompt_id_version').on(table.promptId, table.versionNumber),
-  // Best version queries
-  promptQualityIdx: index('idx_prompt_versions_prompt_quality').on(table.promptId, table.qualityScore)
-}))
+})
 
 // Training examples storage for dynamic learning
 export const trainingExamples = pgTable('training_examples', {
@@ -164,74 +123,7 @@ export const trainingExamples = pgTable('training_examples', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // Category-based retrieval for context-aware learning
-  categoryQualityIdx: index('idx_training_examples_category_quality').on(table.category, table.quality).where(sql`is_active = true AND category IS NOT NULL`)
-  // Note: Full-text search on keywords requires GIN index (defined in migration SQL)
-}))
-
-// Audit logging table for compliance and security
-export const auditLogs = pgTable('audit_logs', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-
-  // Event Classification
-  eventType: text('event_type').notNull(),
-  eventCategory: text('event_category').notNull(),
-  severity: text('severity').notNull(),
-
-  // Actor
-  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
-  userEmail: text('user_email'),
-  userIpAddress: text('user_ip_address'),
-  userAgent: text('user_agent'),
-  sessionId: uuid('session_id'),
-
-  // Action Details
-  action: text('action').notNull(),
-  resourceType: text('resource_type'),
-  resourceId: uuid('resource_id'),
-  resourceName: text('resource_name'),
-
-  // Request Context
-  requestMethod: text('request_method'),
-  requestPath: text('request_path'),
-  requestQueryParams: text('request_query_params'), // JSON string
-  requestHeaders: text('request_headers'), // JSON string
-
-  // Response Context
-  responseStatusCode: integer('response_status_code'),
-  responseTimeMs: integer('response_time_ms'),
-
-  // Change Tracking
-  oldValues: text('old_values'), // JSON string
-  newValues: text('new_values'), // JSON string
-
-  // Metadata
-  metadata: text('metadata'), // JSON string
-  tags: text('tags'), // JSON array string
-
-  // Security Indicators
-  isSuspicious: boolean('is_suspicious').default(false),
-  riskScore: integer('risk_score').default(0),
-  threatIndicators: text('threat_indicators'), // JSON array string
-
-  // Compliance
-  retentionPeriodDays: integer('retention_period_days').default(90),
-  isImmutable: boolean('is_immutable').default(true),
-
-  // Timestamps
-  timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
-}, (table) => ({
-  // User audit trail
-  userTimestampIdx: index('idx_audit_logs_user_timestamp').on(table.userId, table.timestamp).where(sql`user_id IS NOT NULL`),
-  // Event filtering
-  eventTypeTimestampIdx: index('idx_audit_logs_event_type_timestamp').on(table.eventType, table.timestamp),
-  // Severity filtering
-  severityTimestampIdx: index('idx_audit_logs_severity_timestamp').on(table.severity, table.timestamp).where(sql`severity IN ('error', 'critical')`),
-  // Suspicious activity
-  suspiciousIdx: index('idx_audit_logs_suspicious').on(table.isSuspicious, table.timestamp).where(sql`is_suspicious = true`)
-}))
+})
 
 // Export types for TypeScript
 export type PromptHistory = typeof promptHistory.$inferSelect
@@ -246,5 +138,3 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
-export type AuditLog = typeof auditLogs.$inferSelect
-export type NewAuditLog = typeof auditLogs.$inferInsert

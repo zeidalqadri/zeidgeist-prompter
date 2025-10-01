@@ -175,7 +175,7 @@ Response:
 ## Configuration
 
 ### Cloudflare Worker Cron Schedule
-The learning cycle runs automatically via Cloudflare Workers. Configure in `wrangler.toml`:
+The learning cycle runs automatically via Cloudflare Workers. Configure in `wrangler.api.toml`:
 
 ```toml
 [[triggers.crons]]

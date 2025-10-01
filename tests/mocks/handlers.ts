@@ -8,25 +8,18 @@ export const handlers = [
     const { email, password, username } = body
 
     if (!email || !password || !username) {
-      return HttpResponse.json({
-        success: false,
-        error: 'Missing required fields'
+      return HttpResponse.json({ 
+        success: false, 
+        error: 'Missing required fields' 
       }, { status: 400 })
     }
 
-    // Track registered emails
-    const registeredEmails = global.__registeredEmails || []
-    global.__registeredEmails = registeredEmails
-
-    if (registeredEmails.includes(email) || email === 'existing@example.com') {
-      return HttpResponse.json({
-        success: false,
-        error: 'User already exists'
+    if (email === 'existing@example.com') {
+      return HttpResponse.json({ 
+        success: false, 
+        error: 'User already exists' 
       }, { status: 400 })
     }
-
-    // Add email to registered list
-    registeredEmails.push(email)
 
     return HttpResponse.json({
       success: true,
@@ -37,114 +30,52 @@ export const handlers = [
         emailVerified: false
       },
       message: 'User registered successfully. Please check your email for verification.'
-    }, {
-      status: 201,
-      headers: {
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        'Cache-Control': 'no-store, no-cache, must-revalidate'
-      }
-    })
+    }, { status: 201 })
   }),
 
   http.post('/api/auth/login', async ({ request }) => {
-    try {
-      const body = await request.json() as any
-      const { email, password } = body
+    const body = await request.json() as any
+    const { email, password } = body
 
-      // Track failed login attempts per email
-      const failedAttempts = global.__loginAttempts || {}
-      global.__loginAttempts = failedAttempts
-
-      // Check if account is locked
-      if (failedAttempts[email] && failedAttempts[email] >= 3) {
-        return HttpResponse.json({
-          success: false,
-          error: 'Account locked due to too many failed attempts'
-        }, {
-          status: 401,
-          headers: {
-            'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com'
-          }
-        })
-      }
-
-      // Valid credentials for test user
-      if (email === 'logintest@example.com' && password === 'TestPassword123!') {
-        // Reset failed attempts on successful login
-        if (failedAttempts[email]) {
-          delete failedAttempts[email]
-        }
-
-        return HttpResponse.json({
-          success: true,
-          user: {
-            id: 'test-user-id',
-            email,
-            emailVerified: true
-          },
-          tokens: {
-            accessToken: 'mock-access-token',
-            refreshToken: 'mock-refresh-token',
-            idToken: 'mock-id-token'
-          }
-        }, {
-          status: 200,
-          headers: {
-            'Set-Cookie': 'refresh_token=mock-refresh-token; HttpOnly; Secure; SameSite=Strict',
-            'X-Content-Type-Options': 'nosniff',
-            'X-Frame-Options': 'DENY',
-            'X-XSS-Protection': '1; mode=block',
-            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com'
-          }
-        })
-      }
-
-      // Track failed attempt
-      failedAttempts[email] = (failedAttempts[email] || 0) + 1
-
+    if (email === 'test@example.com' && password === 'TestPassword123!') {
       return HttpResponse.json({
-        success: false,
-        error: 'Invalid credentials'
-      }, {
-        status: 401,
-        headers: {
-          'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com'
+        success: true,
+        user: {
+          id: 'test-user-id',
+          email,
+          emailVerified: true
+        },
+        tokens: {
+          accessToken: 'mock-access-token',
+          refreshToken: 'mock-refresh-token',
+          idToken: 'mock-id-token'
         }
-      })
-    } catch (error) {
-      // Handle malformed JSON
-      return HttpResponse.json({
-        success: false,
-        error: 'Invalid JSON format'
-      }, {
-        status: 400,
+      }, { 
+        status: 200,
         headers: {
-          'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com'
+          'Set-Cookie': 'refresh_token=mock-refresh-token; HttpOnly; Secure; SameSite=Strict',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'X-XSS-Protection': '1; mode=block',
+          'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         }
       })
     }
+
+    return HttpResponse.json({
+      success: false,
+      error: 'Invalid credentials'
+    }, { status: 401 })
   }),
 
   http.get('/api/auth/mfa/setup', ({ request }) => {
     const authHeader = request.headers.get('authorization')
-
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return HttpResponse.json({
         success: false,
         error: 'Authorization required'
-      }, { status: 401 })
-    }
-
-    // Check for invalid token
-    if (authHeader === 'Bearer invalid-token') {
-      return HttpResponse.json({
-        success: false,
-        error: 'Invalid token'
       }, { status: 401 })
     }
 
@@ -169,51 +100,28 @@ export const handlers = [
     const limit = parseInt(url.searchParams.get('limit') || '10')
     const ip = request.headers.get('cf-connecting-ip') || 'unknown'
 
-    // Rate limiting simulation
-    const rateLimitKey = `history-get-${ip}`
-    const now = Date.now()
-    const rateLimits = global.__rateLimits || {}
-    global.__rateLimits = rateLimits
-
-    if (!rateLimits[rateLimitKey]) {
-      rateLimits[rateLimitKey] = { count: 0, resetAt: now + 60000 }
-    }
-
-    if (now > rateLimits[rateLimitKey].resetAt) {
-      rateLimits[rateLimitKey] = { count: 0, resetAt: now + 60000 }
-    }
-
-    rateLimits[rateLimitKey].count++
-
-    // Limit to 20 requests per minute per IP
-    if (rateLimits[rateLimitKey].count > 20) {
-      return HttpResponse.json({
-        error: 'Rate limit exceeded'
-      }, { status: 429 })
-    }
-
-    // Get IP-specific history from global store
-    const historyStore = global.__historyStore || {}
-    global.__historyStore = historyStore
-
-    const ipHistory = historyStore[ip] || []
-    const startIndex = page * limit
-    const endIndex = startIndex + limit
-    const items = ipHistory.slice(startIndex, endIndex)
-
+    // Mock different data for different IPs
     const mockData = {
-      items,
-      total: ipHistory.length,
+      items: Array.from({ length: limit }, (_, i) => ({
+        id: `${ip}-${page}-${i}`,
+        original: `${ip} original prompt ${page * limit + i}`,
+        refined: `${ip} refined prompt ${page * limit + i}`,
+        timestamp: new Date().toISOString(),
+        userContext: ip
+      })),
+      total: 50,
       page,
       limit,
-      hasMore: endIndex < ipHistory.length
+      hasMore: page < 4
     }
 
     return HttpResponse.json(mockData, {
       headers: {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
         'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com'
       }
     })
@@ -230,42 +138,40 @@ export const handlers = [
       }, { status: 400 })
     }
 
-    // Store in IP-specific history
-    const historyStore = global.__historyStore || {}
-    global.__historyStore = historyStore
-
-    if (!historyStore[ip]) {
-      historyStore[ip] = []
-    }
-
-    const item = {
-      id: `${ip}-${Date.now()}`,
-      original: body.original,
-      refined: body.refined,
-      timestamp: body.timestamp || new Date().toISOString(),
-      userContext: ip
-    }
-
-    historyStore[ip].unshift(item) // Add to beginning for newest-first
-
     return HttpResponse.json({
       success: true,
-      item
+      item: {
+        id: `${ip}-${Date.now()}`,
+        original: body.original,
+        refined: body.refined,
+        timestamp: body.timestamp || new Date().toISOString(),
+        userContext: ip
+      }
     })
   }),
 
   // CORS preflight
-  http.options('*', ({ request }) => {
-    const origin = request.headers.get('origin')
-    const allowedOrigin = origin === 'https://mstprmpt.zeidgeist.com' ? origin : 'https://mstprmpt.zeidgeist.com'
-
+  http.options('*', () => {
     return new HttpResponse(null, {
       status: 200,
       headers: {
-        'Access-Control-Allow-Origin': allowedOrigin,
+        'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, cf-connecting-ip'
       }
     })
+  }),
+
+  // Rate limiting simulation
+  http.get('/api/rate-limit-test', ({ request }) => {
+    const ip = request.headers.get('cf-connecting-ip')
+    // Simulate rate limiting for IPs ending in .6 or .7
+    if (ip && (ip.endsWith('.6') || ip.endsWith('.7'))) {
+      return HttpResponse.json({
+        error: 'Rate limit exceeded'
+      }, { status: 429 })
+    }
+
+    return HttpResponse.json({ success: true })
   })
 ]

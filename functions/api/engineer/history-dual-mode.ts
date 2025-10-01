@@ -38,11 +38,13 @@ interface RequestContext {
 }
 
 // Handle CORS preflight requests
-export async function onRequestOptions(): Promise<Response> {
+export async function onRequestOptions(context?: any): Promise<Response> {
+  const req: Request | undefined = context?.request
+  const origin = req?.headers.get('Origin') || undefined
   return new Response(null, {
     status: 200,
     headers: {
-      ...getSecurityHeaders(),
+      ...getSecurityHeaders(origin),
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
@@ -67,7 +69,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   const requestContext = await extractRequestContext(request, env)
   
   const corsHeaders = {
-    ...getSecurityHeaders(),
+    ...getSecurityHeaders(request.headers.get('Origin') || undefined),
     'Content-Type': 'application/json',
     'Cache-Control': 'private, no-store',
     'X-Auth-Method': requestContext.authMethod,
@@ -167,13 +169,35 @@ export async function onRequestGet(context: any): Promise<Response> {
     })
 
     // Transform data for client response
-    const items = history.map((item: any) => ({
-      original: item.original,
-      refined: item.refined,
-      context: item.context || undefined,
-      timestamp: item.timestamp ? item.timestamp.toISOString() : new Date().toISOString(),
-      metadata: item.metadata ? JSON.parse(item.metadata) : undefined
-    }))
+    const items = history.map((item: any) => {
+      let safeMetadata: any = undefined
+      if (item.metadata) {
+        try {
+          safeMetadata = JSON.parse(item.metadata)
+        } catch (e) {
+          console.warn('Invalid metadata JSON in prompt_history row; sending without metadata')
+          safeMetadata = undefined
+        }
+      }
+
+      // Normalize timestamp to ISO string safely
+      let isoTimestamp: string
+      try {
+        const ts: any = item.timestamp
+        const d = ts instanceof Date ? ts : new Date(ts)
+        isoTimestamp = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+      } catch {
+        isoTimestamp = new Date().toISOString()
+      }
+
+      return {
+        original: item.original,
+        refined: item.refined,
+        context: item.context || undefined,
+        timestamp: isoTimestamp,
+        metadata: safeMetadata,
+      }
+    })
 
     // Include migration prompt for IP-based users if applicable
     const response: any = { 
@@ -240,7 +264,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   const requestContext = await extractRequestContext(request, env)
   
   const corsHeaders = {
-    ...getSecurityHeaders(),
+    ...getSecurityHeaders(request.headers.get('Origin') || undefined),
     'Content-Type': 'application/json',
     'X-Auth-Method': requestContext.authMethod
   }

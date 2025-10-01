@@ -28,12 +28,12 @@ global.fetch = global.fetch || (() => Promise.resolve({
 // Mock window.location
 Object.defineProperty(window, 'location', {
   value: {
-    href: 'http://localhost:3000',
-    origin: 'http://localhost:3000',
+    href: 'http://localhost:3333',
+    origin: 'http://localhost:3333',
     protocol: 'http:',
-    host: 'localhost:3000',
+    host: 'localhost:3333',
     hostname: 'localhost',
-    port: '3000',
+    port: '3333',
     pathname: '/',
     search: '',
     hash: ''
@@ -62,15 +62,6 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   server.resetHandlers()
-
-  // Clear test data stores
-  if (typeof global !== 'undefined') {
-    const g = global as any
-    if (g.__registeredEmails) g.__registeredEmails.length = 0
-    if (g.__loginAttempts) g.__loginAttempts = {}
-    if (g.__historyStore) g.__historyStore = {}
-    if (g.__rateLimits) g.__rateLimits = {}
-  }
 })
 
 afterAll(() => {

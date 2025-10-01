@@ -154,7 +154,7 @@ print_final_instructions() {
     echo "   wrangler pages dev dist --compatibility-date=2024-01-15"
     echo ""
     echo "🌐 Access URLs:"
-    echo "   - Frontend: http://localhost:3000"
+    echo "   - Frontend: http://localhost:3333"
     echo "   - API: http://localhost:8788"
     echo "   - pgAdmin (optional): http://localhost:5050"
     echo ""

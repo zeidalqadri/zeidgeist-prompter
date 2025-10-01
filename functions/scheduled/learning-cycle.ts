@@ -7,7 +7,7 @@ export interface Env {
 
 /**
  * Cloudflare Worker scheduled handler for periodic learning cycles
- * Configure in wrangler.toml with cron trigger
+ * Configure in wrangler.api.toml with cron trigger
  */
 export default {
   async scheduled(
