@@ -401,7 +401,7 @@ export function withBodyValidation<T extends z.ZodType>(
 ) {
   return async (context: any): Promise<Response> => {
     try {
-      const body = await context.request.json();
+      const body = await context.request.json() as any;
       const validation = validateRequestBody(schema, body);
 
       if (!validation.success) {

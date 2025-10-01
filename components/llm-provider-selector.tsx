@@ -71,7 +71,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
       })
       
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as any
         if (data.preferences) {
           setPreferences(data.preferences)
         }
@@ -142,7 +142,7 @@ export default function LLMProviderSelector({ providers, onUpdate }: Props) {
       })
 
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as any
         const source = data?.metadata?.source?.toLowerCase?.()
         if (data.result && source === providerName.toLowerCase()) {
           setTestResults(prev => ({ ...prev, [providerName]: 'success' }))

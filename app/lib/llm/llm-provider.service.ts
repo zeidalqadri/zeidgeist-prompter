@@ -255,7 +255,7 @@ export class DeepSeekProvider extends BaseLLMProvider {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
       throw new Error(`DeepSeek API error (${response.status}): ${JSON.stringify(error)}`);
     }
 

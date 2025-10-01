@@ -271,7 +271,7 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   try {
     const db = createDb(env)
-    const body = await request.json()
+    const body = await request.json() as any
     const { original, refined, context, timestamp, metadata } = body
 
     // Validate required fields

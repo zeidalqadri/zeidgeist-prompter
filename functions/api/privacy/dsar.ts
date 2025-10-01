@@ -111,7 +111,7 @@ export async function onRequestPost(context: any): Promise<Response> {
       });
     }
 
-    const body = await request.json();
+    const body = await request.json() as any;
     const { requestType, additionalInfo } = body;
 
     // Validate request type

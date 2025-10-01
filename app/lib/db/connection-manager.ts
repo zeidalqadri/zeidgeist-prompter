@@ -12,14 +12,19 @@
  * - Request-scoped connections (stateless)
  */
 
-import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
-import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 import { traceDBQuery } from '../observability/tracing';
 import { logger } from '../observability/logger';
 import { recordDBQuery, recordConnectionPoolUsage } from '../observability/metrics';
 
-export type DatabaseClient = NeonHttpDatabase<typeof schema>;
+// Type for Neon's serverless query function - inferred from actual neon() call
+type NeonQueryFunction = ReturnType<typeof neon>;
+
+// DatabaseClient type - use any for now to avoid circular type issues
+// The actual type will be inferred from usage
+export type DatabaseClient = any;
 
 export interface DatabaseConfig {
   databaseUrl: string;
@@ -42,7 +47,7 @@ export interface ConnectionHealth {
  */
 export class DatabaseConnectionManager {
   private config: DatabaseConfig;
-  private sqlClient: NeonQueryFunction<false, false> | null = null;
+  private sqlClient: NeonQueryFunction | null = null;
   private drizzleClient: DatabaseClient | null = null;
   private lastHealthCheck: number = 0;
   private healthCheckInterval: number = 60000; // 1 minute
@@ -93,14 +98,8 @@ export class DatabaseConnectionManager {
   private initializeClient(): void {
     try {
       // Create Neon HTTP client with configuration
-      this.sqlClient = neon(this.config.databaseUrl, {
-        fetchOptions: {
-          // Connection timeout (Cloudflare Workers have 30s CPU time limit)
-          signal: this.config.connectionTimeout
-            ? AbortSignal.timeout(this.config.connectionTimeout)
-            : undefined
-        }
-      });
+      // Note: Connection timeout is handled at the HTTP layer by Cloudflare Workers
+      this.sqlClient = neon(this.config.databaseUrl);
 
       // Create Drizzle ORM instance
       this.drizzleClient = drizzle(this.sqlClient, {
@@ -211,7 +210,7 @@ export class DatabaseConnectionManager {
 
     try {
       // Drizzle automatically handles transactions
-      return await client.transaction(async (tx) => {
+      return await client.transaction(async (tx: any) => {
         return await operation(tx);
       });
     } catch (error) {

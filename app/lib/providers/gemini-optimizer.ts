@@ -280,7 +280,7 @@ export class GeminiConfidenceEvaluator {
         throw new Error(`Gemini evaluation failed: ${response.status}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as any;
       const evaluationText = data.candidates[0].content.parts[0].text;
       
       return this.parseEvaluationResponse(evaluationText);
@@ -449,11 +449,11 @@ export class GeminiOptimizer {
     });
     
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json() as any;
       throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
     }
     
-    const data = await response.json();
+    const data = await response.json() as any;
     
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
       throw new Error('Gemini API returned no content');

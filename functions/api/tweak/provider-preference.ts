@@ -76,7 +76,7 @@ export async function onRequestPost(context: { env: Env; request: Request }): Pr
   const corsHeaders = { ...corsBase, 'Content-Type': 'application/json' }
 
   try {
-    const body = await context.request.json()
+    const body = await context.request.json() as any
     const { preferences } = body
 
     if (!preferences || typeof preferences !== 'object') {

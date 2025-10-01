@@ -519,7 +519,7 @@ export class GeminiTemplateEnhancer {
       throw new Error(`Gemini template enhancement failed: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data = await response.json() as any;
     let enhancedPrompt = data.candidates[0].content.parts[0].text;
     
     // Clean response

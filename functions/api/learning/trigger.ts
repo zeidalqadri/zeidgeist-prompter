@@ -31,7 +31,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     const scheduler = new LearningScheduler();
     
     // Get optional parameters from request
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({})) as any;
     const { force = false } = body;
 
     // Run the learning cycle
