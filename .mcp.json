@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "CloudflareAIGateway": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://ai-gateway.mcp.cloudflare.com/sse"
+      ]
+    },
+    "CloudflareWorkerBindings": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://bindings.mcp.cloudflare.com/sse"
+      ]
+    },
+    "CloudflareWorkerBuilds": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@latest",
+        "https://builds.mcp.cloudflare.com/sse"
+      ]
+    },
+    "CloudflareWorkerObservability": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://observability.mcp.cloudflare.com/sse"
+      ]
+    }
+  }
+}

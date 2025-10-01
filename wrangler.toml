@@ -1,0 +1,64 @@
+name = "zeidgeist-prompter"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "dist"
+
+# Node.js compatibility for Functions
+compatibility_flags = ["nodejs_compat"]
+
+# Build configuration
+build = { command = "npm run build" }
+
+# Production environment
+[env.production]
+name = "zeidgeist-prompter-production"
+vars = { NODE_ENV = "production", APP_ENV = "production", API_BASE_URL = "https://mstprmpt.zeidgeist.com" }
+
+# Staging environment  
+[env.staging]
+name = "zeidgeist-prompter-staging"
+vars = { NODE_ENV = "staging", APP_ENV = "staging", API_BASE_URL = "https://staging.mstprmpt.zeidgeist.com" }
+
+# Development environment (local testing)
+[env.development]
+name = "zeidgeist-prompter-dev"
+vars = { NODE_ENV = "development", APP_ENV = "development", API_BASE_URL = "http://localhost:8788" }
+
+# Preview environment (for PR deployments)
+[env.preview]
+name = "zeidgeist-prompter-preview"
+vars = { NODE_ENV = "preview", APP_ENV = "preview", API_BASE_URL = "https://preview.mstprmpt.zeidgeist.com" }
+
+# Default environment variables (will be overridden by specific environments)
+[vars]
+NODE_ENV = "production"
+APP_ENV = "production"
+
+# KV namespaces for session and cache storage
+[[kv_namespaces]]
+binding = "SESSION_STORAGE"
+preview_id = "dev-sessions"
+id = "production-sessions"
+
+[[kv_namespaces]]
+binding = "CACHE_STORAGE" 
+preview_id = "dev-cache"
+id = "production-cache"
+
+# Durable Objects for rate limiting
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+script_name = "rate-limiter"
+
+# Observability settings (simplified for local development)
+[observability]
+enabled = true
+
+# Triggers for scheduled functions
+[[triggers.crons]]
+cron = "0 */6 * * *"  # Every 6 hours
+routes = ["/__scheduled/learning-cycle"]
+
+[[triggers.crons]]
+cron = "0 0 * * *"   # Daily at midnight
+routes = ["/__scheduled/cleanup"]
