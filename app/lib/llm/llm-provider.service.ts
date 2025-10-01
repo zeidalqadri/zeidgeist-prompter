@@ -2,6 +2,7 @@
  * LLM Provider Service
  *
  * Abstraction layer for multiple LLM providers with fallback chain
+ * Now includes circuit breakers and retry policies for resilience
  */
 
 import { trainingExamples } from '../training-data';
@@ -19,6 +20,9 @@ import {
   geminiConfig,
   providerPriority
 } from './llm-config';
+import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
+import { RetryPolicy } from '../resilience/retry-policy';
+import type { EnhancedCircuitBreaker } from '../resilience/circuit-breaker';
 
 // ============================================================================
 // BASE PROVIDER CLASS
@@ -27,9 +31,44 @@ import {
 export abstract class BaseLLMProvider implements ILLMProvider {
   abstract readonly name: ProviderSource;
   protected abstract config: ProviderConfig;
+  protected circuitBreaker?: EnhancedCircuitBreaker<EnhancementRequest, EnhancementResponse>;
+  protected retryPolicy: RetryPolicy;
+
+  constructor() {
+    // Initialize retry policy with exponential backoff
+    this.retryPolicy = new RetryPolicy({
+      maxAttempts: 3,
+      initialDelay: 1000,
+      maxDelay: 10000,
+      backoffMultiplier: 2,
+      jitterFactor: 0.1,
+      retryableErrors: ['ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN']
+    });
+  }
 
   get enabled(): boolean {
     return this.config.enabled;
+  }
+
+  /**
+   * Initialize circuit breaker for provider
+   */
+  protected initializeCircuitBreaker(): void {
+    if (!this.circuitBreaker) {
+      this.circuitBreaker = CircuitBreakerFactory.getBreaker(
+        this.name,
+        (request: EnhancementRequest) => this.enhanceInternal(request),
+        {
+          timeout: this.config.timeout || 10000,
+          errorThresholdPercentage: 50,
+          resetTimeout: 30000,
+          rollingCountTimeout: 10000,
+          rollingCountBuckets: 10,
+          name: this.name,
+          enabled: true
+        }
+      );
+    }
   }
 
   /**
@@ -112,9 +151,36 @@ You MUST:
   }
 
   /**
-   * Abstract enhance method - to be implemented by subclasses
+   * Abstract enhance internal method - to be implemented by subclasses
+   * This is the actual API call logic that will be wrapped by circuit breaker
    */
-  abstract enhance(request: EnhancementRequest): Promise<EnhancementResponse>;
+  protected abstract enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse>;
+
+  /**
+   * Public enhance method with circuit breaker and retry
+   */
+  async enhance(request: EnhancementRequest): Promise<EnhancementResponse> {
+    if (!this.enabled) {
+      throw new Error(`${this.name} provider is not configured`);
+    }
+
+    // Initialize circuit breaker on first use
+    this.initializeCircuitBreaker();
+
+    try {
+      // Check if circuit is open
+      if (this.circuitBreaker?.isOpen()) {
+        throw new Error(`Circuit breaker is OPEN for ${this.name} (too many recent failures)`);
+      }
+
+      // Execute through circuit breaker (which includes timeout)
+      const response = await this.circuitBreaker!.execute(request);
+      return response;
+    } catch (error) {
+      console.error(`[${this.name}] Enhancement failed:`, error);
+      throw error;
+    }
+  }
 
   /**
    * Health check
@@ -123,8 +189,13 @@ You MUST:
     if (!this.enabled) return false;
 
     try {
-      // Simple ping with minimal prompt
-      const response = await this.enhance({
+      // Check circuit breaker state
+      if (this.circuitBreaker?.isOpen()) {
+        return false;
+      }
+
+      // Simple ping with minimal prompt (bypass circuit breaker for health check)
+      const response = await this.enhanceInternal({
         prompt: 'test',
         context: undefined,
         isRefinement: false
@@ -133,6 +204,13 @@ You MUST:
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Get circuit breaker metrics
+   */
+  getMetrics() {
+    return this.circuitBreaker?.getMetrics();
   }
 
   /**
@@ -157,53 +235,44 @@ export class DeepSeekProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'deepseek';
   protected config = deepseekConfig;
 
-  async enhance(request: EnhancementRequest): Promise<EnhancementResponse> {
-    if (!this.enabled) {
-      throw new Error('DeepSeek provider is not configured');
-    }
-
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
 
-    try {
-      const response = await fetch(this.config.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages,
-          temperature: 0.2,
-          max_tokens: 1024
-        }),
-        signal: AbortSignal.timeout(this.config.timeout || 10000)
-      });
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`DeepSeek API error (${response.status}): ${JSON.stringify(error)}`);
-      }
-
-      const data = await response.json();
-      const enhancedPrompt = data.choices[0].message.content;
-
-      this.validateResponse(enhancedPrompt, request.prompt);
-
-      return {
-        enhancedPrompt,
-        source: 'deepseek',
-        metadata: {
-          model: this.config.model,
-          usage: data.usage,
-          processingTime: Date.now() - startTime
-        }
-      };
-    } catch (error) {
-      console.error('[DeepSeek] Enhancement failed:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`DeepSeek API error (${response.status}): ${JSON.stringify(error)}`);
     }
+
+    const data = await response.json();
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'deepseek',
+      metadata: {
+        model: this.config.model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
   }
 }
 
@@ -215,53 +284,44 @@ export class MistralProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'mistral';
   protected config = mistralConfig;
 
-  async enhance(request: EnhancementRequest): Promise<EnhancementResponse> {
-    if (!this.enabled) {
-      throw new Error('Mistral provider is not configured');
-    }
-
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
 
-    try {
-      const response = await fetch(this.config.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages,
-          temperature: 0.2,
-          max_tokens: 1024
-        }),
-        signal: AbortSignal.timeout(this.config.timeout || 10000)
-      });
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`Mistral API error (${response.status}): ${JSON.stringify(error)}`);
-      }
-
-      const data = await response.json();
-      const enhancedPrompt = data.choices[0].message.content;
-
-      this.validateResponse(enhancedPrompt, request.prompt);
-
-      return {
-        enhancedPrompt,
-        source: 'mistral',
-        metadata: {
-          model: this.config.model,
-          usage: data.usage,
-          processingTime: Date.now() - startTime
-        }
-      };
-    } catch (error) {
-      console.error('[Mistral] Enhancement failed:', error);
-      throw error;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`Mistral API error (${response.status}): ${JSON.stringify(error)}`);
     }
+
+    const data = await response.json();
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'mistral',
+      metadata: {
+        model: this.config.model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
   }
 }
 
@@ -273,68 +333,59 @@ export class GeminiProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'gemini';
   protected config = geminiConfig;
 
-  async enhance(request: EnhancementRequest): Promise<EnhancementResponse> {
-    if (!this.enabled) {
-      throw new Error('Gemini provider is not configured');
-    }
-
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
 
-    try {
-      // Extract system prompt and user message
-      const systemPrompt = messages[0].content;
-      const userMessage = messages[messages.length - 1].content;
+    // Extract system prompt and user message
+    const systemPrompt = messages[0].content;
+    const userMessage = messages[messages.length - 1].content;
 
-      const response = await fetch(`${this.config.endpoint}?key=${this.config.apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: userMessage }]
-            }
-          ],
-          systemInstruction: { text: systemPrompt },
-          safetySettings: [
-            {
-              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-              threshold: 'BLOCK_ONLY_HIGH'
-            }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 1024
+    const response = await fetch(`${this.config.endpoint}?key=${this.config.apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: userMessage }]
           }
-        }),
-        signal: AbortSignal.timeout(this.config.timeout || 10000)
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`Gemini API error (${response.status}): ${JSON.stringify(error)}`);
-      }
-
-      const data = await response.json();
-      const enhancedPrompt = data.candidates[0].content.parts[0].text;
-
-      this.validateResponse(enhancedPrompt, request.prompt);
-
-      return {
-        enhancedPrompt,
-        source: 'gemini',
-        metadata: {
-          model: this.config.model,
-          processingTime: Date.now() - startTime
+        ],
+        systemInstruction: { text: systemPrompt },
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+            threshold: 'BLOCK_ONLY_HIGH'
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024
         }
-      };
-    } catch (error) {
-      console.error('[Gemini] Enhancement failed:', error);
-      throw error;
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(`Gemini API error (${response.status}): ${JSON.stringify(error)}`);
     }
+
+    const data = await response.json();
+    const enhancedPrompt = data.candidates[0].content.parts[0].text;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'gemini',
+      metadata: {
+        model: this.config.model,
+        processingTime: Date.now() - startTime
+      }
+    };
   }
 }
 
@@ -356,27 +407,22 @@ export class LocalProvider extends BaseLLMProvider {
     return [];
   }
 
-  async enhance(request: EnhancementRequest): Promise<EnhancementResponse> {
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const { prompt, context } = request;
     const startTime = Date.now();
 
-    try {
-      // Import local enhancer
-      const { enhancePrompt: localEnhance } = await import('../prompt-enhancer-v2');
-      const enhancedPrompt = await localEnhance(prompt, context || '');
+    // Import local enhancer
+    const { enhancePrompt: localEnhance } = await import('../prompt-enhancer-v2');
+    const enhancedPrompt = await localEnhance(prompt, context || '');
 
-      return {
-        enhancedPrompt,
-        source: 'local',
-        metadata: {
-          model: 'local-fallback',
-          processingTime: Date.now() - startTime
-        }
-      };
-    } catch (error) {
-      console.error('[Local] Enhancement failed:', error);
-      throw error;
-    }
+    return {
+      enhancedPrompt,
+      source: 'local',
+      metadata: {
+        model: 'local-fallback',
+        processingTime: Date.now() - startTime
+      }
+    };
   }
 
   async isHealthy(): Promise<boolean> {
@@ -440,7 +486,15 @@ export class LLMProviderFactory {
         console.log(`[LLM Factory] ✓ Success with ${provider.name}`);
         return response;
       } catch (error) {
-        console.warn(`[LLM Factory] ✗ ${provider.name} failed:`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Skip to next provider if circuit is open
+        if (errorMessage.includes('Circuit breaker is OPEN')) {
+          console.warn(`[LLM Factory] ⊗ ${provider.name} circuit is OPEN, skipping to next provider`);
+        } else {
+          console.warn(`[LLM Factory] ✗ ${provider.name} failed:`, error);
+        }
+
         errors.push(error as Error);
         // Continue to next provider
       }
@@ -448,5 +502,49 @@ export class LLMProviderFactory {
 
     // All providers failed
     throw new Error(`All providers failed: ${errors.map(e => e.message).join('; ')}`);
+  }
+
+  /**
+   * Get all circuit breaker metrics
+   */
+  static getAllMetrics() {
+    const metrics: any[] = [];
+
+    for (const [name, provider] of this.providers.entries()) {
+      if (provider instanceof BaseLLMProvider) {
+        const providerMetrics = provider.getMetrics();
+        if (providerMetrics) {
+          metrics.push(providerMetrics);
+        }
+      }
+    }
+
+    return metrics;
+  }
+
+  /**
+   * Get health status of all providers
+   */
+  static async getHealthStatus() {
+    const statuses: Record<string, { healthy: boolean; enabled: boolean; circuitState?: string }> = {};
+
+    for (const name of providerPriority) {
+      const provider = this.getProvider(name);
+      const healthy = await provider.isHealthy();
+
+      let circuitState = undefined;
+      if (provider instanceof BaseLLMProvider) {
+        const metrics = provider.getMetrics();
+        circuitState = metrics?.state;
+      }
+
+      statuses[name] = {
+        healthy,
+        enabled: provider.enabled,
+        circuitState
+      };
+    }
+
+    return statuses;
   }
 }
