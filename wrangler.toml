@@ -40,15 +40,25 @@ preview_id = "dev-sessions"
 id = "production-sessions"
 
 [[kv_namespaces]]
-binding = "CACHE_STORAGE" 
+binding = "CACHE_STORAGE"
 preview_id = "dev-cache"
 id = "production-cache"
 
-# Durable Objects for rate limiting
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiter"
-script_name = "rate-limiter"
+# KV namespace for distributed rate limiting
+# SETUP: Run `wrangler kv:namespace create RATE_LIMITER` to create
+# Then replace the IDs below with the output
+[[kv_namespaces]]
+binding = "RATE_LIMITER"
+preview_id = "REPLACE_WITH_PREVIEW_NAMESPACE_ID"
+id = "REPLACE_WITH_PRODUCTION_NAMESPACE_ID"
+
+# Note: Durable Objects configuration below is for future use
+# Current implementation uses KV for rate limiting (simpler, sufficient for most cases)
+# Durable Objects can be used for more complex rate limiting scenarios
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER_DO"
+# class_name = "RateLimiterDO"
+# script_name = "rate-limiter-do"
 
 # Observability settings (simplified for local development)
 [observability]

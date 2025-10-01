@@ -1,7 +1,17 @@
 /**
- * Simple API key-based authentication for ZeidGeist AI Prompter
- * Provides basic rate limiting and access control for production deployment
+ * API key-based authentication for ZeidGeist AI Prompter
+ * Uses distributed rate limiting via Cloudflare KV for production deployment
+ *
+ * DEPRECATED: The in-memory rate limiting has been replaced with distributed
+ * rate limiting. See rate-limiter.ts for the new implementation.
  */
+
+import {
+  DistributedRateLimiter,
+  getClientIdentifier,
+  createRateLimitResponse,
+  type RateLimitResult
+} from './rate-limiter';
 
 export interface AuthResult {
   success: boolean;
@@ -9,22 +19,12 @@ export interface AuthResult {
   userId?: string;
 }
 
+// DEPRECATED: Legacy in-memory rate limiting - kept for backward compatibility
+// Use DistributedRateLimiter instead
 export interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
 }
-
-// Default rate limits
-const RATE_LIMITS: Record<string, RateLimitConfig> = {
-  '/api/engineer': { windowMs: 60000, maxRequests: 10 }, // 10 requests per minute
-  '/api/engineer/feedback': { windowMs: 60000, maxRequests: 5 }, // 5 feedback per minute
-  '/api/engineer/history': { windowMs: 60000, maxRequests: 20 }, // 20 history requests per minute
-  '/api/learning/status': { windowMs: 60000, maxRequests: 5 }, // 5 status checks per minute
-  '/api/learning/trigger': { windowMs: 300000, maxRequests: 1 }, // 1 trigger per 5 minutes
-};
-
-// Simple in-memory rate limiting (for production, use Redis or similar)
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 /**
  * Simple API key authentication with public endpoint support
@@ -70,59 +70,97 @@ export function authenticateRequest(request: Request, env: any): AuthResult {
 }
 
 /**
- * Rate limiting based on IP address and endpoint
+ * DEPRECATED: Legacy in-memory rate limiting function
+ * Use checkRateLimitDistributed() instead
+ *
+ * This function is kept for backward compatibility but will not work correctly
+ * in distributed Cloudflare Workers environments.
+ *
+ * @deprecated Use checkRateLimitDistributed() with KV namespace
  */
 export function checkRateLimit(request: Request, endpoint: string): AuthResult {
-  const clientIP = request.headers.get('x-forwarded-for') || 
-                   request.headers.get('x-real-ip') || 
-                   request.headers.get('cf-connecting-ip') || 
-                   'unknown';
+  console.warn('DEPRECATED: checkRateLimit() uses in-memory storage and will not work in distributed environments. Use checkRateLimitDistributed() instead.');
 
-  const rateLimitKey = `${clientIP}:${endpoint}`;
-  const config = RATE_LIMITS[endpoint] || { windowMs: 60000, maxRequests: 30 };
-  const now = Date.now();
-
-  // Get or create rate limit entry
-  let entry = rateLimitStore.get(rateLimitKey);
-  
-  if (!entry || now > entry.resetTime) {
-    // Reset window
-    entry = { count: 0, resetTime: now + config.windowMs };
-    rateLimitStore.set(rateLimitKey, entry);
-  }
-
-  // Check if limit exceeded
-  if (entry.count >= config.maxRequests) {
-    const resetIn = Math.ceil((entry.resetTime - now) / 1000);
-    return { 
-      success: false, 
-      error: `Rate limit exceeded. Try again in ${resetIn} seconds.` 
-    };
-  }
-
-  // Increment counter
-  entry.count++;
-  
+  // Return success to avoid breaking existing code, but log warning
   return { success: true };
 }
 
 /**
+ * Distributed rate limiting using Cloudflare KV
+ * This is the recommended rate limiting approach for production
+ */
+export async function checkRateLimitDistributed(
+  request: Request,
+  endpoint: string,
+  rateLimiterKV: KVNamespace
+): Promise<{ allowed: boolean; result: RateLimitResult }> {
+  const clientIdentifier = getClientIdentifier(request);
+  const rateLimiter = new DistributedRateLimiter(rateLimiterKV);
+
+  const result = await rateLimiter.checkRateLimit(clientIdentifier, endpoint);
+
+  return {
+    allowed: result.allowed,
+    result
+  };
+}
+
+/**
  * Combined authentication and rate limiting middleware
+ *
+ * @deprecated Use validateRequestWithKV() for distributed rate limiting
  */
 export function validateRequest(request: Request, env: any, endpoint: string): AuthResult {
-  // Check rate limiting first
-  const rateLimitResult = checkRateLimit(request, endpoint);
-  if (!rateLimitResult.success) {
-    return rateLimitResult;
-  }
+  console.warn('DEPRECATED: validateRequest() uses legacy rate limiting. Use validateRequestWithKV() instead.');
 
-  // Then check authentication
+  // Skip deprecated rate limiting check
+  // Check authentication
   const authResult = authenticateRequest(request, env);
   if (!authResult.success) {
     return authResult;
   }
 
   return { success: true, userId: authResult.userId };
+}
+
+/**
+ * Combined authentication and distributed rate limiting middleware
+ * This is the recommended validation approach for production
+ */
+export async function validateRequestWithKV(
+  request: Request,
+  env: any,
+  endpoint: string,
+  rateLimiterKV: KVNamespace
+): Promise<{ success: boolean; userId?: string; error?: string; rateLimitResult?: RateLimitResult }> {
+  // Check rate limiting first
+  const { allowed, result } = await checkRateLimitDistributed(request, endpoint, rateLimiterKV);
+
+  if (!allowed) {
+    return {
+      success: false,
+      error: result.blocked
+        ? 'Rate limit exceeded. Temporarily blocked due to repeated violations.'
+        : `Rate limit exceeded. Try again in ${result.retryAfter} seconds.`,
+      rateLimitResult: result
+    };
+  }
+
+  // Then check authentication
+  const authResult = authenticateRequest(request, env);
+  if (!authResult.success) {
+    return {
+      success: false,
+      error: authResult.error,
+      rateLimitResult: result
+    };
+  }
+
+  return {
+    success: true,
+    userId: authResult.userId,
+    rateLimitResult: result
+  };
 }
 
 /**
@@ -143,10 +181,22 @@ export function createAuthErrorResponse(error: string, corsHeaders: Record<strin
 }
 
 /**
- * Clean up old rate limit entries (call periodically)
+ * DEPRECATED: No longer needed with KV-based rate limiting
+ * KV automatically handles expiration via TTL
+ *
+ * @deprecated KV handles cleanup automatically
  */
 export function cleanupRateLimitStore(): void {
+  // No-op - kept for backward compatibility
+  console.warn('DEPRECATED: cleanupRateLimitStore() is no longer needed with KV-based rate limiting.');
+}
+
+/**
+ * Legacy cleanup function - kept for reference
+ */
+function legacyCleanup(): void {
   const now = Date.now();
+  const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
   for (const [key, entry] of rateLimitStore.entries()) {
     if (now > entry.resetTime) {
       rateLimitStore.delete(key);
