@@ -13,6 +13,9 @@ import { MetricsCalculator } from '../enhanced-architecture/metrics-calculator';
 import { AdaptiveEnhancer } from '../learning/adaptive-enhancer';
 import { withDatabase } from '../db';
 import { enhancementLogs } from '../db/schema';
+import { traceLLMRequest, addSpanAttributes } from '../observability/tracing';
+import { logger, createLogger } from '../observability/logger';
+import { recordLLMRequest, recordError, recordLatency } from '../observability/metrics';
 
 export class LLMEnhancerService {
   private safetyValidator: SafetyValidator;
@@ -36,6 +39,9 @@ export class LLMEnhancerService {
     isRefinement: boolean = false,
     env?: any
   ): Promise<string> {
+    const log = createLogger({ operation: 'enhance_prompt' });
+    const startTime = Date.now();
+
     // Validate input
     if (!rawPrompt || rawPrompt.trim() === '') {
       return '';
@@ -44,18 +50,25 @@ export class LLMEnhancerService {
     let promptString = String(rawPrompt).trim();
     const contextString = context ? String(context).trim() : '';
 
+    log.info('Starting prompt enhancement', {
+      promptLength: promptString.length,
+      hasContext: !!contextString,
+      isRefinement
+    });
+
     // Step 1: Safety validation
     const safetyResult = this.safetyValidator.validateSafety(promptString, contextString);
 
     if (!safetyResult.isSafe) {
-      console.warn('[LLM Enhancer] Safety validation failed:', safetyResult.checks);
+      log.warn('Safety validation failed', { checks: safetyResult.checks });
+      recordError('prompt_enhancement', 'safety_validation_failed');
 
       if (safetyResult.requiresHumanReview) {
         throw new Error('Prompt requires human review due to safety concerns');
       }
 
       if (safetyResult.sanitizedPrompt) {
-        console.log('[LLM Enhancer] Using sanitized prompt');
+        log.info('Using sanitized prompt');
         promptString = safetyResult.sanitizedPrompt;
       }
     }
@@ -80,7 +93,14 @@ export class LLMEnhancerService {
     const adaptiveResult = await this.adaptiveEnhancer.enhance(promptString);
 
     if (adaptiveResult.source === 'learned' && adaptiveResult.confidence >= 0.8) {
-      console.log('[LLM Enhancer] Using learned pattern with high confidence:', adaptiveResult.confidence);
+      const duration = Date.now() - startTime;
+      log.info('Using learned pattern with high confidence', {
+        confidence: adaptiveResult.confidence,
+        duration
+      });
+
+      recordLatency('prompt_enhancement', duration, { source: 'learned_pattern' });
+      recordLLMRequest('local', 'learned_pattern', duration, true);
 
       // Store successful enhancement
       if (env) {
@@ -98,7 +118,15 @@ export class LLMEnhancerService {
     };
 
     try {
-      const response = await LLMProviderFactory.enhanceWithFallback(request);
+      const response = await traceLLMRequest(
+        'enhancer',
+        'prompt-enhancement',
+        async () => {
+          return await LLMProviderFactory.enhanceWithFallback(request);
+        }
+      );
+
+      const duration = Date.now() - startTime;
 
       // Calculate quality metrics
       const enhancementMetrics = this.metricsCalculator.comparePrompts(
@@ -106,11 +134,20 @@ export class LLMEnhancerService {
         response.enhancedPrompt
       );
 
-      console.log(`[LLM Enhancer] Enhancement complete via ${response.source}:`, {
-        type: enhancementMetrics.enhancementType,
-        improvement: `${enhancementMetrics.improvementScore}%`,
-        processingTime: response.metadata?.processingTime
+      log.info('Enhancement complete', {
+        source: response.source,
+        enhancementType: enhancementMetrics.enhancementType,
+        improvementScore: enhancementMetrics.improvementScore,
+        duration
       });
+
+      recordLatency('prompt_enhancement', duration, { source: response.source });
+      recordLLMRequest(
+        response.source,
+        'prompt-enhancement',
+        response.metadata?.processingTime || duration,
+        true
+      );
 
       // Store enhancement for learning
       if (env) {
@@ -126,7 +163,10 @@ export class LLMEnhancerService {
 
       return response.enhancedPrompt;
     } catch (error) {
-      console.error('[LLM Enhancer] All providers failed:', error);
+      const duration = Date.now() - startTime;
+      log.error('All providers failed', error as Error, { duration });
+      recordError('prompt_enhancement', 'all_providers_failed');
+      recordLatency('prompt_enhancement', duration, { source: 'failed' });
 
       // Last resort: return generic enhancement
       return this.generateGenericEnhancement(promptString);

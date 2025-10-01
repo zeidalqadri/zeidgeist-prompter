@@ -6,6 +6,8 @@
 
 import CircuitBreaker from 'opossum';
 import { CircuitBreakerOptions, CircuitBreakerMetrics, CircuitBreakerEvent, CircuitBreakerState } from './types';
+import { logger } from '../observability/logger';
+import { recordCircuitBreakerState, recordCircuitBreakerEvent } from '../observability/metrics';
 
 export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
   private breaker: CircuitBreaker<[TInput], TOutput>;
@@ -161,7 +163,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         timestamp: new Date()
       };
       this.addEvent(event);
-      console.warn(`[Circuit Breaker] ${this.name} OPENED (too many failures)`);
+      logger.warn(`Circuit breaker opened`, { name: this.name });
+      recordCircuitBreakerState(this.name, 'open');
     });
 
     this.breaker.on('close', () => {
@@ -170,7 +173,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         timestamp: new Date()
       };
       this.addEvent(event);
-      console.log(`[Circuit Breaker] ${this.name} CLOSED (recovered)`);
+      logger.info(`Circuit breaker closed`, { name: this.name });
+      recordCircuitBreakerState(this.name, 'closed');
     });
 
     this.breaker.on('halfOpen', () => {
@@ -179,7 +183,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         timestamp: new Date()
       };
       this.addEvent(event);
-      console.log(`[Circuit Breaker] ${this.name} HALF-OPEN (testing recovery)`);
+      logger.info(`Circuit breaker half-open`, { name: this.name });
+      recordCircuitBreakerState(this.name, 'half-open');
     });
 
     this.breaker.on('failure', (error: Error) => {
@@ -189,7 +194,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         error
       };
       this.addEvent(event);
-      console.warn(`[Circuit Breaker] ${this.name} failure:`, error.message);
+      logger.warn(`Circuit breaker failure`, { name: this.name, error: error.message });
+      recordCircuitBreakerEvent(this.name, 'failure');
     });
 
     this.breaker.on('success', (result: TOutput) => {
@@ -198,6 +204,7 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         timestamp: new Date()
       };
       this.addEvent(event);
+      recordCircuitBreakerEvent(this.name, 'success');
     });
 
     this.breaker.on('timeout', () => {
@@ -207,7 +214,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         error: new Error('Request timeout')
       };
       this.addEvent(event);
-      console.warn(`[Circuit Breaker] ${this.name} timeout`);
+      logger.warn(`Circuit breaker timeout`, { name: this.name });
+      recordCircuitBreakerEvent(this.name, 'timeout');
     });
 
     this.breaker.on('reject', () => {
@@ -217,7 +225,8 @@ export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
         error: new Error('Circuit breaker open')
       };
       this.addEvent(event);
-      console.warn(`[Circuit Breaker] ${this.name} rejected request (circuit open)`);
+      logger.warn(`Circuit breaker rejected request`, { name: this.name });
+      recordCircuitBreakerEvent(this.name, 'reject');
     });
   }
 

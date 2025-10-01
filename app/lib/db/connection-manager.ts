@@ -15,6 +15,9 @@
 import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { drizzle, type NeonHttpDatabase } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
+import { traceDBQuery } from '../observability/tracing';
+import { logger } from '../observability/logger';
+import { recordDBQuery, recordConnectionPoolUsage } from '../observability/metrics';
 
 export type DatabaseClient = NeonHttpDatabase<typeof schema>;
 
@@ -137,16 +140,21 @@ export class DatabaseConnectionManager {
       const latencyMs = Date.now() - startTime;
       this.lastHealthCheck = Date.now();
 
+      logger.debug('Database health check passed', { latencyMs });
+      recordDBQuery('health_check', 'system', latencyMs, true);
+
       return {
         isHealthy: true,
         latencyMs
       };
     } catch (error) {
-      console.error('Database health check failed:', error);
+      const latencyMs = Date.now() - startTime;
+      logger.error('Database health check failed', error as Error, { latencyMs });
+      recordDBQuery('health_check', 'system', latencyMs, false);
 
       return {
         isHealthy: false,
-        latencyMs: Date.now() - startTime,
+        latencyMs,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
@@ -158,13 +166,28 @@ export class DatabaseConnectionManager {
    * This is the recommended way to interact with the database.
    */
   async execute<T>(
-    operation: (db: DatabaseClient) => Promise<T>
+    operation: (db: DatabaseClient) => Promise<T>,
+    operationName: string = 'query',
+    tableName: string = 'unknown'
   ): Promise<T> {
+    const startTime = Date.now();
+
     try {
       const client = this.getClient();
-      return await operation(client);
+      const result = await operation(client);
+
+      const duration = Date.now() - startTime;
+      recordDBQuery(operationName, tableName, duration, true);
+
+      return result;
     } catch (error) {
-      console.error('Database operation failed:', error);
+      const duration = Date.now() - startTime;
+      logger.error('Database operation failed', error as Error, {
+        operation: operationName,
+        table: tableName,
+        duration
+      });
+      recordDBQuery(operationName, tableName, duration, false);
 
       // Enhance error with context
       if (error instanceof Error) {
