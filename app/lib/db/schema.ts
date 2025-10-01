@@ -170,6 +170,69 @@ export const trainingExamples = pgTable('training_examples', {
   // Note: Full-text search on keywords requires GIN index (defined in migration SQL)
 }))
 
+// Audit logging table for compliance and security
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+
+  // Event Classification
+  eventType: text('event_type').notNull(),
+  eventCategory: text('event_category').notNull(),
+  severity: text('severity').notNull(),
+
+  // Actor
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  userEmail: text('user_email'),
+  userIpAddress: text('user_ip_address'),
+  userAgent: text('user_agent'),
+  sessionId: uuid('session_id'),
+
+  // Action Details
+  action: text('action').notNull(),
+  resourceType: text('resource_type'),
+  resourceId: uuid('resource_id'),
+  resourceName: text('resource_name'),
+
+  // Request Context
+  requestMethod: text('request_method'),
+  requestPath: text('request_path'),
+  requestQueryParams: text('request_query_params'), // JSON string
+  requestHeaders: text('request_headers'), // JSON string
+
+  // Response Context
+  responseStatusCode: integer('response_status_code'),
+  responseTimeMs: integer('response_time_ms'),
+
+  // Change Tracking
+  oldValues: text('old_values'), // JSON string
+  newValues: text('new_values'), // JSON string
+
+  // Metadata
+  metadata: text('metadata'), // JSON string
+  tags: text('tags'), // JSON array string
+
+  // Security Indicators
+  isSuspicious: boolean('is_suspicious').default(false),
+  riskScore: integer('risk_score').default(0),
+  threatIndicators: text('threat_indicators'), // JSON array string
+
+  // Compliance
+  retentionPeriodDays: integer('retention_period_days').default(90),
+  isImmutable: boolean('is_immutable').default(true),
+
+  // Timestamps
+  timestamp: timestamp('timestamp', { withTimezone: true }).notNull().default(sql`now()`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
+}, (table) => ({
+  // User audit trail
+  userTimestampIdx: index('idx_audit_logs_user_timestamp').on(table.userId, table.timestamp).where(sql`user_id IS NOT NULL`),
+  // Event filtering
+  eventTypeTimestampIdx: index('idx_audit_logs_event_type_timestamp').on(table.eventType, table.timestamp),
+  // Severity filtering
+  severityTimestampIdx: index('idx_audit_logs_severity_timestamp').on(table.severity, table.timestamp).where(sql`severity IN ('error', 'critical')`),
+  // Suspicious activity
+  suspiciousIdx: index('idx_audit_logs_suspicious').on(table.isSuspicious, table.timestamp).where(sql`is_suspicious = true`)
+}))
+
 // Export types for TypeScript
 export type PromptHistory = typeof promptHistory.$inferSelect
 export type NewPromptHistory = typeof promptHistory.$inferInsert
@@ -183,3 +246,5 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
+export type AuditLog = typeof auditLogs.$inferSelect
+export type NewAuditLog = typeof auditLogs.$inferInsert
