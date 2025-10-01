@@ -51,7 +51,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' http://localhost:8788 https://cloudflareinsights.com https://mstprmpt.zeidgeist.com https://zeidgeist-prompter-api.zeidalqadri.workers.dev https://zeidgeist-prompter-api-preview.zeidalqadri.workers.dev ws: wss: https://aipromptise.pages.dev https://api.claude.ai https://api.openai.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';"
         },
         {
           "key": "Permissions-Policy",
@@ -109,6 +109,12 @@
       "regex": "^/favicon\\.ico(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/tweak",
+      "regex": "^/tweak(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/tweak(?:/)?$"
     }
   ],
   "dataRoutes": [],

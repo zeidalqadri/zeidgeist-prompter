@@ -168,7 +168,7 @@
       "imgOptSkipMetadata": null,
       "isrFlushToDisk": true,
       "workerThreads": false,
-      "optimizeCss": true,
+      "optimizeCss": false,
       "nextScriptWorkers": false,
       "scrollRestoration": true,
       "externalDir": false,
@@ -318,8 +318,7 @@
     ".next/BUILD_ID",
     ".next/server/next-font-manifest.js",
     ".next/server/next-font-manifest.json",
-    ".next/required-server-files.json",
-    ".next/static/css/c9eaa1b65269fae2.css"
+    ".next/required-server-files.json"
   ],
   "ignore": [
     "node_modules/next/dist/compiled/@ampproject/toolbox-optimizer/**/*"
