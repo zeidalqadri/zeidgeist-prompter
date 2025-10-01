@@ -1,7 +1,11 @@
+// Initialize OpenNext Cloudflare for development
+const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
+initOpenNextCloudflareForDev();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static exports for Cloudflare Pages
-  output: 'export',
+  // OpenNext requires standalone output
+  output: 'standalone',
   trailingSlash: true,
   
   // Performance optimizations
@@ -25,7 +29,7 @@ const nextConfig = {
   
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
-    // Production optimizations - consolidated configuration
+    // Production optimizations - minimal splitting for static export
     if (!dev) {
       config.optimization = {
         ...config.optimization,
@@ -35,33 +39,12 @@ const nextConfig = {
         chunkIds: 'deterministic',
         splitChunks: {
           chunks: 'all',
-          minSize: 20000,
-          maxSize: 244000,
           cacheGroups: {
-            // Default cache group with proper priority
-            default: {
-              minChunks: 2,
-              priority: -20,
-              reuseExistingChunk: true,
-            },
-            // Common chunks for shared code
-            common: {
-              name: 'common',
-              minChunks: 2,
-              priority: -15,
-              chunks: 'all',
-              enforce: true,
-            },
-            // Vendor chunks for node_modules
-            vendor: {
-              test: /[\/]node_modules[\/]/,
-              name: 'vendors',
-              priority: -10,
-              chunks: 'all',
-            },
-            // Separate React runtime for better caching
+            default: false,
+            vendors: false,
+            // Only split React runtime
             react: {
-              test: /[\/]node_modules[\/](react|react-dom)[\/]/,
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
               name: 'react',
               priority: 20,
               chunks: 'all',

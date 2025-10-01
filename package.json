@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build-cloudflare.js",
-    "build:next": "next build",
+    "build": "next build",
+    "build:cloudflare": "npm run build && npx opennextjs-cloudflare build --skipBuild",
     "start": "next start",
+    "preview": "opennextjs-cloudflare preview",
+    "deploy:cloudflare": "opennextjs-cloudflare deploy",
     "lint": "next lint",
     "test": "vitest",
     "test:unit": "vitest run --reporter=verbose",
@@ -66,6 +68,7 @@
     "@cloudflare/workers-types": "^4.20251001.0",
     "@eslint/eslintrc": "^3",
     "@next/bundle-analyzer": "^15.4.6",
+    "@opennextjs/cloudflare": "^1.9.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.64.6",
     "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
@@ -84,6 +87,7 @@
     "msw": "^2.6.8",
     "supertest": "^7.0.0",
     "vitest": "^2.1.8",
-    "webpack-bundle-analyzer": "^4.10.2"
+    "webpack-bundle-analyzer": "^4.10.2",
+    "wrangler": "^4.40.3"
   }
 }

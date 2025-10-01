@@ -3,6 +3,9 @@ import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 
+// Force dynamic rendering for Cloudflare Workers compatibility
+export const dynamic = 'force-dynamic'
+
 const inter = Inter({ subsets: ["latin"] })
 
 export const viewport: Viewport = {
