@@ -7,6 +7,7 @@ import { db } from '../db';
 import { prompts, promptVersions } from '../db/schema';
 import { eq, desc, and, like, sql } from 'drizzle-orm';
 import crypto from 'crypto';
+import { sanitizeLikePattern } from '../db/sql-utils';
 
 export interface PromptSearchFilters {
   category?: string;
@@ -145,9 +146,11 @@ export class PromptRepository {
   }> {
     // Build conditions
     const conditions = [];
-    
+
     if (filters.text_search) {
-      conditions.push(like(prompts.originalText, `%${filters.text_search}%`));
+      // SECURITY: Sanitize input to prevent SQL injection via LIKE patterns
+      const sanitizedSearch = sanitizeLikePattern(filters.text_search);
+      conditions.push(like(prompts.originalText, `%${sanitizedSearch}%`));
     }
     
     // Build query with or without conditions
@@ -189,21 +192,24 @@ export class PromptRepository {
     // Simple keyword-based similarity for now
     // In production, this would use vector similarity
     const keywords = this.extractKeywords(promptText);
-    
+
     if (keywords.length === 0) {
       return [];
     }
-    
+
+    // SECURITY: Sanitize keyword before using in LIKE pattern
+    const sanitizedKeyword = sanitizeLikePattern(keywords[0]);
+
     const results = await db.select({
       id: prompts.id,
       originalText: prompts.originalText,
       totalUses: prompts.totalUses
     })
     .from(prompts)
-    .where(like(prompts.originalText, `%${keywords[0]}%`))
+    .where(like(prompts.originalText, `%${sanitizedKeyword}%`))
     .limit(limit)
     .orderBy(desc(prompts.totalUses));
-    
+
     return results;
   }
   
