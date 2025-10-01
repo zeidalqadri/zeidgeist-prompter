@@ -1,6 +1,12 @@
-// Initialize OpenNext Cloudflare for development
-const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
-initOpenNextCloudflareForDev();
+// Initialize OpenNext Cloudflare for local development only
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
+    initOpenNextCloudflareForDev();
+  } catch (e) {
+    // @opennextjs/cloudflare not available (e.g., in CI with --production flag)
+  }
+}
 
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV !== 'production'
