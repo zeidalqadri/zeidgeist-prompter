@@ -3,5 +3,5 @@ name = "zeidgeist-prompter"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "out"
 
-# Node.js compatibility for any future Functions
-compatibility_flags = ["nodejs_compat"]
+# Node.js compatibility for Functions
+compatibility_flags = ["nodejs_compat", "nodejs_als"]

@@ -1,0 +1,8 @@
+{
+  "name": "zeidgeist-prompter-functions",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
+    "drizzle-orm": "0.44.4"
+  }
+}
