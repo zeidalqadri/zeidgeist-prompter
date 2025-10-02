@@ -5,10 +5,10 @@
 //  - /api/tweak/provider-preference (GET/POST/OPTIONS)
 //  - /api/health/* (GET)
 
-import * as Engineer from '../functions/api/engineer'
-import * as ProviderStatus from '../functions/api/tweak/provider-status'
-import * as ProviderPreference from '../functions/api/tweak/provider-preference'
-import * as HealthIndex from '../functions/api/health/index'
+import * as Engineer from '../functions.disabled/api/engineer'
+import * as ProviderStatus from '../functions.disabled/api/tweak/provider-status'
+import * as ProviderPreference from '../functions.disabled/api/tweak/provider-preference'
+import * as HealthIndex from '../functions.disabled/api/health/index'
 
 type Env = Record<string, string>
 
