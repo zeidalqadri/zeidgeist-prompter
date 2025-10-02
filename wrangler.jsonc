@@ -7,12 +7,6 @@
   // Pages build output directory
   "pages_build_output_dir": ".open-next/assets",
 
-  // Asset configuration
-  "assets": {
-    "directory": "./.open-next/assets",
-    "binding": "ASSETS"
-  },
-
   // Environment variables
   "vars": {
     "NODE_ENV": "production"
