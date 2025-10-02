@@ -17,12 +17,6 @@
   // "kv_namespaces": [{"binding": "KV", "id": "your-kv-id"}],
   // "d1_databases": [{"binding": "DB", "database_name": "zeidgeist-prompter-db", "database_id": "your-db-id"}],
 
-  // Observability
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  },
-
   // Limits
   "limits": {
     "cpu_ms": 50
