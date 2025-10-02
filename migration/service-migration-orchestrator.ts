@@ -3,7 +3,7 @@
  * Manages full-scale service-by-service migration from IP to User-based isolation
  */
 
-import { createDb, promptHistory, feedback, enhancementLogs, users, userSessions } from '../functions/_shared/db';
+import { createDb, promptHistory, feedback, enhancementLogs, users, userSessions } from '../functions.disabled/_shared/db';
 import { eq, and, isNull, count, sql } from 'drizzle-orm';
 
 interface ServiceMigrationPlan {
