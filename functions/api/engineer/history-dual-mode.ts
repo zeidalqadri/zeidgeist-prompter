@@ -56,17 +56,38 @@ export async function onRequestOptions(context?: any): Promise<Response> {
  */
 export async function onRequestGet(context: any): Promise<Response> {
   const { request, env } = context
-  
-  // Monitor request for security analytics
-  monitorRequest(request, context)
-  
+
+  try {
+    // Monitor request for security analytics
+    monitorRequest(request, context)
+  } catch (err) {
+    console.error('Monitoring failed:', err)
+  }
+
   const url = new URL(request.url)
   const page = parseInt(url.searchParams.get('page') || '0')
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100)
   const offset = page * limit
-  
+
   // Extract request context
-  const requestContext = await extractRequestContext(request, env)
+  let requestContext: RequestContext
+  try {
+    requestContext = await extractRequestContext(request, env)
+  } catch (err) {
+    console.error('Failed to extract request context:', err)
+    return new Response(JSON.stringify({
+      error: "Failed to process request",
+      ...(process.env.NODE_ENV === 'development' && {
+        debug: err instanceof Error ? err.message : 'Unknown error'
+      })
+    }), {
+      status: 500,
+      headers: {
+        ...getSecurityHeaders(request.headers.get('Origin') || undefined),
+        'Content-Type': 'application/json'
+      }
+    })
+  }
   
   const corsHeaders = {
     ...getSecurityHeaders(request.headers.get('Origin') || undefined),
@@ -93,15 +114,15 @@ export async function onRequestGet(context: any): Promise<Response> {
     const isolationResult = await determineIsolationStrategy(requestContext, env)
     
     if (!isolationResult.allowed) {
-      // Log privacy violation attempt
-      await logPrivacyEvent({
+      // Log privacy violation attempt (non-blocking)
+      logPrivacyEvent({
         timestamp: new Date(),
         action: 'denied',
         resource: '/api/engineer/history',
         requesterId: requestContext.ipAddress,
         reason: isolationResult.reason
-      })
-      
+      }).catch(err => console.error('Privacy logging failed:', err))
+
       return new Response(JSON.stringify({
         error: isolationResult.reason,
         requiresAuth: isolationResult.requiresAuth,
@@ -158,15 +179,15 @@ export async function onRequestGet(context: any): Promise<Response> {
     const totalCount = totalCountResult[0]?.count || 0
     const hasMore = offset + history.length < totalCount
     const totalPages = Math.ceil(totalCount / limit)
-    
-    // Log successful access
-    await logPrivacyEvent({
+
+    // Log successful access (non-blocking)
+    logPrivacyEvent({
       timestamp: new Date(),
       action: 'access',
       resource: '/api/engineer/history',
       requesterId: requestContext.ipAddress,
       dataOwnerId: requestContext.userId || requestContext.ipAddress
-    })
+    }).catch(err => console.error('Privacy logging failed:', err))
 
     // Transform data for client response
     const items = history.map((item: any) => {
@@ -235,16 +256,29 @@ export async function onRequestGet(context: any): Promise<Response> {
 
   } catch (error) {
     console.error("Error fetching history:", error)
-    
-    // Track system error
-    privacyMonitor.trackViolation(requestContext.ipAddress, 'SYSTEM_ERROR', {
-      endpoint: '/api/engineer/history',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
-    
-    return new Response(JSON.stringify({ 
+
+    // Log detailed error information
+    const errorDetails = {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    }
+    console.error("Error details:", errorDetails)
+
+    // Track system error (safely)
+    try {
+      privacyMonitor.trackViolation(requestContext.ipAddress, 'SYSTEM_ERROR', {
+        endpoint: '/api/engineer/history',
+        error: errorDetails.message
+      })
+    } catch (monitorError) {
+      console.error("Failed to track error:", monitorError)
+    }
+
+    return new Response(JSON.stringify({
       error: "Failed to fetch history. Please try again.",
-      retryAfter: 5
+      retryAfter: 5,
+      ...(process.env.NODE_ENV === 'development' && { debug: errorDetails })
     }), {
       status: 500,
       headers: corsHeaders
@@ -257,11 +291,32 @@ export async function onRequestGet(context: any): Promise<Response> {
  */
 export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context
-  
-  monitorRequest(request, context)
-  
+
+  try {
+    monitorRequest(request, context)
+  } catch (err) {
+    console.error('Monitoring failed:', err)
+  }
+
   // Extract request context
-  const requestContext = await extractRequestContext(request, env)
+  let requestContext: RequestContext
+  try {
+    requestContext = await extractRequestContext(request, env)
+  } catch (err) {
+    console.error('Failed to extract request context:', err)
+    return new Response(JSON.stringify({
+      error: "Failed to process request",
+      ...(process.env.NODE_ENV === 'development' && {
+        debug: err instanceof Error ? err.message : 'Unknown error'
+      })
+    }), {
+      status: 500,
+      headers: {
+        ...getSecurityHeaders(request.headers.get('Origin') || undefined),
+        'Content-Type': 'application/json'
+      }
+    })
+  }
   
   const corsHeaders = {
     ...getSecurityHeaders(request.headers.get('Origin') || undefined),
@@ -322,14 +377,14 @@ export async function onRequestPost(context: any): Promise<Response> {
       timestamp: newHistory.timestamp?.toISOString()
     })
 
-    // Log privacy event
-    await logPrivacyEvent({
+    // Log privacy event (non-blocking)
+    logPrivacyEvent({
       timestamp: new Date(),
       action: 'access',
       resource: '/api/engineer/history',
       requesterId: requestContext.ipAddress,
       dataOwnerId: requestContext.userId || requestContext.ipAddress
-    })
+    }).catch(err => console.error('Privacy logging failed:', err))
 
     const response: any = { 
       success: true, 
@@ -351,9 +406,18 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   } catch (error) {
     console.error("Error storing history:", error)
-    
-    return new Response(JSON.stringify({ 
-      error: "Failed to store history. Please try again." 
+
+    // Log detailed error information
+    const errorDetails = {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    }
+    console.error("Error details:", errorDetails)
+
+    return new Response(JSON.stringify({
+      error: "Failed to store history. Please try again.",
+      ...(process.env.NODE_ENV === 'development' && { debug: errorDetails })
     }), {
       status: 500,
       headers: corsHeaders
@@ -365,13 +429,19 @@ export async function onRequestPost(context: any): Promise<Response> {
  * Extract and validate request context (user or IP-based)
  */
 async function extractRequestContext(request: Request, env: any): Promise<RequestContext> {
-  const ipAddress = request.headers.get('cf-connecting-ip') || 
-                   request.headers.get('x-forwarded-for') || 
-                   request.headers.get('x-real-ip') || 
+  const ipAddress = request.headers.get('cf-connecting-ip') ||
+                   request.headers.get('x-forwarded-for') ||
+                   request.headers.get('x-real-ip') ||
                    'unknown'
-  
+
   const userAgent = request.headers.get('user-agent') || 'unknown'
-  const sessionFingerprint = await generateSessionFingerprint(request)
+
+  let sessionFingerprint = 'unknown'
+  try {
+    sessionFingerprint = await generateSessionFingerprint(request)
+  } catch (err) {
+    console.error('Failed to generate session fingerprint:', err)
+  }
   
   // Try to authenticate user if token provided
   const authHeader = request.headers.get('Authorization')
