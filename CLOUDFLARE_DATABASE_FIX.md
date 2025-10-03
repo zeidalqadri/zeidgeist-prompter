@@ -1,7 +1,9 @@
 # Fix for History API 500 Error - Missing DATABASE_URL
 
 ## Problem
-The `/api/engineer/history-dual-mode` endpoint returns 500 error because the DATABASE_URL environment variable is not configured in Cloudflare Pages.
+The `/api/engineer/historyDualMode` endpoint returns 500 error because the DATABASE_URL environment variable is not configured in Cloudflare Pages.
+
+Note: The endpoint was previously named `history-dual-mode` but Cloudflare Pages Functions doesn't support hyphens in filenames, so it has been renamed to `historyDualMode`.
 
 ## Root Cause
 The Cloudflare Functions are trying to connect to the database but the DATABASE_URL environment variable is not available at runtime, causing:
@@ -18,9 +20,9 @@ Added explicit checks for DATABASE_URL with clear error messages:
 - Wraps database connection creation in try-catch blocks
 
 ### 2. Health Check Endpoint
-Created `/api/engineer/history-health` endpoint to diagnose configuration issues:
+Created `/api/engineer/historyHealth` endpoint to diagnose configuration issues:
 ```bash
-curl https://your-domain.pages.dev/api/engineer/history-health
+curl https://your-domain.pages.dev/api/engineer/historyHealth
 ```
 
 This will show:
@@ -70,7 +72,7 @@ After adding the environment variables:
 
 ### 1. Check Health Status
 ```bash
-curl https://your-domain.pages.dev/api/engineer/history-health | jq .
+curl https://your-domain.pages.dev/api/engineer/historyHealth | jq .
 ```
 
 Expected response when properly configured:
@@ -95,17 +97,18 @@ Expected response when properly configured:
 ### 2. Test History Endpoint
 ```bash
 # GET request
-curl https://your-domain.pages.dev/api/engineer/history-dual-mode
+curl https://your-domain.pages.dev/api/engineer/historyDualMode
 
 # POST request
-curl -X POST https://your-domain.pages.dev/api/engineer/history-dual-mode \
+curl -X POST https://your-domain.pages.dev/api/engineer/historyDualMode \
   -H "Content-Type: application/json" \
   -d '{"original": "test", "refined": "test enhanced"}'
 ```
 
 ## Files Modified
-1. `functions/api/engineer/history-dual-mode.ts` - Added DATABASE_URL validation and error handling
-2. `functions/api/engineer/history-health.ts` - New health check endpoint for diagnostics
+1. `functions/api/engineer/historyDualMode.ts` (renamed from `history-dual-mode.ts`) - Added DATABASE_URL validation and error handling
+2. `functions/api/engineer/historyHealth.ts` (renamed from `history-health.ts`) - New health check endpoint for diagnostics
+3. `functions/api/engineer/history.ts` - Updated deprecation notice to point to new endpoint name
 
 ## Common Issues and Solutions
 

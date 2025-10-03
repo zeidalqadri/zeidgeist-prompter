@@ -348,7 +348,7 @@ export default function PromptEngineer() {
   // Load existing history when component mounts - memoized
   const loadHistory = useCallback(async () => {
     try {
-      const response = await fetch('/api/engineer/history-dual-mode');
+      const response = await fetch('/api/engineer/historyDualMode');
       if (response.ok) {
         const data: HistoryApiResponse = await response.json();
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
@@ -469,7 +469,7 @@ export default function PromptEngineer() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      await fetch('/api/engineer/history-dual-mode', {
+      await fetch('/api/engineer/historyDualMode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item),
