@@ -62,6 +62,35 @@ export async function onRequestPost(context: any): Promise<Response> {
       timestamp: new Date().toISOString()
     })
 
+    // PHASE 8: Feedback Integration - Update pattern confidence based on feedback
+    try {
+      const { LearningService } = await import('../../../app/lib/learning/learning-service')
+      const learningService = new LearningService()
+
+      if (wasSuccessful) {
+        // Positive feedback - reinforce patterns
+        const score = body.score || 4 // Default to 4 if not provided
+        console.log(`👍 Positive feedback (score: ${score}) - reinforcing patterns`);
+
+        context.waitUntil(
+          learningService.reinforcePatterns(original, score)
+            .catch(err => console.error('Failed to reinforce patterns:', err))
+        )
+      } else {
+        // Negative feedback - penalize patterns
+        const score = body.score || 2 // Default to 2 if not provided
+        console.log(`👎 Negative feedback (score: ${score}) - penalizing patterns`);
+
+        context.waitUntil(
+          learningService.penalizePatterns(original, score)
+            .catch(err => console.error('Failed to penalize patterns:', err))
+        )
+      }
+    } catch (learningError) {
+      // Non-critical error - don't fail the request
+      console.error('Failed to update pattern confidence (non-critical):', learningError)
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       message: "Feedback received successfully" 
