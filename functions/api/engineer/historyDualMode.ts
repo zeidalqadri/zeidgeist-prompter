@@ -75,6 +75,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   const page = parseInt(url.searchParams.get('page') || '0')
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100)
   const offset = page * limit
+  const debug = url.searchParams.get('debug') === 'true'
 
   // Extract request context
   let requestContext: RequestContext
@@ -155,48 +156,118 @@ export async function onRequestGet(context: any): Promise<Response> {
       })
     }
 
-    // Execute appropriate query based on isolation method
-    const [history, totalCountResult] = await executeWithRetry(async () => {
-      if (requestContext.authMethod === 'USER') {
-        // User-based isolation (new method)
-        return Promise.all([
-          db
-            .select()
-            .from(promptHistory)
-            .where(eq(promptHistory.userId, requestContext.userId!))
-            .orderBy(desc(promptHistory.timestamp))
-            .limit(limit)
-            .offset(offset),
-          
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(promptHistory)
-            .where(eq(promptHistory.userId, requestContext.userId!))
-        ])
-      } else {
-        // IP-based isolation (legacy method)
-        return Promise.all([
-          db
-            .select()
-            .from(promptHistory)
-            .where(and(
-              eq(promptHistory.ipAddress, requestContext.ipAddress),
-              isNull(promptHistory.userId) // Only unlinked records
-            ))
-            .orderBy(desc(promptHistory.timestamp))
-            .limit(limit)
-            .offset(offset),
-          
-          db
-            .select({ count: sql<number>`count(*)` })
-            .from(promptHistory)
-            .where(and(
-              eq(promptHistory.ipAddress, requestContext.ipAddress),
-              isNull(promptHistory.userId)
-            ))
-        ])
+    // First test if we can access the table at all (in debug mode)
+    if (debug) {
+      console.log("DEBUG: Testing database access with simple query")
+      try {
+        const testQuery = await db.execute('SELECT 1 as test FROM prompt_history LIMIT 1')
+        console.log("DEBUG: Test query successful:", testQuery)
+      } catch (testError) {
+        console.error("DEBUG: Test query failed:", testError)
+        return new Response(JSON.stringify({
+          error: "Database table access failed",
+          debug: {
+            message: testError instanceof Error ? testError.message : 'Unknown error',
+            query: 'SELECT 1 as test FROM prompt_history LIMIT 1',
+            hint: 'Check if prompt_history table exists in the database'
+          }
+        }), {
+          status: 500,
+          headers: corsHeaders
+        })
       }
-    })
+    }
+
+    // Execute appropriate query based on isolation method
+    let history: any[] = []
+    let totalCountResult: any[] = []
+
+    try {
+      if (debug) {
+        console.log("DEBUG: Executing main query with authMethod:", requestContext.authMethod)
+        console.log("DEBUG: Request context:", {
+          authMethod: requestContext.authMethod,
+          ipAddress: requestContext.ipAddress,
+          userId: requestContext.userId || 'none',
+          isAuthenticated: requestContext.isAuthenticated
+        })
+      }
+
+      const result = await executeWithRetry(async () => {
+        if (requestContext.authMethod === 'USER') {
+          // User-based isolation (new method)
+          return Promise.all([
+            db
+              .select()
+              .from(promptHistory)
+              .where(eq(promptHistory.userId, requestContext.userId!))
+              .orderBy(desc(promptHistory.timestamp))
+              .limit(limit)
+              .offset(offset),
+
+            db
+              .select({ count: sql<number>`count(*)` })
+              .from(promptHistory)
+              .where(eq(promptHistory.userId, requestContext.userId!))
+          ])
+        } else {
+          // IP-based isolation (legacy method)
+          if (debug) {
+            console.log("DEBUG: Using IP-based query for IP:", requestContext.ipAddress)
+          }
+
+          // Simplified queries to handle empty table case
+          try {
+            // First try to get the history records - simplified without isNull check
+            const historyQuery = db
+              .select()
+              .from(promptHistory)
+              .where(eq(promptHistory.ipAddress, requestContext.ipAddress))
+              .orderBy(desc(promptHistory.timestamp))
+              .limit(limit)
+              .offset(offset)
+
+            // Then get the count
+            const countQuery = db
+              .select({ count: sql<number>`count(*)` })
+              .from(promptHistory)
+              .where(eq(promptHistory.ipAddress, requestContext.ipAddress))
+
+            return Promise.all([historyQuery, countQuery])
+          } catch (err) {
+            console.error("DEBUG: Failed to build query:", err)
+            // Return empty results if query fails
+            return [[], [{ count: 0 }]]
+          }
+        }
+      })
+
+      history = result[0] || []
+      totalCountResult = result[1] || [{ count: 0 }]
+
+      if (debug) {
+        console.log("DEBUG: Query successful, found", history.length, "records")
+      }
+
+    } catch (queryError) {
+      console.error("DEBUG: Query execution failed:", queryError)
+      if (debug) {
+        return new Response(JSON.stringify({
+          error: "Query execution failed",
+          debug: {
+            message: queryError instanceof Error ? queryError.message : 'Unknown error',
+            stack: queryError instanceof Error ? queryError.stack : undefined,
+            authMethod: requestContext.authMethod,
+            ipAddress: requestContext.ipAddress,
+            hint: 'Check database connection and table schema'
+          }
+        }), {
+          status: 500,
+          headers: corsHeaders
+        })
+      }
+      throw queryError  // Re-throw to be caught by outer try-catch
+    }
 
     const totalCount = totalCountResult[0]?.count || 0
     const hasMore = offset + history.length < totalCount
@@ -297,10 +368,21 @@ export async function onRequestGet(context: any): Promise<Response> {
       console.error("Failed to track error:", monitorError)
     }
 
+    // Include debug info if debug parameter is set
+    const debugInfo = debug ? {
+      debug: {
+        ...errorDetails,
+        env: {
+          hasDatabaseUrl: !!env?.DATABASE_URL,
+          nodeEnv: process.env.NODE_ENV || 'production'
+        }
+      }
+    } : {}
+
     return new Response(JSON.stringify({
       error: "Failed to fetch history. Please try again.",
       retryAfter: 5,
-      ...(process.env.NODE_ENV === 'development' && { debug: errorDetails })
+      ...debugInfo
     }), {
       status: 500,
       headers: corsHeaders
