@@ -18,8 +18,9 @@ interface Transformation {
 }
 
 export class PatternExtractor {
-  private readonly MIN_CONFIDENCE_THRESHOLD = 0.7;
-  private readonly MIN_EXAMPLES_FOR_PATTERN = 3;
+  // PHASE 3: Lowered thresholds to enable more pattern extraction
+  private readonly MIN_CONFIDENCE_THRESHOLD = 0.55; // Was 0.7 - more permissive
+  private readonly MIN_EXAMPLES_FOR_PATTERN = 2; // Was 3 - learn faster
 
   /**
    * Extract patterns from successful LLM enhancements
@@ -111,8 +112,9 @@ export class PatternExtractor {
 
   /**
    * Extract specific transformations between original and enhanced text
+   * Made public for real-time learning
    */
-  private extractTransformations(
+  extractTransformations(
     original: string,
     enhanced: string
   ): Transformation[] {
