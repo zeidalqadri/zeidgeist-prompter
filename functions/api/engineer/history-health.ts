@@ -20,13 +20,34 @@ export async function onRequestGet(context: any): Promise<Response> {
     checks: {}
   }
 
-  // Check 1: Environment variables
+  // Check 1: Environment variables and their effective values
+  const getFeatures = (env: any) => {
+    return {
+      USER_AUTH_ENABLED: env?.USER_AUTH_ENABLED === 'true' || false,
+      IP_FALLBACK_ENABLED: env?.IP_FALLBACK_ENABLED === 'false' ? false : true,
+      DUAL_MODE_ENABLED: env?.DUAL_MODE_ENABLED === 'false' ? false : true,
+      FORCE_USER_AUTH: env?.FORCE_USER_AUTH === 'true' || false
+    };
+  }
+
+  const features = getFeatures(env)
+
   healthStatus.checks.environment = {
     DATABASE_URL: !!env?.DATABASE_URL,
-    USER_AUTH_ENABLED: env?.USER_AUTH_ENABLED || 'not set',
-    IP_FALLBACK_ENABLED: env?.IP_FALLBACK_ENABLED || 'not set',
-    DUAL_MODE_ENABLED: env?.DUAL_MODE_ENABLED || 'not set',
-    FORCE_USER_AUTH: env?.FORCE_USER_AUTH || 'not set'
+    USER_AUTH_ENABLED: `${features.USER_AUTH_ENABLED} (env: ${env?.USER_AUTH_ENABLED || 'not set'})`,
+    IP_FALLBACK_ENABLED: `${features.IP_FALLBACK_ENABLED} (env: ${env?.IP_FALLBACK_ENABLED || 'not set'})`,
+    DUAL_MODE_ENABLED: `${features.DUAL_MODE_ENABLED} (env: ${env?.DUAL_MODE_ENABLED || 'not set'})`,
+    FORCE_USER_AUTH: `${features.FORCE_USER_AUTH} (env: ${env?.FORCE_USER_AUTH || 'not set'})`
+  }
+
+  healthStatus.checks.features = {
+    description: 'Effective feature flag values',
+    USER_AUTH_ENABLED: features.USER_AUTH_ENABLED,
+    IP_FALLBACK_ENABLED: features.IP_FALLBACK_ENABLED,
+    DUAL_MODE_ENABLED: features.DUAL_MODE_ENABLED,
+    FORCE_USER_AUTH: features.FORCE_USER_AUTH,
+    mode: features.DUAL_MODE_ENABLED ? 'Dual mode (IP + User auth)' :
+          features.USER_AUTH_ENABLED ? 'User auth only' : 'IP-based only'
   }
 
   // Check 2: Database connectivity

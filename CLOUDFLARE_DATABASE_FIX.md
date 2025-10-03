@@ -45,14 +45,22 @@ The DATABASE_URL should look like:
 postgresql://username:password@ep-xxx.us-east-2.aws.neon.tech/database-name?sslmode=require
 ```
 
-### Step 3: Add Other Required Variables (if not already set)
+### Step 3: Feature Flags (Optional - Have Sensible Defaults)
+The following environment variables are optional as the code now has sensible defaults:
+
+- `USER_AUTH_ENABLED` - Default: `false` (allows anonymous access)
+- `IP_FALLBACK_ENABLED` - Default: `true` (allows IP-based fallback)
+- `DUAL_MODE_ENABLED` - Default: `true` (supports both IP and user auth)
+- `FORCE_USER_AUTH` - Default: `false` (doesn't require authentication)
+
+These defaults provide full backwards compatibility while enabling smooth migration to user accounts in the future. You only need to set these if you want different behavior.
+
+### Step 4: Add Security Variables (Only if enabling auth)
+Only needed if you set `USER_AUTH_ENABLED=true`:
 - `JWT_SECRET` - For authentication
 - `NEXTAUTH_SECRET` - For session management
-- `USER_AUTH_ENABLED` - Set to "true" or "false"
-- `IP_FALLBACK_ENABLED` - Set to "true" or "false"
-- `DUAL_MODE_ENABLED` - Set to "true" or "false"
 
-### Step 4: Redeploy
+### Step 5: Redeploy
 After adding the environment variables:
 1. Go to **Deployments** tab
 2. Click "Retry deployment" on the latest deployment

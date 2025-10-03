@@ -17,13 +17,20 @@ import {
 } from "../../_shared/privacy-guard"
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor"
 
-// Feature flags for migration control
+// Feature flags for migration control with sensible defaults
 function getFeatures(env: any) {
   return {
-    USER_AUTH_ENABLED: env.USER_AUTH_ENABLED === 'true',
-    IP_FALLBACK_ENABLED: env.IP_FALLBACK_ENABLED !== 'false',
-    DUAL_MODE_ENABLED: env.DUAL_MODE_ENABLED === 'true',
-    FORCE_USER_AUTH: env.FORCE_USER_AUTH === 'true'
+    // Default: false - Don't require user auth, allow anonymous access
+    USER_AUTH_ENABLED: env.USER_AUTH_ENABLED === 'true' || false,
+
+    // Default: true - Allow IP-based fallback for anonymous users
+    IP_FALLBACK_ENABLED: env.IP_FALLBACK_ENABLED === 'false' ? false : true,
+
+    // Default: true - Enable both auth methods for smooth migration
+    DUAL_MODE_ENABLED: env.DUAL_MODE_ENABLED === 'false' ? false : true,
+
+    // Default: false - Don't force authentication
+    FORCE_USER_AUTH: env.FORCE_USER_AUTH === 'true' || false
   };
 }
 
