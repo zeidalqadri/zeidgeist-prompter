@@ -40,21 +40,18 @@ async function checkDatabase(env?: Record<string, string>): Promise<HealthCheck>
 
   try {
     const config = getDatabaseConfig(env);
-    
-    // Simple connection test (adjust based on your database setup)
-    const testConnection = async () => {
-      // In a real implementation, you would test the actual database connection
-      // For now, we'll simulate a basic check
-      if (!config.url) {
-        throw new Error('Database URL not configured');
-      }
-      
-      // Simulate connection test
-      await new Promise(resolve => setTimeout(resolve, 10));
-      return true;
-    };
 
-    await testConnection();
+    // Test actual database connection
+    if (!config.url) {
+      throw new Error('Database URL not configured');
+    }
+
+    // Actual database connection test using pg
+    const { neon } = await import('@neondatabase/serverless');
+    const sql = neon(config.url);
+
+    // Simple query to verify connection
+    await sql`SELECT 1 as health_check`;
     
     check.responseTime = Date.now() - start;
     check.details = {
