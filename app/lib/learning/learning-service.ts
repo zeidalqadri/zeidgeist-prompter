@@ -13,11 +13,198 @@ export interface LearningMetrics {
 export class LearningService {
   private patternExtractor: PatternExtractor;
   private readonly LEARNING_CYCLE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-  private readonly PATTERN_CONFIDENCE_THRESHOLD = 0.75;
-  private readonly LLM_FALLBACK_THRESHOLD = 0.6;
+  // PHASE 3: Lowered thresholds to enable more pattern usage
+  private readonly PATTERN_CONFIDENCE_THRESHOLD = 0.55; // Was 0.75 - more permissive
+  private readonly LLM_FALLBACK_THRESHOLD = 0.4; // Was 0.6 - enable hybrid mode
 
   constructor() {
     this.patternExtractor = new PatternExtractor();
+  }
+
+  /**
+   * PHASE 2: Real-time learning - Store successful enhancement immediately
+   * This method is called after every successful LLM enhancement
+   */
+  async storeSuccessfulEnhancement(
+    original: string,
+    enhanced: string,
+    source: string,
+    metadata: Record<string, any>
+  ): Promise<void> {
+    console.log('📚 Processing enhancement for learning...');
+
+    try {
+      // Extract patterns immediately from this single enhancement
+      const enhancement = {
+        original,
+        enhanced,
+        context: metadata.context || '',
+        feedbackScore: 4, // Default positive score (will be updated by actual feedback)
+      };
+
+      const patterns = await this.patternExtractor.extractTransformations(
+        enhancement.original,
+        enhancement.enhanced
+      );
+
+      console.log(`🔍 Extracted ${patterns.length} transformation patterns`);
+
+      // Store patterns with confidence >= 0.6 (lowered threshold)
+      for (const pattern of patterns) {
+        // Calculate initial confidence based on transformation quality
+        const confidence = this.calculatePatternConfidence(pattern);
+
+        if (confidence >= 0.6) { // Lower threshold for real-time learning
+          console.log(`✅ Storing pattern with confidence ${confidence.toFixed(2)}`);
+
+          // Create enhancement pattern
+          const enhancementPattern: EnhancementPattern = {
+            originalText: original,
+            enhancedText: enhanced,
+            context: metadata.context || '',
+            keywords: this.extractKeywords(original),
+            transformations: [pattern],
+            confidence
+          };
+
+          await this.storePatterns([enhancementPattern]);
+        }
+      }
+
+      console.log('✅ Real-time learning complete');
+    } catch (error) {
+      console.error('Error in real-time learning:', error);
+      // Don't throw - this is non-critical
+    }
+  }
+
+  /**
+   * Extract transformations from a single enhancement (helper for real-time learning)
+   */
+  private async extractTransformations(
+    original: string,
+    enhanced: string
+  ): Promise<any[]> {
+    return this.patternExtractor.extractTransformations(original, enhanced);
+  }
+
+  /**
+   * Calculate confidence for a pattern based on transformation quality
+   */
+  private calculatePatternConfidence(pattern: any): number {
+    let confidence = 0.6; // Base confidence
+
+    // Boost confidence for specific transformations
+    if (pattern.type === 'addition') {
+      confidence += 0.1; // Additions are generally good
+    }
+    if (pattern.type === 'replacement') {
+      confidence += 0.05; // Replacements are moderately good
+    }
+
+    // Boost for longer transformations (more substantial changes)
+    if (pattern.to && pattern.to.length > 20) {
+      confidence += 0.1;
+    }
+
+    // Cap at 0.85 for initial patterns (will increase with positive feedback)
+    return Math.min(0.85, confidence);
+  }
+
+  /**
+   * Extract keywords from text (helper method)
+   */
+  private extractKeywords(text: string): string[] {
+    const stopWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at',
+      'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is',
+    ]);
+
+    return text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !stopWords.has(word))
+      .slice(0, 10); // Top 10 keywords
+  }
+
+  /**
+   * PHASE 8: Reinforce patterns based on positive feedback
+   */
+  async reinforcePatterns(prompt: string, score: number): Promise<void> {
+    console.log(`🔼 Reinforcing patterns for prompt (score: ${score})`);
+
+    try {
+      // Find related patterns
+      const relatedPatterns = await this.findRelatedPatterns(prompt);
+
+      for (const pattern of relatedPatterns) {
+        // Calculate quality adjustment based on score
+        // Score 5 = +10 points, Score 4 = +5 points, Score 3 = +2 points
+        const qualityAdjustment = Math.max(0, (score - 3) * 5);
+
+        const newQuality = Math.min(100, (pattern.quality || 0) + qualityAdjustment);
+
+        await db
+          .update(trainingExamples)
+          .set({
+            quality: newQuality,
+            usageCount: (pattern.usageCount || 0) + 1,
+            updatedAt: new Date()
+          })
+          .where(eq(trainingExamples.id, pattern.id));
+
+        console.log(`✅ Reinforced pattern ${pattern.id}: ${pattern.quality} → ${newQuality}`);
+      }
+
+      console.log(`✅ Reinforced ${relatedPatterns.length} patterns`);
+    } catch (error) {
+      console.error('Error reinforcing patterns:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * PHASE 8: Penalize patterns based on negative feedback
+   */
+  async penalizePatterns(prompt: string, score: number): Promise<void> {
+    console.log(`🔽 Penalizing patterns for prompt (score: ${score})`);
+
+    try {
+      // Find related patterns
+      const relatedPatterns = await this.findRelatedPatterns(prompt);
+
+      for (const pattern of relatedPatterns) {
+        // Calculate quality adjustment based on score
+        // Score 1 = -20 points, Score 2 = -10 points
+        const qualityAdjustment = (3 - score) * 10;
+
+        const newQuality = Math.max(0, (pattern.quality || 0) - qualityAdjustment);
+
+        await db
+          .update(trainingExamples)
+          .set({
+            quality: newQuality,
+            updatedAt: new Date()
+          })
+          .where(eq(trainingExamples.id, pattern.id));
+
+        console.log(`⚠️ Penalized pattern ${pattern.id}: ${pattern.quality} → ${newQuality}`);
+
+        // If quality drops below threshold, deactivate pattern
+        if (newQuality < 20) {
+          await db
+            .update(trainingExamples)
+            .set({ isActive: false })
+            .where(eq(trainingExamples.id, pattern.id));
+          console.log(`❌ Deactivated pattern ${pattern.id} (quality too low)`);
+        }
+      }
+
+      console.log(`✅ Penalized ${relatedPatterns.length} patterns`);
+    } catch (error) {
+      console.error('Error penalizing patterns:', error);
+      throw error;
+    }
   }
 
   /**
