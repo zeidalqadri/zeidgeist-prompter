@@ -100,15 +100,30 @@ export async function onRequestGet(context: any): Promise<Response> {
   try {
     // Validate database connection
     if (!env?.DATABASE_URL) {
-      console.error("Database configuration missing")
-      return new Response(JSON.stringify({ error: "Service temporarily unavailable" }), {
+      console.error("Database configuration missing: DATABASE_URL not found in environment")
+      return new Response(JSON.stringify({
+        error: "Database connection not configured. Please check environment variables.",
+        details: "DATABASE_URL is missing from environment configuration"
+      }), {
         status: 503,
         headers: corsHeaders
       })
     }
 
-    // Get database connection
-    const db = getOptimizedDb(env)
+    // Get database connection with error handling
+    let db
+    try {
+      db = getOptimizedDb(env)
+    } catch (dbError) {
+      console.error("Failed to create database connection:", dbError)
+      return new Response(JSON.stringify({
+        error: "Failed to connect to database",
+        details: dbError instanceof Error ? dbError.message : "Unknown database error"
+      }), {
+        status: 503,
+        headers: corsHeaders
+      })
+    }
     
     // Determine isolation strategy based on request context
     const isolationResult = await determineIsolationStrategy(requestContext, env)
@@ -325,7 +340,33 @@ export async function onRequestPost(context: any): Promise<Response> {
   }
 
   try {
-    const db = createDb(env)
+    // Validate database connection
+    if (!env?.DATABASE_URL) {
+      console.error("Database configuration missing: DATABASE_URL not found in environment")
+      return new Response(JSON.stringify({
+        error: "Database connection not configured. Please check environment variables.",
+        details: "DATABASE_URL is missing from environment configuration"
+      }), {
+        status: 503,
+        headers: corsHeaders
+      })
+    }
+
+    // Create database connection with error handling
+    let db
+    try {
+      db = createDb(env)
+    } catch (dbError) {
+      console.error("Failed to create database connection:", dbError)
+      return new Response(JSON.stringify({
+        error: "Failed to connect to database",
+        details: dbError instanceof Error ? dbError.message : "Unknown database error"
+      }), {
+        status: 503,
+        headers: corsHeaders
+      })
+    }
+
     const body = await request.json()
     const { original, refined, context, timestamp, metadata } = body
 
