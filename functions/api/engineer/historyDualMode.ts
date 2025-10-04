@@ -85,7 +85,7 @@ export async function onRequestGet(context: any): Promise<Response> {
     console.error('Failed to extract request context:', err)
     return new Response(JSON.stringify({
       error: "Failed to process request",
-      ...(process.env.NODE_ENV === 'development' && {
+      ...((env.NODE_ENV || 'production') === 'development' && {
         debug: err instanceof Error ? err.message : 'Unknown error'
       })
     }), {
@@ -374,7 +374,7 @@ export async function onRequestGet(context: any): Promise<Response> {
         ...errorDetails,
         env: {
           hasDatabaseUrl: !!env?.DATABASE_URL,
-          nodeEnv: process.env.NODE_ENV || 'production'
+          nodeEnv: (env.NODE_ENV || 'production') || 'production'
         }
       }
     } : {}
@@ -410,7 +410,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     console.error('Failed to extract request context:', err)
     return new Response(JSON.stringify({
       error: "Failed to process request",
-      ...(process.env.NODE_ENV === 'development' && {
+      ...((env.NODE_ENV || 'production') === 'development' && {
         debug: err instanceof Error ? err.message : 'Unknown error'
       })
     }), {
@@ -547,7 +547,7 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     return new Response(JSON.stringify({
       error: "Failed to store history. Please try again.",
-      ...(process.env.NODE_ENV === 'development' && { debug: errorDetails })
+      ...((env.NODE_ENV || 'production') === 'development' && { debug: errorDetails })
     }), {
       status: 500,
       headers: corsHeaders

@@ -93,17 +93,19 @@ export async function onRequestPost(context: any): Promise<Response> {
     let abTestMode = false
 
     try {
-      // PHASE 5: A/B Testing - Randomly test 10% of requests
-      const { getQualityValidator } = await import('../../app/lib/learning/quality-validator')
-      const qualityValidator = getQualityValidator()
-      abTestMode = !testProvider && qualityValidator.shouldRunABTest()
+      // PHASE 5: A/B Testing - Temporarily disabled for Worker compatibility
+      // TODO: Create Worker-compatible learning modules in functions/_shared/
+      // const { getQualityValidator } = await import('../../app/lib/learning/quality-validator')
+      // const qualityValidator = getQualityValidator()
+      // abTestMode = !testProvider && qualityValidator.shouldRunABTest()
+      abTestMode = false // Disabled until Worker-compatible version is available
 
       // Skip learning for test provider requests (from /tweak page)
-      if (!testProvider) {
+      if (false) { // Temporarily disabled learning features
         console.log('🧠 Checking learned patterns first...');
-        const { AdaptiveEnhancer } = await import('../../app/lib/learning/adaptive-enhancer')
-        const adaptiveEnhancer = new AdaptiveEnhancer()
-        const localAttempt = await adaptiveEnhancer.enhance(trimmedPrompt)
+        // const { AdaptiveEnhancer } = await import('../../app/lib/learning/adaptive-enhancer')
+        // const adaptiveEnhancer = new AdaptiveEnhancer()
+        const localAttempt = { confidence: 0, source: 'disabled', enhanced: trimmedPrompt, patterns: [] }
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
@@ -241,38 +243,9 @@ export async function onRequestPost(context: any): Promise<Response> {
              enhancementResponse.source === 'mistral' ||
              enhancementResponse.source === 'moonshot' ||
              enhancementResponse.source === 'gemini')) {
-          // Queue learning task asynchronously (non-blocking)
-          try {
-            console.log('📚 Queuing enhancement for learning...');
-            const { LearningService } = await import('../../app/lib/learning/learning-service')
-            const learningService = new LearningService()
-
-            // Store enhancement for future pattern extraction (async, non-blocking)
-            // This will be picked up by the learning cycle or used immediately
-            const enhancementLogEntry = {
-              originalPrompt: trimmedPrompt,
-              enhancedPrompt: enhancementResponse.enhancedPrompt,
-              context: context || '',
-              source: enhancementResponse.source,
-              processingTime
-            }
-
-            // Try to extract and store patterns immediately (best effort)
-            context.waitUntil(
-              learningService.storeSuccessfulEnhancement(
-                trimmedPrompt,
-                enhancementResponse.enhancedPrompt,
-                enhancementResponse.source,
-                { processingTime, ...enhancementResponse.metadata }
-              ).catch(err => {
-                console.error('Failed to store for learning (non-critical):', err)
-              })
-            )
-            console.log('✅ Enhancement queued for learning');
-          } catch (learningError) {
-            // Non-critical error - don't fail the request
-            console.error('Failed to queue for learning (non-critical):', learningError)
-          }
+          // Learning temporarily disabled for Worker compatibility
+          console.log('⚠️ Learning storage temporarily disabled for Worker compatibility');
+          // TODO: Create Worker-compatible learning service
         } else if (usedLearning) {
           console.log('ℹ️ Skipping learning storage - used learned patterns');
         }
