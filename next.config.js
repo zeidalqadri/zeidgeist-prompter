@@ -1,14 +1,4 @@
-const path = require('path');
-
-// Initialize OpenNext Cloudflare for local development only
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
-    initOpenNextCloudflareForDev();
-  } catch (e) {
-    // @opennextjs/cloudflare not available (e.g., in CI with --production flag)
-  }
-}
+// Static export mode - no server-side features needed
 
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV !== 'production'
@@ -21,9 +11,8 @@ const buildCsp = () => {
 }
 
 const nextConfig = {
-  // OpenNext requires standalone output
-  output: 'standalone',
-  outputFileTracingRoot: path.join(__dirname, './'),
+  // Static export for Cloudflare Pages with native Pages Functions
+  output: 'export',
   trailingSlash: true,
   
   // Performance optimizations

@@ -2,8 +2,8 @@ import type React from "react"
 import "./globals.css"
 import type { Metadata, Viewport } from "next"
 
-// Force dynamic rendering for Cloudflare Workers compatibility
-export const dynamic = 'force-dynamic'
+// Static export mode
+export const dynamic = 'force-static'
 
 export const viewport: Viewport = {
   width: "device-width",

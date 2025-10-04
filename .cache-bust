@@ -1,7 +1,0 @@
-# Cache Bust File
-# This file forces Cloudflare Pages to invalidate its build cache
-# Created: 2025-10-04 13:30:00
-# Can be removed after successful deployment
-
-timestamp: 1728018600
-reason: Force rebuild after fixing wrangler configuration issues
