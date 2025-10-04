@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:cloudflare": "npm run build && npx opennextjs-cloudflare build --skipBuild",
+    "build": "next build && npx opennextjs-cloudflare build --skipBuild && node scripts/copy-worker.js",
+    "build:cloudflare": "npm run build && npx opennextjs-cloudflare build --skipBuild && node scripts/copy-worker.js",
     "start": "next start",
     "preview": "opennextjs-cloudflare preview",
     "deploy:cloudflare": "opennextjs-cloudflare deploy",
