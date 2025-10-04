@@ -218,37 +218,41 @@ export async function onRequestPost(context: any): Promise<Response> {
       // Log enhancement to database for analytics with optimized connection pool
       try {
         const db = getOptimizedDb(env)
-        const enhancementLog: NewEnhancementLog = {
-          promptLength: trimmedPrompt.length,
-          hasContext: !!(context && context.trim()),
-          isRefinement: !!isRefinement,
-          isExpansion: !!isExpansion,
-          repeatCount: repeatCount || 0,
-          source: enhancementResponse.source,
-          processingTime: processingTime,
-          wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
-          hadError: false
-        }
-        
-        // Execute database insert with retry logic
-        await executeWithRetry(async () => {
-          return db.insert(enhancementLogs).values(enhancementLog)
-        })
+        if (!db) {
+          console.log('Database not available - skipping logging')
+        } else {
+          const enhancementLog: NewEnhancementLog = {
+            promptLength: trimmedPrompt.length,
+            hasContext: !!(context && context.trim()),
+            isRefinement: !!isRefinement,
+            isExpansion: !!isExpansion,
+            repeatCount: repeatCount || 0,
+            source: enhancementResponse.source,
+            processingTime: processingTime,
+            wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
+            hadError: false
+          }
 
-        // PHASE 7: Real-time Learning - Store successful LLM enhancements for future learning
-        if (!usedLearning &&
-            (enhancementResponse.source === 'claude' ||
-             enhancementResponse.source === 'openai' ||
-             enhancementResponse.source === 'deepseek' ||
-             enhancementResponse.source === 'mistral' ||
-             enhancementResponse.source === 'moonshot' ||
-             enhancementResponse.source === 'gemini')) {
-          // Learning temporarily disabled for Worker compatibility
-          console.log('⚠️ Learning storage temporarily disabled for Worker compatibility');
-          // TODO: Create Worker-compatible learning service
-        } else if (usedLearning) {
-          console.log('ℹ️ Skipping learning storage - used learned patterns');
-        }
+          // Execute database insert with retry logic
+            await executeWithRetry(async () => {
+            return db.insert(enhancementLogs).values(enhancementLog)
+          })
+
+          // PHASE 7: Real-time Learning - Store successful LLM enhancements for future learning
+          if (!usedLearning &&
+              (enhancementResponse.source === 'claude' ||
+               enhancementResponse.source === 'openai' ||
+               enhancementResponse.source === 'deepseek' ||
+               enhancementResponse.source === 'mistral' ||
+               enhancementResponse.source === 'moonshot' ||
+               enhancementResponse.source === 'gemini')) {
+            // Learning temporarily disabled for Worker compatibility
+            console.log('⚠️ Learning storage temporarily disabled for Worker compatibility');
+            // TODO: Create Worker-compatible learning service
+          } else if (usedLearning) {
+            console.log('ℹ️ Skipping learning storage - used learned patterns');
+          }
+        } // Close the else block for database logging
       } catch (logError) {
         console.error("Failed to log enhancement:", logError)
       }
