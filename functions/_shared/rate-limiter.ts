@@ -12,6 +12,15 @@
  * - Progressive delays for repeated violations
  */
 
+// Cloudflare KV Namespace type definition
+interface KVNamespace {
+  get<T = unknown>(key: string, options?: { type: 'json' }): Promise<T | null>;
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>;
+}
+
 export interface RateLimitConfig {
   windowMs: number;      // Time window in milliseconds
   maxRequests: number;   // Maximum requests allowed in window

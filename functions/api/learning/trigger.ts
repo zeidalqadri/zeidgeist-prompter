@@ -1,4 +1,4 @@
-// Dynamic import for Node.js compatibility in Cloudflare Workers
+// Cloudflare Workers-compatible learning trigger endpoint
 
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
@@ -17,25 +17,18 @@ export async function onRequestOptions(): Promise<Response> {
  */
 export async function onRequestPost(context: any): Promise<Response> {
   try {
-    // Set up environment for database access (compatibility for Node.js-style imports)
     const { request, env } = context;
-    if (env.DATABASE_URL) {
-      if (!globalThis.process) {
-        globalThis.process = { env: {} } as any;
-      }
-      globalThis.process.env.DATABASE_URL = env.DATABASE_URL;
-    }
 
-    // Dynamic import to avoid issues with static imports expecting Node.js environment
-    const { LearningScheduler } = await import('../../../app/lib/learning/learning-scheduler');
-    const scheduler = new LearningScheduler();
-    
+    // Use Worker-compatible learning service
+    const { createLearningService } = await import('../../_shared/learning');
+    const learningService = createLearningService();
+
     // Get optional parameters from request
     const body = await request.json().catch(() => ({})) as any;
     const { force = false } = body;
 
     // Run the learning cycle
-    const metrics = await scheduler.forceLearningCycle();
+    const metrics = await learningService.runLearningCycle(env);
 
     const responseBody = {
       success: true,

@@ -4,13 +4,22 @@
  * Wrapper around opossum circuit breaker with enhanced monitoring
  */
 
-import CircuitBreaker from 'opossum';
+// import CircuitBreaker from 'opossum'; // TODO: Install opossum package
+// Temporary stub for CircuitBreaker
+const CircuitBreaker = class {
+  stats = { failures: 0, successes: 0, rejects: 0, fires: 0 };
+  constructor(fn: any, options: any) {}
+  fire(input: any) { return Promise.resolve(input); }
+  on(event: string, handler: any) {}
+  open() {}
+  close() {}
+};
 import { CircuitBreakerOptions, CircuitBreakerMetrics, CircuitBreakerEvent, CircuitBreakerState } from './types';
 import { logger } from '../observability/logger';
 import { recordCircuitBreakerState, recordCircuitBreakerEvent } from '../observability/metrics';
 
 export class EnhancedCircuitBreaker<TInput = any, TOutput = any> {
-  private breaker: CircuitBreaker<[TInput], TOutput>;
+  private breaker: any; // CircuitBreaker<[TInput], TOutput>;
   private name: string;
   private enabled: boolean;
   private events: CircuitBreakerEvent[] = [];

@@ -93,82 +93,36 @@ export async function onRequestPost(context: any): Promise<Response> {
     let abTestMode = false
 
     try {
-      // PHASE 5: A/B Testing - Temporarily disabled for Worker compatibility
-      // TODO: Create Worker-compatible learning modules in functions/_shared/
-      // const { getQualityValidator } = await import('../../app/lib/learning/quality-validator')
-      // const qualityValidator = getQualityValidator()
-      // abTestMode = !testProvider && qualityValidator.shouldRunABTest()
-      abTestMode = false // Disabled until Worker-compatible version is available
-
+      // PHASE 5: A/B Testing - Now re-enabled with Worker-compatible modules
       // Skip learning for test provider requests (from /tweak page)
-      if (false) { // Temporarily disabled learning features
+      if (!testProvider) {
         console.log('🧠 Checking learned patterns first...');
-        // const { AdaptiveEnhancer } = await import('../../app/lib/learning/adaptive-enhancer')
-        // const adaptiveEnhancer = new AdaptiveEnhancer()
-        const localAttempt = { confidence: 0, source: 'disabled', enhanced: trimmedPrompt, patterns: [] }
+        const { createAdaptiveEnhancer } = await import('../_shared/learning')
+        const adaptiveEnhancer = createAdaptiveEnhancer()
+        const localAttempt = await adaptiveEnhancer.enhance(env, trimmedPrompt, context || undefined)
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
-        // A/B Test Mode: Disabled for Worker compatibility
-        if (false) { // abTestMode && localAttempt.confidence >= 0.5 && localAttempt.source === 'learned'
-          console.log('🧪 A/B Test Mode: Running both local and LLM for comparison');
-
-          // Run LLM enhancement
-          const llmResponse = await enhancePrompt(
-            trimmedPrompt,
-            context || "",
-            {
-              isRefinement: !!isRefinement,
-              isExpansion: !!isExpansion,
-              repeatCount,
-              env,
-              providerPreferences,
-              testProvider
-            }
-          )
-
-          // Compare quality (async, non-blocking)
-          // Disabled: qualityValidator not available in Worker environment
-          // context.waitUntil(
-          //   qualityValidator.compareEnhancements(
-          //     trimmedPrompt,
-          //     localAttempt.enhanced,
-          //     localAttempt.confidence,
-          //     llmResponse.enhancedPrompt
-          //   ).catch(err => console.error('A/B test comparison failed:', err))
-          // )
-
-          // For A/B tests, use LLM result but log that we tested
-          enhancementResponse = {
-            ...llmResponse,
-            metadata: {
-              ...llmResponse.metadata,
-              abTested: true,
-              localConfidence: localAttempt.confidence
-            }
-          }
-          console.log('🧪 A/B test complete - using LLM result');
-        }
         // High confidence: Use learned patterns (target: 60-70% of cases eventually)
-        else if (localAttempt.confidence >= 0.7 && localAttempt.source === 'learned') {
+        if (localAttempt.confidence >= 0.7 && localAttempt.source === 'learned-patterns') {
           console.log('✅ Using learned patterns (high confidence)');
           enhancementResponse = {
-            enhancedPrompt: localAttempt.enhanced,
+            enhancedPrompt: localAttempt.enhancedPrompt,
             source: 'local',
             metadata: {
               confidence: localAttempt.confidence,
-              patterns: localAttempt.patterns,
+              patterns: localAttempt.patternsUsed,
               learningSource: 'learned'
             }
           }
           usedLearning = true
         }
         // Medium confidence: Hybrid approach (patterns + LLM refinement)
-        else if (localAttempt.confidence >= 0.4 && localAttempt.source === 'learned') {
+        else if (localAttempt.confidence >= 0.4 && localAttempt.source === 'learned-patterns') {
           console.log('🔄 Using hybrid enhancement (medium confidence)');
           // Use local enhancement as a starting point, then refine with LLM
           const llmResponse = await enhancePrompt(
-            localAttempt.enhanced, // Start with local enhancement
+            localAttempt.enhancedPrompt, // Start with local enhancement
             context || "",
             {
               isRefinement: true, // Mark as refinement since we're building on local
@@ -185,7 +139,7 @@ export async function onRequestPost(context: any): Promise<Response> {
             metadata: {
               ...llmResponse.metadata,
               localConfidence: localAttempt.confidence,
-              localPatterns: localAttempt.patterns,
+              localPatterns: localAttempt.patternsUsed,
               hybridApproach: true
             }
           }
@@ -247,9 +201,21 @@ export async function onRequestPost(context: any): Promise<Response> {
                enhancementResponse.source === 'mistral' ||
                enhancementResponse.source === 'moonshot' ||
                enhancementResponse.source === 'gemini')) {
-            // Learning temporarily disabled for Worker compatibility
-            console.log('⚠️ Learning storage temporarily disabled for Worker compatibility');
-            // TODO: Create Worker-compatible learning service
+            // Store successful enhancement for learning
+            console.log('📚 Storing enhancement for learning...');
+            const { createLearningService } = await import('../_shared/learning')
+            const learningService = createLearningService()
+
+            // Store in background (don't block response)
+            context.waitUntil(
+              learningService.storeSuccessfulEnhancement(
+                env,
+                trimmedPrompt,
+                enhancementResponse.enhancedPrompt,
+                enhancementResponse.source,
+                { context: context || '', processingTime }
+              ).catch(err => console.error('Failed to store enhancement for learning:', err))
+            )
           } else if (usedLearning) {
             console.log('ℹ️ Skipping learning storage - used learned patterns');
           }

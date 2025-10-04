@@ -27,9 +27,9 @@ export const emailSchema = z
   .max(255, 'Email must not exceed 255 characters')
   .email('Invalid email format')
   .toLowerCase()
-  .transform((email) => email.trim())
+  .transform((email: string) => email.trim())
   .refine(
-    (email) => {
+    (email: string) => {
       // Additional email security checks
       const dangerousPatterns = [
         '<', '>', '{', '}', '[', ']', '\\', '|', '^', '~', '`'
@@ -50,7 +50,7 @@ export const passwordSchema = z
   .min(12, 'Password must be at least 12 characters')
   .max(128, 'Password must not exceed 128 characters')
   .refine(
-    (password) => {
+    (password: string) => {
       // Check for at least one number OR one special character
       // (Not requiring both to allow strong passphrases)
       const hasNumberOrSpecial = /[\d\W]/.test(password);
@@ -61,7 +61,7 @@ export const passwordSchema = z
     }
   )
   .refine(
-    (password) => {
+    (password: string) => {
       // Check against common weak passwords
       const weakPasswords = [
         'password', '12345678', 'qwerty', 'abc123', 'letmein',
@@ -84,7 +84,7 @@ export const usernameSchema = z
     'Username can only contain letters, numbers, underscores, and hyphens'
   )
   .toLowerCase()
-  .transform((username) => username.trim());
+  .transform((username: string) => username.trim());
 
 /**
  * UUID validation
@@ -100,9 +100,9 @@ export const promptTextSchema = z
   .string()
   .min(1, 'Prompt cannot be empty')
   .max(10000, 'Prompt must not exceed 10,000 characters')
-  .transform((text) => text.trim())
+  .transform((text: string) => text.trim())
   .refine(
-    (text) => {
+    (text: string) => {
       // Prevent excessive whitespace (potential DoS)
       const whitespaceRatio = (text.match(/\s/g) || []).length / text.length;
       return whitespaceRatio < 0.9;
@@ -117,7 +117,7 @@ export const contextTextSchema = z
   .string()
   .max(20000, 'Context must not exceed 20,000 characters')
   .optional()
-  .transform((text) => text?.trim());
+  .transform((text: string | undefined) => text?.trim());
 
 /**
  * TOTP code validation (6 digits)
@@ -138,7 +138,7 @@ export const isoDateSchema = z
  */
 export const sanitizedTextSchema = z
   .string()
-  .transform((text) => {
+  .transform((text: string) => {
     // Basic XSS prevention - strip dangerous characters
     return text
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -315,7 +315,7 @@ export function validateRequestBody<T extends z.ZodType>(
     }
 
     // Format Zod errors for user-friendly messages
-    const errors = result.error.issues.map(err => {
+    const errors = result.error.issues.map((err: any) => {
       const path = err.path.join('.');
       return path ? `${path}: ${err.message}` : err.message;
     });
