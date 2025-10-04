@@ -1400,15 +1400,19 @@ export async function enhancePrompt(
 
   // Check which API keys are configured
   const availableProviders = [];
-  
+
   console.log('🔍 Checking API keys...');
-  console.log('Available env keys:', Object.keys(env));
-  console.log('Claude key:', !!env.CLAUDE_API_KEY);
-  console.log('OpenAI key:', !!env.OPENAI_API_KEY);
-  console.log('DeepSeek key:', !!env.DEEPSEEK_API_KEY);
-  console.log('Mistral key:', !!env.MISTRAL_API_KEY);
-  console.log('Moonshot key:', !!env.MOONSHOT_API_KEY);
-  console.log('Gemini key:', !!env.GEMINI_API_KEY);
+  console.log('env type:', typeof env);
+  console.log('env is null:', env === null);
+  console.log('env is undefined:', env === undefined);
+  console.log('Available env keys:', env ? Object.keys(env) : 'N/A');
+  console.log('env object:', env ? JSON.stringify(Object.keys(env).slice(0, 10)) : 'N/A');
+  console.log('Claude key:', !!env?.CLAUDE_API_KEY);
+  console.log('OpenAI key:', !!env?.OPENAI_API_KEY);
+  console.log('DeepSeek key:', !!env?.DEEPSEEK_API_KEY);
+  console.log('Mistral key:', !!env?.MISTRAL_API_KEY);
+  console.log('Moonshot key:', !!env?.MOONSHOT_API_KEY);
+  console.log('Gemini key:', !!env?.GEMINI_API_KEY);
   
   if (env.CLAUDE_API_KEY) {
     availableProviders.push({ name: 'claude', fn: (p: string, c?: string, r?: boolean, o?: any) => enhanceWithClaude(p, c, r, env, o) });
