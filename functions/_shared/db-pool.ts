@@ -25,9 +25,12 @@ export function getOptimizedDb(env: any): any {
   
   // Create new connection
   const db = createDb(env)
-  
-  // Cache the connection
-  connectionCache.set(cacheKey, { db, timestamp: now })
+
+  // Only cache if connection was successful
+  if (db) {
+    // Cache the connection
+    connectionCache.set(cacheKey, { db, timestamp: now })
+  }
   
   // Clean up old connections (simple cleanup)
   if (connectionCache.size > 10) {

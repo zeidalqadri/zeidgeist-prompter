@@ -93,22 +93,24 @@ export async function onRequestPost(context: any): Promise<Response> {
     let abTestMode = false
 
     try {
-      // PHASE 5: A/B Testing - Randomly test 10% of requests
-      const { getQualityValidator } = await import('../../app/lib/learning/quality-validator')
-      const qualityValidator = getQualityValidator()
-      abTestMode = !testProvider && qualityValidator.shouldRunABTest()
+      // PHASE 5: A/B Testing - Temporarily disabled for Worker compatibility
+      // TODO: Create Worker-compatible learning modules in functions/_shared/
+      // const { getQualityValidator } = await import('../../app/lib/learning/quality-validator')
+      // const qualityValidator = getQualityValidator()
+      // abTestMode = !testProvider && qualityValidator.shouldRunABTest()
+      abTestMode = false // Disabled until Worker-compatible version is available
 
       // Skip learning for test provider requests (from /tweak page)
-      if (!testProvider) {
+      if (false) { // Temporarily disabled learning features
         console.log('🧠 Checking learned patterns first...');
-        const { AdaptiveEnhancer } = await import('../../app/lib/learning/adaptive-enhancer')
-        const adaptiveEnhancer = new AdaptiveEnhancer()
-        const localAttempt = await adaptiveEnhancer.enhance(trimmedPrompt)
+        // const { AdaptiveEnhancer } = await import('../../app/lib/learning/adaptive-enhancer')
+        // const adaptiveEnhancer = new AdaptiveEnhancer()
+        const localAttempt = { confidence: 0, source: 'disabled', enhanced: trimmedPrompt, patterns: [] }
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
-        // A/B Test Mode: Run both local and LLM, compare quality
-        if (abTestMode && localAttempt.confidence >= 0.5 && localAttempt.source === 'learned') {
+        // A/B Test Mode: Disabled for Worker compatibility
+        if (false) { // abTestMode && localAttempt.confidence >= 0.5 && localAttempt.source === 'learned'
           console.log('🧪 A/B Test Mode: Running both local and LLM for comparison');
 
           // Run LLM enhancement
@@ -126,14 +128,15 @@ export async function onRequestPost(context: any): Promise<Response> {
           )
 
           // Compare quality (async, non-blocking)
-          context.waitUntil(
-            qualityValidator.compareEnhancements(
-              trimmedPrompt,
-              localAttempt.enhanced,
-              localAttempt.confidence,
-              llmResponse.enhancedPrompt
-            ).catch(err => console.error('A/B test comparison failed:', err))
-          )
+          // Disabled: qualityValidator not available in Worker environment
+          // context.waitUntil(
+          //   qualityValidator.compareEnhancements(
+          //     trimmedPrompt,
+          //     localAttempt.enhanced,
+          //     localAttempt.confidence,
+          //     llmResponse.enhancedPrompt
+          //   ).catch(err => console.error('A/B test comparison failed:', err))
+          // )
 
           // For A/B tests, use LLM result but log that we tested
           enhancementResponse = {
@@ -216,66 +219,41 @@ export async function onRequestPost(context: any): Promise<Response> {
       // Log enhancement to database for analytics with optimized connection pool
       try {
         const db = getOptimizedDb(env)
-        const enhancementLog: NewEnhancementLog = {
-          promptLength: trimmedPrompt.length,
-          hasContext: !!(context && context.trim()),
-          isRefinement: !!isRefinement,
-          isExpansion: !!isExpansion,
-          repeatCount: repeatCount || 0,
-          source: enhancementResponse.source,
-          processingTime: processingTime,
-          wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
-          hadError: false
-        }
-        
-        // Execute database insert with retry logic
-        await executeWithRetry(async () => {
-          return db.insert(enhancementLogs).values(enhancementLog)
-        })
-
-        // PHASE 7: Real-time Learning - Store successful LLM enhancements for future learning
-        if (!usedLearning &&
-            (enhancementResponse.source === 'claude' ||
-             enhancementResponse.source === 'openai' ||
-             enhancementResponse.source === 'deepseek' ||
-             enhancementResponse.source === 'mistral' ||
-             enhancementResponse.source === 'moonshot' ||
-             enhancementResponse.source === 'gemini')) {
-          // Queue learning task asynchronously (non-blocking)
-          try {
-            console.log('📚 Queuing enhancement for learning...');
-            const { LearningService } = await import('../../app/lib/learning/learning-service')
-            const learningService = new LearningService()
-
-            // Store enhancement for future pattern extraction (async, non-blocking)
-            // This will be picked up by the learning cycle or used immediately
-            const enhancementLogEntry = {
-              originalPrompt: trimmedPrompt,
-              enhancedPrompt: enhancementResponse.enhancedPrompt,
-              context: context || '',
-              source: enhancementResponse.source,
-              processingTime
-            }
-
-            // Try to extract and store patterns immediately (best effort)
-            context.waitUntil(
-              learningService.storeSuccessfulEnhancement(
-                trimmedPrompt,
-                enhancementResponse.enhancedPrompt,
-                enhancementResponse.source,
-                { processingTime, ...enhancementResponse.metadata }
-              ).catch(err => {
-                console.error('Failed to store for learning (non-critical):', err)
-              })
-            )
-            console.log('✅ Enhancement queued for learning');
-          } catch (learningError) {
-            // Non-critical error - don't fail the request
-            console.error('Failed to queue for learning (non-critical):', learningError)
+        if (!db) {
+          console.log('Database not available - skipping logging')
+        } else {
+          const enhancementLog: NewEnhancementLog = {
+            promptLength: trimmedPrompt.length,
+            hasContext: !!(context && context.trim()),
+            isRefinement: !!isRefinement,
+            isExpansion: !!isExpansion,
+            repeatCount: repeatCount || 0,
+            source: enhancementResponse.source,
+            processingTime: processingTime,
+            wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
+            hadError: false
           }
-        } else if (usedLearning) {
-          console.log('ℹ️ Skipping learning storage - used learned patterns');
-        }
+
+          // Execute database insert with retry logic
+            await executeWithRetry(async () => {
+            return db.insert(enhancementLogs).values(enhancementLog)
+          })
+
+          // PHASE 7: Real-time Learning - Store successful LLM enhancements for future learning
+          if (!usedLearning &&
+              (enhancementResponse.source === 'claude' ||
+               enhancementResponse.source === 'openai' ||
+               enhancementResponse.source === 'deepseek' ||
+               enhancementResponse.source === 'mistral' ||
+               enhancementResponse.source === 'moonshot' ||
+               enhancementResponse.source === 'gemini')) {
+            // Learning temporarily disabled for Worker compatibility
+            console.log('⚠️ Learning storage temporarily disabled for Worker compatibility');
+            // TODO: Create Worker-compatible learning service
+          } else if (usedLearning) {
+            console.log('ℹ️ Skipping learning storage - used learned patterns');
+          }
+        } // Close the else block for database logging
       } catch (logError) {
         console.error("Failed to log enhancement:", logError)
       }
