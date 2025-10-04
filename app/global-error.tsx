@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 export default function GlobalError({
   error,
   reset,
@@ -24,12 +26,12 @@ export default function GlobalError({
               >
                 Try again
               </button>
-              <a
+              <Link
                 href="/"
                 className="inline-flex items-center px-4 py-2 border border-black text-base font-bold rounded-md text-black bg-white hover:bg-gray-50"
               >
                 Return Home
-              </a>
+              </Link>
             </div>
           </div>
         </div>
