@@ -4,8 +4,8 @@
   "compatibility_date": "2025-01-15",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Pages build output directory
-  "pages_build_output_dir": ".open-next/assets",
+  // Pages build output directory - use entire .open-next structure for worker support
+  "pages_build_output_dir": ".open-next",
 
   // Environment variables
   "vars": {
