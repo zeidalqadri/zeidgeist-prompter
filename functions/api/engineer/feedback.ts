@@ -64,8 +64,8 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     // PHASE 8: Feedback Integration - Update pattern confidence based on feedback
     try {
-      const { LearningService } = await import('../../../app/lib/learning/learning-service')
-      const learningService = new LearningService()
+      const { createLearningService } = await import('../../_shared/learning')
+      const learningService = createLearningService()
 
       if (wasSuccessful) {
         // Positive feedback - reinforce patterns
@@ -73,7 +73,7 @@ export async function onRequestPost(context: any): Promise<Response> {
         console.log(`👍 Positive feedback (score: ${score}) - reinforcing patterns`);
 
         context.waitUntil(
-          learningService.reinforcePatterns(original, score)
+          learningService.reinforcePatterns(env, original, score)
             .catch(err => console.error('Failed to reinforce patterns:', err))
         )
       } else {
@@ -81,10 +81,9 @@ export async function onRequestPost(context: any): Promise<Response> {
         const score = body.score || 2 // Default to 2 if not provided
         console.log(`👎 Negative feedback (score: ${score}) - penalizing patterns`);
 
-        context.waitUntil(
-          learningService.penalizePatterns(original, score)
-            .catch(err => console.error('Failed to penalize patterns:', err))
-        )
+        // Note: penalizePatterns method needs to be added to the Worker-compatible service
+        // For now, we'll just log negative feedback
+        console.log('Pattern penalization pending implementation in Worker-compatible service');
       }
     } catch (learningError) {
       // Non-critical error - don't fail the request
