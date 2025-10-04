@@ -309,12 +309,13 @@ export async function onRequestPost(context: any): Promise<Response> {
         fallbackEnhanced = `Context: ${context}\n\nPrompt: ${fallbackEnhanced}`
       }
 
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         result: fallbackEnhanced,
         metadata: {
-          source: 'fallback-error',
+          source: 'local',
           processingTime,
-          hadError: true
+          fallbackMode: 'error-recovery',
+          originalError: enhancementError instanceof Error ? enhancementError.message : String(enhancementError)
         }
       }), {
         headers: corsHeaders
