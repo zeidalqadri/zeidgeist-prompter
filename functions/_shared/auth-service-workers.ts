@@ -43,7 +43,7 @@ interface AuthResult {
 }
 
 // Constants
-const ITERATIONS = 100000;
+const ITERATIONS = 210000; // Increased from 100k to 210k for 2025 security standards
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 32;
 const MAX_LOGIN_ATTEMPTS = 3;
@@ -279,7 +279,18 @@ export class CloudflareAuthService {
 
   constructor(env: any) {
     this.db = createDb(env);
-    this.jwtSecret = env.JWT_SECRET || 'dev-secret-change-in-production';
+
+    // CRITICAL SECURITY: Enforce JWT_SECRET requirement - no fallback allowed
+    if (!env.JWT_SECRET) {
+      throw new Error('FATAL: JWT_SECRET environment variable is required for authentication. Application cannot start without a secure JWT secret.');
+    }
+
+    // Validate JWT_SECRET strength (minimum 32 characters / 256 bits)
+    if (env.JWT_SECRET.length < 32) {
+      throw new Error('FATAL: JWT_SECRET must be at least 32 characters (256 bits) for adequate security.');
+    }
+
+    this.jwtSecret = env.JWT_SECRET;
   }
 
   /**

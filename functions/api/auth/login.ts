@@ -31,7 +31,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   };
 
   try {
-    const body = await request.json();
+    const body = await request.json() as any;
     const { email, password, totpCode } = body;
     
     // Get client information for session tracking

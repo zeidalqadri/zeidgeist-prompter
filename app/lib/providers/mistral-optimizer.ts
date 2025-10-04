@@ -118,7 +118,7 @@ export class MistralConfidenceScorer {
         throw new Error(`Mistral evaluation failed: ${response.status}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as any;
       return this.parseEvaluationResponse(data.choices[0].message.content);
     } catch (error) {
       console.warn('Mistral evaluation failed, using fallback scoring:', error);
@@ -357,7 +357,7 @@ Provide only the enhanced prompt text. Do not include any meta-text, explanation
       throw new Error(`Mistral API call failed: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data = await response.json() as any;
     return data.choices[0].message.content.trim();
   }
 }

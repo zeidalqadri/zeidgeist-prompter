@@ -1,3 +1,13 @@
+// Initialize OpenNext Cloudflare for local development only
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
+    initOpenNextCloudflareForDev();
+  } catch (e) {
+    // @opennextjs/cloudflare not available (e.g., in CI with --production flag)
+  }
+}
+
 /** @type {import('next').NextConfig} */
 const isDev = process.env.NODE_ENV !== 'production'
 
@@ -9,8 +19,8 @@ const buildCsp = () => {
 }
 
 const nextConfig = {
-  // Enable static exports for Cloudflare Pages only in production
-  output: isDev ? undefined : 'export',
+  // OpenNext requires standalone output
+  output: 'standalone',
   trailingSlash: true,
   
   // Performance optimizations
@@ -34,51 +44,16 @@ const nextConfig = {
   
   // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
-    // Production optimizations - consolidated configuration
+    // Let OpenNext handle chunk splitting - custom splitChunks breaks bundler
+    // Only apply tree-shaking optimizations
     if (!dev) {
       config.optimization = {
         ...config.optimization,
         usedExports: true,
         sideEffects: false,
         moduleIds: 'deterministic',
-        chunkIds: 'deterministic',
-        splitChunks: {
-          chunks: 'all',
-          minSize: 20000,
-          maxSize: 244000,
-          cacheGroups: {
-            // Default cache group with proper priority
-            default: {
-              minChunks: 2,
-              priority: -20,
-              reuseExistingChunk: true,
-            },
-            // Common chunks for shared code
-            common: {
-              name: 'common',
-              minChunks: 2,
-              priority: -15,
-              chunks: 'all',
-              enforce: true,
-            },
-            // Vendor chunks for node_modules
-            vendor: {
-              test: /[\/]node_modules[\/]/,
-              name: 'vendors',
-              priority: -10,
-              chunks: 'all',
-            },
-            // Separate React runtime for better caching
-            react: {
-              test: /[\/]node_modules[\/](react|react-dom)[\/]/,
-              name: 'react',
-              priority: 20,
-              chunks: 'all',
-            },
-          },
-        },
       }
-      
+
       // Bundle analyzer in development
       if (process.env.ANALYZE === 'true') {
         const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer')
@@ -90,7 +65,7 @@ const nextConfig = {
         )
       }
     }
-    
+
     return config
   },
   

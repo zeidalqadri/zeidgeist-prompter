@@ -1,0 +1,24 @@
+{
+  // Cloudflare Worker configuration for OpenNext
+  "name": "zeidgeist-prompter",
+  "compatibility_date": "2025-01-15",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Pages build output directory
+  "pages_build_output_dir": ".open-next/assets",
+
+  // Environment variables
+  "vars": {
+    "NODE_ENV": "production"
+  },
+
+  // KV Namespaces and D1 Databases will be configured during deployment
+  // Uncomment and add IDs when ready:
+  // "kv_namespaces": [{"binding": "KV", "id": "your-kv-id"}],
+  // "d1_databases": [{"binding": "DB", "database_name": "zeidgeist-prompter-db", "database_id": "your-db-id"}],
+
+  // Limits
+  "limits": {
+    "cpu_ms": 50
+  }
+}

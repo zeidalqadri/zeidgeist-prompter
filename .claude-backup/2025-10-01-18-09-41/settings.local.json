@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(tee:*)",
+      "Bash(npm uninstall:*)",
+      "WebFetch(domain:opennext.js.org)",
+      "Bash(npx opennextjs-cloudflare build:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run build:cloudflare:*)",
+      "Bash(npx wrangler dev:*)",
+      "Bash(curl -s http://localhost:8787/api/metrics -H \"Accept: text/plain\")",
+      "Bash(curl:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git diff:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rm:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enabledMcpjsonServers": [
+    "CloudflareAIGateway",
+    "CloudflareWorkerBindings",
+    "CloudflareWorkerBuilds",
+    "CloudflareWorkerObservability"
+  ]
+}

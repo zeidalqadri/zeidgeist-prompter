@@ -63,7 +63,7 @@ export default function TweakPage() {
       })
       
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as any
         setProviders(data.providers || [])
       } else {
         console.warn('Could not load provider status')

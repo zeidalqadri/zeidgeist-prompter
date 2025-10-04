@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(tee:*)",
+      "Bash(npm uninstall:*)",
+      "WebFetch(domain:opennext.js.org)",
+      "Bash(npx opennextjs-cloudflare build:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run build:cloudflare:*)",
+      "Bash(npx wrangler dev:*)",
+      "Bash(curl -s http://localhost:8787/api/metrics -H \"Accept: text/plain\")",
+      "Bash(curl:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git diff:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rm:*)",
+      "Bash(cat:*)",
+      "Bash(for file in app/lib/llm/llm-provider.service.ts app/lib/providers/mistral-optimizer.ts app/lib/providers/gemini-optimizer.ts app/lib/providers/gemini-templates.ts app/lib/prompt/prompt-engineer.service.ts app/tweak/page.tsx)",
+      "Bash(do)",
+      "Bash(echo \"Fixed: $file\")",
+      "Bash(done)",
+      "Bash(for file in app/lib/llm/llm-provider.service.ts app/lib/prompt/prompt-engineer.service.ts)",
+      "Bash(echo:*)",
+      "Bash(for:*)",
+      "Bash(if [ -f \"$file\" ])",
+      "Bash(then)",
+      "Bash(fi)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enabledMcpjsonServers": [
+    "CloudflareAIGateway",
+    "CloudflareWorkerBindings",
+    "CloudflareWorkerBuilds",
+    "CloudflareWorkerObservability"
+  ]
+}
