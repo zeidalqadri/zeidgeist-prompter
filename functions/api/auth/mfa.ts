@@ -125,7 +125,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     const url = new URL(request.url);
     const endpoint = url.pathname.split('/').pop();
     
-    const body = await request.json();
+    const body = await request.json() as any;
     const { totpCode } = body;
 
     if (!totpCode) {

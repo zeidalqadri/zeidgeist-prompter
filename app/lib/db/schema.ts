@@ -125,6 +125,48 @@ export const trainingExamples = pgTable('training_examples', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
 
+// Audit logs table for comprehensive security logging
+export const auditLogs = pgTable('audit_logs', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text('event_type').notNull(),
+  eventCategory: text('event_category').notNull(),
+  severity: text('severity').notNull(),
+  action: text('action').notNull(),
+
+  userId: uuid('user_id').references(() => users.id),
+  userEmail: text('user_email'),
+  userIpAddress: text('user_ip_address'),
+  userAgent: text('user_agent'),
+  sessionId: uuid('session_id'),
+
+  resourceType: text('resource_type'),
+  resourceId: text('resource_id'),
+  resourceName: text('resource_name'),
+
+  requestMethod: text('request_method'),
+  requestPath: text('request_path'),
+  requestQueryParams: text('request_query_params'), // JSON string
+  requestHeaders: text('request_headers'), // JSON string
+
+  responseStatusCode: integer('response_status_code'),
+  responseTimeMs: integer('response_time_ms'),
+
+  oldValues: text('old_values'), // JSON string
+  newValues: text('new_values'), // JSON string
+
+  metadata: text('metadata'), // JSON string
+  tags: text('tags'), // JSON string array
+
+  isSuspicious: boolean('is_suspicious').default(false),
+  riskScore: integer('risk_score').default(0),
+  threatIndicators: text('threat_indicators'), // JSON string array
+
+  retentionPeriodDays: integer('retention_period_days').default(90),
+  isImmutable: boolean('is_immutable').default(true),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
 // Export types for TypeScript
 export type PromptHistory = typeof promptHistory.$inferSelect
 export type NewPromptHistory = typeof promptHistory.$inferInsert
@@ -138,3 +180,5 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
+export type AuditLog = typeof auditLogs.$inferSelect
+export type NewAuditLog = typeof auditLogs.$inferInsert

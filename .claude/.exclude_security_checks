@@ -24,7 +24,7 @@ out/
 out/**
 
 # Node modules - Third-party code
-**/node_modules/
+node_modules
 node_modules/
 node_modules/**
 
@@ -40,8 +40,9 @@ logs/
 .claude/logs/
 
 # Specific files from your errors
-/eslint/**
-/zeidgeist-prompter/node_modules/**
+apps/web/.env.local
+apps/web/.env.local.example
+.open-next/
 # Files and folders to exclude from security checks
 # One pattern per line
 # Supports glob patterns and relative paths

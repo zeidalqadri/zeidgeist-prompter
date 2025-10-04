@@ -1,0 +1,69 @@
+/**
+ * LLM Provider Types
+ *
+ * Shared type definitions for LLM provider abstraction layer
+ */
+
+// Provider source identifier
+export type ProviderSource = 'deepseek' | 'mistral' | 'gemini' | 'local' | 'fallback';
+
+// Enhancement request
+export interface EnhancementRequest {
+  prompt: string;
+  context?: string;
+  isRefinement?: boolean;
+}
+
+// Enhancement response
+export interface EnhancementResponse {
+  enhancedPrompt: string;
+  source: ProviderSource;
+  metadata?: {
+    model?: string;
+    usage?: Record<string, unknown>;
+    processingTime?: number;
+  };
+}
+
+// Provider configuration
+export interface ProviderConfig {
+  apiKey: string;
+  endpoint: string;
+  model: string;
+  enabled: boolean;
+  timeout?: number;
+  maxRetries?: number;
+}
+
+// Chat message format (OpenAI-compatible)
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+// Provider interface
+export interface ILLMProvider {
+  readonly name: ProviderSource;
+  readonly enabled: boolean;
+
+  enhance(request: EnhancementRequest): Promise<EnhancementResponse>;
+  buildMessages(request: EnhancementRequest): ChatMessage[];
+  isHealthy(): Promise<boolean>;
+}
+
+// Provider factory options
+export interface ProviderFactoryOptions {
+  preferredProvider?: ProviderSource;
+  enableFallback?: boolean;
+  circuitBreakerEnabled?: boolean;
+}
+
+// Enhancement metrics
+export interface EnhancementMetrics {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  averageLatency: number;
+  providerUsage: Record<ProviderSource, number>;
+  circuitBreakerTrips: number;
+}

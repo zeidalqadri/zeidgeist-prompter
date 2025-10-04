@@ -463,11 +463,11 @@ async function enhanceWithDeepseek(prompt: string, context?: string, isRefinemen
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`DeepSeek API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   const content = data.choices[0].message.content;
   return {
     enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
@@ -672,11 +672,11 @@ async function enhanceWithMistral(prompt: string, context?: string, isRefinement
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`Mistral API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   let enhancedContent = data.choices[0].message.content;
   
   // Apply post-processing (skip heavy cleanup in test greeting mode)
@@ -1074,11 +1074,11 @@ async function enhanceWithClaude(prompt: string, context?: string, isRefinement:
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`Claude API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   const content = data.content[0].text;
   return {
     enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
@@ -1116,11 +1116,11 @@ async function enhanceWithOpenAI(prompt: string, context?: string, isRefinement:
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   const content = data.choices[0].message.content;
   return {
     enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),
@@ -1190,11 +1190,11 @@ async function enhanceWithGemini(prompt: string, context?: string, isRefinement:
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   
   if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
     throw new Error('Gemini API returned no content');
@@ -1346,11 +1346,11 @@ async function enhanceWithMoonshot(prompt: string, context?: string, isRefinemen
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json() as any;
     throw new Error(`Moonshot API error: ${JSON.stringify(error)}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   const content = data.choices[0].message.content;
   return {
     enhancedPrompt: opts.isTestGreeting ? normalizeShortGreeting(content) : cleanEnhancedPrompt(content),

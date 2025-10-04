@@ -50,7 +50,7 @@ export async function onRequestPost(context: any): Promise<Response> {
   
   try {
     console.log('Function started, parsing JSON...')
-    const body = await request.json()
+    const body = await request.json() as any
     console.log('JSON parsed successfully')
     
     const { prompt, context, isRefinement, isExpansion, repeatCount } = body
