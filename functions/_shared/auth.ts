@@ -13,6 +13,15 @@ import {
   type RateLimitResult
 } from './rate-limiter';
 
+// Cloudflare KV Namespace type definition (same as in rate-limiter.ts)
+interface KVNamespace {
+  get<T = unknown>(key: string, options?: { type: 'json' }): Promise<T | null>;
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>;
+}
+
 export interface AuthResult {
   success: boolean;
   error?: string;
