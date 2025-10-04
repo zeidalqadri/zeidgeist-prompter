@@ -109,8 +109,8 @@ export async function onRequestPost(context: any): Promise<Response> {
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
-        // A/B Test Mode: Run both local and LLM, compare quality
-        if (abTestMode && localAttempt.confidence >= 0.5 && localAttempt.source === 'learned') {
+        // A/B Test Mode: Disabled for Worker compatibility
+        if (false) { // abTestMode && localAttempt.confidence >= 0.5 && localAttempt.source === 'learned'
           console.log('🧪 A/B Test Mode: Running both local and LLM for comparison');
 
           // Run LLM enhancement
@@ -128,14 +128,15 @@ export async function onRequestPost(context: any): Promise<Response> {
           )
 
           // Compare quality (async, non-blocking)
-          context.waitUntil(
-            qualityValidator.compareEnhancements(
-              trimmedPrompt,
-              localAttempt.enhanced,
-              localAttempt.confidence,
-              llmResponse.enhancedPrompt
-            ).catch(err => console.error('A/B test comparison failed:', err))
-          )
+          // Disabled: qualityValidator not available in Worker environment
+          // context.waitUntil(
+          //   qualityValidator.compareEnhancements(
+          //     trimmedPrompt,
+          //     localAttempt.enhanced,
+          //     localAttempt.confidence,
+          //     llmResponse.enhancedPrompt
+          //   ).catch(err => console.error('A/B test comparison failed:', err))
+          // )
 
           // For A/B tests, use LLM result but log that we tested
           enhancementResponse = {
