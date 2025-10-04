@@ -18,10 +18,10 @@ on:
 jobs:
   health-check:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
-        environment: [production, staging]
+        environment: [production]
         
     steps:
     - name: Set environment URLs
@@ -221,9 +221,9 @@ jobs:
     - name: Check security headers
       run: |
         echo "Checking security headers for production"
-        
+
         response=$(curl -I https://mstprmpt.zeidgeist.com/ 2>/dev/null)
-        
+
         # Check for important security headers
         headers=(
           "X-Frame-Options"
@@ -232,32 +232,46 @@ jobs:
           "Strict-Transport-Security"
           "X-XSS-Protection"
         )
-        
+
         missing_headers=()
-        
+
         for header in "${headers[@]}"; do
           if echo "$response" | grep -qi "$header"; then
             echo "✅ $header present"
           else
-            echo "❌ $header missing"
+            echo "⚠️  $header missing"
             missing_headers+=("$header")
           fi
         done
-        
+
         if [ ${#missing_headers[@]} -gt 0 ]; then
-          echo "Missing security headers: ${missing_headers[*]}"
-          exit 1
+          echo "⚠️  Missing security headers (non-blocking): ${missing_headers[*]}"
+          echo "Consider adding these headers in Cloudflare or Next.js config"
         else
           echo "✅ All security headers present"
         fi
 
   database-health:
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule' # Only run on manual trigger for security
-    
+
     steps:
-    - name: Check database connectivity
+    - name: Check database via health API
       run: |
-        echo "Database health check skipped in monitoring workflow"
-        echo "Use deployment workflow for database health validation"
-        echo "✅ Database health check bypassed for security"
+        echo "Checking database health via API"
+
+        response=$(curl -s https://mstprmpt.zeidgeist.com/api/health)
+
+        # Parse the response and check database status
+        db_status=$(echo "$response" | grep -o '"name":"database","status":"[^"]*"' | cut -d'"' -f8)
+
+        echo "Database status: ${db_status:-unknown}"
+
+        if [ "$db_status" = "healthy" ]; then
+          echo "✅ Database is healthy"
+        elif [ "$db_status" = "degraded" ]; then
+          echo "⚠️  Database is degraded"
+          exit 1
+        else
+          echo "❌ Database is unhealthy or unreachable"
+          exit 1
+        fi

@@ -15,8 +15,9 @@ export interface AdaptiveEnhancement {
 
 export class AdaptiveEnhancer {
   private learningService: LearningService;
-  private readonly MIN_CONFIDENCE_FOR_LOCAL = 0.7;
-  private readonly HYBRID_THRESHOLD = 0.5;
+  // PHASE 3: Lowered thresholds to enable more pattern usage
+  private readonly MIN_CONFIDENCE_FOR_LOCAL = 0.5; // Was 0.7 - enable more local usage
+  private readonly HYBRID_THRESHOLD = 0.3; // Was 0.5 - enable hybrid mode earlier
 
   constructor() {
     this.learningService = new LearningService();

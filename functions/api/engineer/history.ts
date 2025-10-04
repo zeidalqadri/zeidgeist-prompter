@@ -1,4 +1,4 @@
-// DEPRECATED ENDPOINT - Use /api/engineer/history-dual-mode instead
+// DEPRECATED ENDPOINT - Use /api/engineer/historyDualMode instead
 // This file remains only to return deprecation notices for the old endpoint
 
 // Handle CORS preflight requests
@@ -14,7 +14,7 @@ export async function onRequestOptions(): Promise<Response> {
 }
 
 export async function onRequestGet(context: any): Promise<Response> {
-  // DEPRECATED: This endpoint has been replaced with /api/engineer/history-dual-mode for enhanced privacy protection
+  // DEPRECATED: This endpoint has been replaced with /api/engineer/historyDualMode for enhanced privacy protection
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -25,9 +25,9 @@ export async function onRequestGet(context: any): Promise<Response> {
   return new Response(JSON.stringify({
     error: "This endpoint has been deprecated for security reasons. Please use the secure endpoint instead.",
     deprecated: true,
-    secureEndpoint: "/api/engineer/history-dual-mode",
+    secureEndpoint: "/api/engineer/historyDualMode",
     reason: "Enhanced privacy protection and user authentication required",
-    migrationGuide: "Update your client code to use /api/engineer/history-dual-mode"
+    migrationGuide: "Update your client code to use /api/engineer/historyDualMode"
   }), {
     status: 410, // Gone
     headers: corsHeaders
@@ -35,7 +35,7 @@ export async function onRequestGet(context: any): Promise<Response> {
 }
 
 export async function onRequestPost(context: any): Promise<Response> {
-  // DEPRECATED: This endpoint has been replaced with /api/engineer/history-dual-mode for enhanced privacy protection
+  // DEPRECATED: This endpoint has been replaced with /api/engineer/historyDualMode for enhanced privacy protection
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -46,9 +46,9 @@ export async function onRequestPost(context: any): Promise<Response> {
   return new Response(JSON.stringify({
     error: "This endpoint has been deprecated for security reasons. Please use the secure endpoint instead.",
     deprecated: true,
-    secureEndpoint: "/api/engineer/history-dual-mode",
+    secureEndpoint: "/api/engineer/historyDualMode",
     reason: "Enhanced privacy protection and user authentication required",
-    migrationGuide: "Update your client code to use /api/engineer/history-dual-mode"
+    migrationGuide: "Update your client code to use /api/engineer/historyDualMode"
   }), {
     status: 410, // Gone
     headers: corsHeaders
