@@ -1,3 +1,5 @@
+const path = require('path');
+
 // Initialize OpenNext Cloudflare for local development only
 if (process.env.NODE_ENV !== 'production') {
   try {
@@ -21,6 +23,7 @@ const buildCsp = () => {
 const nextConfig = {
   // OpenNext requires standalone output
   output: 'standalone',
+  outputFileTracingRoot: path.join(__dirname, './'),
   trailingSlash: true,
   
   // Performance optimizations
