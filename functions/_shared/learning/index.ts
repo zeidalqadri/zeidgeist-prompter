@@ -5,36 +5,51 @@
  * All modules are designed to work in Cloudflare Workers runtime.
  */
 
-export {
-  LearningService,
-  createLearningService,
-  type LearningMetrics,
-  type LearningConfig
+import {
+  LearningService as _LearningService,
+  createLearningService as _createLearningService,
+  type LearningMetrics as _LearningMetrics,
+  type LearningConfig as _LearningConfig
 } from './service'
 
-export {
-  PatternExtractor,
-  createPatternExtractor,
-  type EnhancementPattern,
+import {
+  PatternExtractor as _PatternExtractor,
+  createPatternExtractor as _createPatternExtractor,
+  type EnhancementPattern as _EnhancementPattern
 } from './pattern-extractor'
 
-export {
-  AdaptiveEnhancer,
-  createAdaptiveEnhancer,
-  type LocalEnhancement,
-  type AdaptiveEnhancerConfig
+import {
+  AdaptiveEnhancer as _AdaptiveEnhancer,
+  createAdaptiveEnhancer as _createAdaptiveEnhancer,
+  type LocalEnhancement as _LocalEnhancement,
+  type AdaptiveEnhancerConfig as _AdaptiveEnhancerConfig
 } from './adaptive-enhancer'
+
+// Re-export everything
+export const LearningService = _LearningService
+export const createLearningService = _createLearningService
+export type LearningMetrics = _LearningMetrics
+export type LearningConfig = _LearningConfig
+
+export const PatternExtractor = _PatternExtractor
+export const createPatternExtractor = _createPatternExtractor
+export type EnhancementPattern = _EnhancementPattern
+
+export const AdaptiveEnhancer = _AdaptiveEnhancer
+export const createAdaptiveEnhancer = _createAdaptiveEnhancer
+export type LocalEnhancement = _LocalEnhancement
+export type AdaptiveEnhancerConfig = _AdaptiveEnhancerConfig
 
 /**
  * Quick start helper for creating all learning components
  */
 export function createLearningSystem(config?: {
-  learning?: LearningConfig
-  adaptive?: AdaptiveEnhancerConfig
+  learning?: _LearningConfig
+  adaptive?: _AdaptiveEnhancerConfig
 }) {
   return {
-    learningService: createLearningService(config?.learning),
-    adaptiveEnhancer: createAdaptiveEnhancer(config?.adaptive),
-    patternExtractor: createPatternExtractor()
+    learningService: _createLearningService(config?.learning),
+    adaptiveEnhancer: _createAdaptiveEnhancer(config?.adaptive),
+    patternExtractor: _createPatternExtractor()
   }
 }

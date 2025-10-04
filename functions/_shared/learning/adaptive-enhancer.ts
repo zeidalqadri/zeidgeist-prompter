@@ -173,8 +173,8 @@ export class AdaptiveEnhancer {
     let score = 0
 
     // Keyword matching
-    const patternKeywords = (pattern.keywords || '').split(',').map(k => k.trim().toLowerCase())
-    const keywordMatches = keywords.filter(k => patternKeywords.includes(k.toLowerCase())).length
+    const patternKeywords = (pattern.keywords || '').split(',').map((k: string) => k.trim().toLowerCase())
+    const keywordMatches = keywords.filter((k: string) => patternKeywords.includes(k.toLowerCase())).length
     score += (keywordMatches / Math.max(keywords.length, 1)) * 0.4
 
     // Similarity in prompt length
