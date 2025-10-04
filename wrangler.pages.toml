@@ -9,12 +9,6 @@ pages_build_output_dir = "dist"
 # Node.js compatibility for Functions
 compatibility_flags = ["nodejs_compat"]
 
-# Default environment variables for production
-[vars]
-NODE_ENV = "production"
-APP_ENV = "production"
-API_BASE_URL = "https://mstprmpt.zeidgeist.com"
-
 # Production environment configuration
 [env.production]
 name = "zeidgeist-prompter-production"
@@ -44,7 +38,7 @@ script_name = "rate-limiter"
 name = "zeidgeist-prompter-preview"
 
 [env.preview.vars]
-NODE_ENV = "preview"
+NODE_ENV = "development"
 APP_ENV = "preview"
 API_BASE_URL = "https://preview.mstprmpt.zeidgeist.com"
 
