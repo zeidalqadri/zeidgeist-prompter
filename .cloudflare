@@ -1,3 +1,4 @@
 {
-  "pages_build_output_dir": "dist"
+  "pages_build_output_dir": "out",
+  "functions_directory": "functions"
 }
