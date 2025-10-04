@@ -88,7 +88,9 @@ export function createDb(env: Record<string, string>) {
   const databaseUrl = env.DATABASE_URL
 
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is required')
+    // Return null instead of throwing - allows functions to work without database
+    console.warn('DATABASE_URL not configured - database features disabled')
+    return null as any
   }
 
   // Create Neon HTTP client

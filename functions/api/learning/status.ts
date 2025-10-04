@@ -17,29 +17,22 @@ export async function onRequestOptions(): Promise<Response> {
  */
 export async function onRequestGet(context: any): Promise<Response> {
   try {
-    // Set up environment for database access (compatibility for Node.js-style imports)
-    const { env } = context;
-    if (env.DATABASE_URL) {
-      if (!globalThis.process) {
-        globalThis.process = { env: {} } as any;
-      }
-      globalThis.process.env.DATABASE_URL = env.DATABASE_URL;
-    }
+    // Learning status temporarily disabled for Worker compatibility
+    console.log('Learning status endpoint temporarily disabled');
 
-    // Dynamic import to avoid issues with static imports expecting Node.js environment
-    const { LearningScheduler } = await import('../../../app/lib/learning/learning-scheduler');
-    const scheduler = new LearningScheduler();
-    const stats = await scheduler.getLearningStats();
+    // TODO: Create Worker-compatible learning scheduler
+    // Disabled: LearningScheduler imports from app/lib which uses Node.js features
 
     const responseBody = {
-      success: true,
-      stats,
+      success: false,
+      message: 'Learning status temporarily disabled for Worker compatibility',
+      stats: null,
       summary: {
-        isActive: stats.scheduler.isRunning,
-        llmIndependence: `${((1 - stats.metrics.llmDependencyScore) * 100).toFixed(1)}%`,
-        localAccuracy: `${(stats.metrics.accuracyScore * 100).toFixed(1)}%`,
-        totalPatterns: stats.metrics.totalPatterns,
-        recentLocalEnhancements: stats.enhancer.localEnhancements,
+        isActive: false,
+        llmIndependence: 'N/A',
+        localAccuracy: 'N/A',
+        totalPatterns: 0,
+        recentLocalEnhancements: 0,
       },
     };
 
