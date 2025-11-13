@@ -167,6 +167,74 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
 
+// Image storage and management tables
+export const images = pgTable('images', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  filename: text('filename').notNull(),
+  r2Key: text('r2_key').notNull().unique(), // Cloudflare R2 storage path
+  mimeType: text('mime_type').notNull(), // image/jpeg, image/png, image/webp
+  size: integer('size').notNull(), // bytes
+  width: integer('width'),
+  height: integer('height'),
+  metadata: text('metadata'), // JSON: alt text, tags, etc.
+  status: text('status').notNull().default('active'), // active, deleted, quarantined
+  virusScanStatus: text('virus_scan_status').default('pending'), // pending, clean, infected
+  virusScanResult: text('virus_scan_result'), // JSON: scan details
+  hasWatermark: boolean('has_watermark').default(false),
+  ipAddress: text('ip_address'), // Legacy tracking
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
+export const imageGenerations = pgTable('image_generations', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  prompt: text('prompt').notNull(),
+  style: text('style'), // photorealistic, artistic, sketch, abstract, cartoon, 3d
+  resolution: text('resolution'), // 1024x1024, 1024x1792, 1792x1024, etc.
+  aspectRatio: text('aspect_ratio'), // 1:1, 16:9, 9:16, 4:3
+  model: text('model'), // dall-e-3, stable-diffusion-xl, etc.
+  provider: text('provider'), // openai, stability, etc.
+  parameters: text('parameters'), // JSON: steps, guidance, seed, etc.
+  sourceImageId: uuid('source_image_id').references(() => images.id), // For image-to-image
+  resultImageId: uuid('result_image_id').references(() => images.id),
+  status: text('status').notNull().default('pending'), // pending, processing, completed, failed
+  errorMessage: text('error_message'),
+  processingTime: integer('processing_time'), // milliseconds
+  progressPercent: integer('progress_percent').default(0),
+  ipAddress: text('ip_address'), // Legacy tracking
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  completedAt: timestamp('completed_at', { withTimezone: true })
+})
+
+export const imageAnalyses = pgTable('image_analyses', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  imageId: uuid('image_id').notNull().references(() => images.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  analysisType: text('analysis_type').notNull(), // caption, scene, objects, qa, similarity
+  prompt: text('prompt'), // For Q&A analysis
+  result: text('result').notNull(), // Analysis output (JSON or text)
+  confidence: integer('confidence'), // 0-100
+  model: text('model'), // gpt-4-vision, claude-3-sonnet, gemini-pro-vision
+  provider: text('provider'), // openai, anthropic, google
+  processingTime: integer('processing_time'), // milliseconds
+  metadata: text('metadata'), // JSON: additional analysis data
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
+export const imageQuotas = pgTable('image_quotas', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(), // YYYY-MM-DD
+  generationsUsed: integer('generations_used').notNull().default(0),
+  uploadsUsed: integer('uploads_used').notNull().default(0),
+  analysesUsed: integer('analyses_used').notNull().default(0),
+  lastReset: timestamp('last_reset', { withTimezone: true }).notNull().default(sql`now()`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
 // Export types for TypeScript
 export type PromptHistory = typeof promptHistory.$inferSelect
 export type NewPromptHistory = typeof promptHistory.$inferInsert
@@ -182,3 +250,11 @@ export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+export type Image = typeof images.$inferSelect
+export type NewImage = typeof images.$inferInsert
+export type ImageGeneration = typeof imageGenerations.$inferSelect
+export type NewImageGeneration = typeof imageGenerations.$inferInsert
+export type ImageAnalysis = typeof imageAnalyses.$inferSelect
+export type NewImageAnalysis = typeof imageAnalyses.$inferInsert
+export type ImageQuota = typeof imageQuotas.$inferSelect
+export type NewImageQuota = typeof imageQuotas.$inferInsert

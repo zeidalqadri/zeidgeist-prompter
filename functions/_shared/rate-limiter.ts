@@ -78,6 +78,24 @@ export const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     maxRequests: 3,
     blockDuration: 3600000 // 1 hour
   },
+  '/api/images/generate': {
+    windowMs: 86400000, // 24 hours
+    maxRequests: 3,
+    blockDuration: 3600000 // 1 hour
+  },
+  '/api/images/upload': {
+    windowMs: 86400000, // 24 hours
+    maxRequests: 10,
+    blockDuration: 1800000 // 30 minutes
+  },
+  '/api/images/analyze': {
+    windowMs: 86400000, // 24 hours
+    maxRequests: 20
+  },
+  '/api/images/quota': {
+    windowMs: 60000,
+    maxRequests: 30
+  },
   'default': {
     windowMs: 60000,
     maxRequests: 30
