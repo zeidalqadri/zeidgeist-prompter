@@ -6,16 +6,17 @@
 import { analyzeImage } from '../../_shared/vision-providers'
 import { getFromR2, getPublicUrl } from '../../_shared/image-storage'
 import { enforceQuota } from '../../_shared/quota-manager'
-import { db } from '../../_shared/db'
+import { createDb } from '../../_shared/db'
 import { imageAnalyses } from '../../../app/lib/db/schema'
 import { validateRequest } from '../../_shared/auth'
+import { eq, and } from 'drizzle-orm'
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context
 
   try {
     const auth = validateRequest(request, env, '/api/images/analyze')
-    if (!auth.authenticated) {
+    if (!auth.success) {
       return new Response(JSON.stringify({ error: auth.error }), { status: 401, headers: { 'Content-Type': 'application/json' } })
     }
 
@@ -27,12 +28,13 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       return new Response(JSON.stringify({ error: 'imageId and analysisType required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
     }
 
-    await enforceQuota(userId, 'analysis')
+    await enforceQuota(userId, 'analysis', env)
 
     // Get image from database
-    const imageRecord = await db.query.images.findFirst({
-      where: (images, { eq, and }) => and(eq(images.id, imageId), eq(images.userId, userId))
-    })
+    const db = createDb(env)
+    const images = (await import('../../../app/lib/db/schema')).images
+    const imageResults = await db.select().from(images).where(and(eq(images.id, imageId), eq(images.userId, userId))).limit(1)
+    const imageRecord = imageResults[0]
 
     if (!imageRecord) {
       return new Response(JSON.stringify({ error: 'Image not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } })

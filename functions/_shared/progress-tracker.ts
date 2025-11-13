@@ -3,6 +3,24 @@
  * Uses Cloudflare KV for real-time progress updates
  */
 
+// Cloudflare KV Namespace type definition
+interface KVPutOptions {
+  expirationTtl?: number
+  expiration?: number
+  metadata?: any
+}
+
+interface KVNamespace {
+  get<T = unknown>(key: string, options?: { type: 'json' }): Promise<T | null>
+  get(key: string, options?: { type: 'text' }): Promise<string | null>
+  get(key: string, options?: { type: 'arrayBuffer' }): Promise<ArrayBuffer | null>
+  get(key: string, options?: { type: 'stream' }): Promise<ReadableStream | null>
+  get(key: string): Promise<string | null>
+  put(key: string, value: string | ArrayBuffer | ReadableStream, options?: KVPutOptions): Promise<void>
+  delete(key: string): Promise<void>
+  list(options?: { prefix?: string; limit?: number; cursor?: string }): Promise<{ keys: { name: string; expiration?: number; metadata?: any }[]; list_complete: boolean; cursor?: string }>
+}
+
 export interface ProgressUpdate {
   taskId: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
@@ -41,10 +59,11 @@ export async function initializeProgress(
   }
 
   if (env.PROGRESS_TRACKER) {
+    const options: KVPutOptions = { expirationTtl: 900 } // 15 minutes TTL
     await env.PROGRESS_TRACKER.put(
       `progress:${taskId}`,
       JSON.stringify(progress),
-      { expirationTtl: 900 } // 15 minutes TTL
+      options
     )
   }
 
@@ -80,7 +99,7 @@ export async function updateProgress(
     return
   }
 
-  const progress: ProgressUpdate = JSON.parse(existing)
+  const progress: ProgressUpdate = JSON.parse(existing as string)
 
   progress.percent = Math.min(100, Math.max(0, percent))
   progress.message = message
@@ -94,10 +113,11 @@ export async function updateProgress(
     progress.completedAt = new Date().toISOString()
   }
 
+  const options: KVPutOptions = { expirationTtl: 900 }
   await env.PROGRESS_TRACKER.put(
     `progress:${taskId}`,
     JSON.stringify(progress),
-    { expirationTtl: 900 }
+    options
   )
 
   console.log(`📊 Progress updated: ${taskId} - ${percent}% - ${message}`)
@@ -125,7 +145,7 @@ export async function completeProgress(
     return
   }
 
-  const progress: ProgressUpdate = JSON.parse(existing)
+  const progress: ProgressUpdate = JSON.parse(existing as string)
 
   progress.status = 'completed'
   progress.percent = 100
@@ -134,10 +154,11 @@ export async function completeProgress(
   progress.updatedAt = new Date().toISOString()
   progress.result = result
 
+  const options: KVPutOptions = { expirationTtl: 900 }
   await env.PROGRESS_TRACKER.put(
     `progress:${taskId}`,
     JSON.stringify(progress),
-    { expirationTtl: 900 }
+    options
   )
 
   console.log(`✅ Task completed: ${taskId}`)
@@ -165,7 +186,7 @@ export async function failProgress(
     return
   }
 
-  const progress: ProgressUpdate = JSON.parse(existing)
+  const progress: ProgressUpdate = JSON.parse(existing as string)
 
   progress.status = 'failed'
   progress.message = 'Task failed'
@@ -173,10 +194,11 @@ export async function failProgress(
   progress.completedAt = new Date().toISOString()
   progress.updatedAt = new Date().toISOString()
 
+  const options: KVPutOptions = { expirationTtl: 900 }
   await env.PROGRESS_TRACKER.put(
     `progress:${taskId}`,
     JSON.stringify(progress),
-    { expirationTtl: 900 }
+    options
   )
 
   console.error(`❌ Task failed: ${taskId} - ${error}`)
@@ -202,7 +224,7 @@ export async function getProgress(
     return null
   }
 
-  return JSON.parse(data)
+  return JSON.parse(data as string)
 }
 
 /**

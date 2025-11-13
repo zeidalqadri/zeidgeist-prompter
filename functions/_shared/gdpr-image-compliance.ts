@@ -3,7 +3,7 @@
  * Extends existing privacy/DSAR functionality to include image-related data
  */
 
-import { db } from './db'
+import { createDb } from './db'
 import { images, imageGenerations, imageAnalyses, imageQuotas } from '../../app/lib/db/schema'
 import { deleteUserImagesFromR2 } from './image-storage'
 import { eq } from 'drizzle-orm'
@@ -20,10 +20,13 @@ export interface ImageDataExport {
 /**
  * Export all image-related data for a user (GDPR Article 15 - Right to Access)
  * @param userId - User ID
+ * @param env - Cloudflare environment
  * @returns Image data export
  */
-export async function exportUserImageData(userId: string): Promise<ImageDataExport> {
+export async function exportUserImageData(userId: string, env: any): Promise<ImageDataExport> {
   console.log(`📦 Exporting image data for user ${userId}`)
+
+  const db = createDb(env)
 
   // Fetch all image records
   const userImages = await db
@@ -50,7 +53,7 @@ export async function exportUserImageData(userId: string): Promise<ImageDataExpo
     .where(eq(imageQuotas.userId, userId))
 
   // Calculate total storage
-  const totalStorageBytes = userImages.reduce((sum, img) => sum + (img.size || 0), 0)
+  const totalStorageBytes = userImages.reduce((sum: number, img: any) => sum + (img.size || 0), 0)
 
   return {
     images: userImages,
@@ -79,6 +82,8 @@ export async function deleteUserImageData(
   r2ObjectsDeleted: number
 }> {
   console.log(`🗑️ Deleting all image data for user ${userId}`)
+
+  const db = createDb(env)
 
   // Delete from R2 storage first
   const r2ObjectsDeleted = await deleteUserImagesFromR2(userId, env)
@@ -128,15 +133,17 @@ export async function deleteUserImageData(
  * Anonymize image data for a user (GDPR Article 17 alternative - Right to Restriction)
  * Keeps images but removes personal identifiers
  * @param userId - User ID
+ * @param env - Cloudflare environment
  * @returns Anonymization summary
  */
-export async function anonymizeUserImageData(userId: string): Promise<{
+export async function anonymizeUserImageData(userId: string, env: any): Promise<{
   imagesAnonymized: number
   generationsAnonymized: number
   analysesAnonymized: number
 }> {
   console.log(`🔒 Anonymizing image data for user ${userId}`)
 
+  const db = createDb(env)
   const anonymousId = `anon-${crypto.randomUUID()}`
 
   // Anonymize images
@@ -181,10 +188,11 @@ export async function anonymizeUserImageData(userId: string): Promise<{
 /**
  * Generate GDPR-compliant data portability export (JSON format)
  * @param userId - User ID
+ * @param env - Cloudflare environment
  * @returns Formatted JSON export
  */
-export async function generateImageDataPortabilityExport(userId: string): Promise<string> {
-  const data = await exportUserImageData(userId)
+export async function generateImageDataPortabilityExport(userId: string, env: any): Promise<string> {
+  const data = await exportUserImageData(userId, env)
 
   const portabilityExport = {
     dataSubject: {

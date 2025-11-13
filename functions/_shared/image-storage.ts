@@ -3,6 +3,64 @@
  * Handles upload, retrieval, and deletion of images with security validation
  */
 
+// Cloudflare R2 type definitions
+interface R2Bucket {
+  get(key: string): Promise<R2ObjectBody | null>
+  put(key: string, value: ReadableStream | ArrayBuffer | Blob, options?: R2PutOptions): Promise<R2Object>
+  delete(key: string | string[]): Promise<void>
+  list(options?: R2ListOptions): Promise<R2Objects>
+}
+
+interface R2ObjectBody extends R2Object {
+  body: ReadableStream
+  arrayBuffer(): Promise<ArrayBuffer>
+  text(): Promise<string>
+  json<T>(): Promise<T>
+  blob(): Promise<Blob>
+}
+
+interface R2Object {
+  key: string
+  version: string
+  size: number
+  etag: string
+  httpEtag: string
+  uploaded: Date
+  httpMetadata?: R2HTTPMetadata
+  customMetadata?: Record<string, string>
+}
+
+interface R2Objects {
+  objects: R2Object[]
+  truncated: boolean
+  cursor?: string
+  delimitedPrefixes: string[]
+}
+
+interface R2PutOptions {
+  httpMetadata?: R2HTTPMetadata
+  customMetadata?: Record<string, string>
+  md5?: ArrayBuffer | string
+}
+
+interface R2HTTPMetadata {
+  contentType?: string
+  contentLanguage?: string
+  contentDisposition?: string
+  contentEncoding?: string
+  cacheControl?: string
+  cacheExpiry?: Date
+}
+
+interface R2ListOptions {
+  limit?: number
+  prefix?: string
+  cursor?: string
+  delimiter?: string
+  startAfter?: string
+  include?: ('httpMetadata' | 'customMetadata')[]
+}
+
 export interface CloudflareEnv {
   IMAGE_STORAGE: R2Bucket
   VIRUSTOTAL_API_KEY?: string

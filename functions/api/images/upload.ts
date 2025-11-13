@@ -7,12 +7,12 @@
 import { uploadToR2, validateImageFile, getImageDimensions, CloudflareEnv } from '../../_shared/image-storage'
 import { performSecurityCheck } from '../../_shared/virus-scanner'
 import { enforceQuota } from '../../_shared/quota-manager'
-import { db } from '../../_shared/db'
+import { createDb } from '../../_shared/db'
 import { images } from '../../../app/lib/db/schema'
 import { validateRequest } from '../../_shared/auth'
 
 interface Env extends CloudflareEnv {
-  DB: any
+  DATABASE_URL?: string
   VIRUSTOTAL_API_KEY?: string
 }
 
@@ -22,7 +22,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
   try {
     // Authenticate request
     const auth = validateRequest(request, env, '/api/images/upload')
-    if (!auth.authenticated) {
+    if (!auth.success) {
       return new Response(JSON.stringify({ error: auth.error }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
@@ -33,7 +33,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
 
     // Enforce quota (10 uploads per day)
     try {
-      await enforceQuota(userId, 'upload')
+      await enforceQuota(userId, 'upload', env)
     } catch (error) {
       return new Response(JSON.stringify({
         error: error instanceof Error ? error.message : 'Quota exceeded'
@@ -99,6 +99,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     const uploadResult = await uploadToR2(file, userId, env)
 
     // Store metadata in database
+    const db = createDb(env as any)
     const dbRecord = await db.insert(images).values({
       userId,
       filename: file.name,

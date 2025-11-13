@@ -10,12 +10,12 @@ export async function onRequestGet(context: { request: Request; env: any }) {
   const { request, env } = context
 
   const auth = validateRequest(request, env, '/api/images/quota')
-  if (!auth.authenticated) {
+  if (!auth.success) {
     return new Response(JSON.stringify({ error: auth.error }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
   try {
-    const quotaStatus = await getQuotaStatus(auth.userId!)
+    const quotaStatus = await getQuotaStatus(auth.userId!, env)
 
     return new Response(JSON.stringify(quotaStatus), {
       status: 200,

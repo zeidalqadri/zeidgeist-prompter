@@ -8,12 +8,27 @@ import { applyBrandWatermark } from '../../_shared/watermark'
 import { uploadToR2, CloudflareEnv } from '../../_shared/image-storage'
 import { enforceQuota } from '../../_shared/quota-manager'
 import { initializeProgress, updateProgress, completeProgress, failProgress, createProgressCallback } from '../../_shared/progress-tracker'
-import { db } from '../../_shared/db'
+import { createDb } from '../../_shared/db'
 import { images, imageGenerations } from '../../../app/lib/db/schema'
 import { validateRequest } from '../../_shared/auth'
 
+// Cloudflare KV Namespace type definition
+interface KVPutOptions {
+  expirationTtl?: number
+  expiration?: number
+  metadata?: any
+}
+
+interface KVNamespace {
+  get<T = unknown>(key: string, options?: { type: 'json' }): Promise<T | null>
+  get(key: string): Promise<string | null>
+  put(key: string, value: string | ArrayBuffer | ReadableStream, options?: KVPutOptions): Promise<void>
+  delete(key: string): Promise<void>
+  list(options?: { prefix?: string; limit?: number }): Promise<{ keys: { name: string }[] }>
+}
+
 interface Env extends CloudflareEnv {
-  DB: any
+  DATABASE_URL?: string
   OPENAI_API_KEY: string
   CLAUDE_API_KEY: string
   STABILITY_AI_KEY: string
@@ -26,7 +41,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
 
   try {
     const auth = validateRequest(request, env, '/api/images/generate')
-    if (!auth.authenticated) {
+    if (!auth.success) {
       return new Response(JSON.stringify({ error: auth.error }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
@@ -46,7 +61,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
 
     // Enforce quota (3 generations per day)
     try {
-      await enforceQuota(userId, 'generation')
+      await enforceQuota(userId, 'generation', env)
     } catch (error) {
       return new Response(JSON.stringify({
         error: error instanceof Error ? error.message : 'Quota exceeded'
@@ -57,9 +72,9 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     }
 
     const taskId = crypto.randomUUID()
-    await initializeProgress(taskId, env)
+    await initializeProgress(taskId, env as any)
 
-    const progressCallback = createProgressCallback(taskId, env)
+    const progressCallback = createProgressCallback(taskId, env as any)
 
     try {
       console.log(`🎨 Generating image for user ${userId}: "${prompt}"`)
@@ -67,10 +82,10 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       // Generate image
       const result = await generateImage(
         { prompt, style, resolution, aspectRatio, progressCallback },
-        env
+        env as any
       )
 
-      await updateProgress(taskId, 85, 'Applying watermark...', env)
+      await updateProgress(taskId, 85, 'Applying watermark...', env as any)
 
       // Fetch generated image
       const imageResponse = await fetch(result.imageUrl)
@@ -79,12 +94,13 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       // Apply watermark
       const watermarkedBlob = await applyBrandWatermark(imageBlob)
 
-      await updateProgress(taskId, 90, 'Uploading to storage...', env)
+      await updateProgress(taskId, 90, 'Uploading to storage...', env as any)
 
       // Upload to R2
       const uploadResult = await uploadToR2(watermarkedBlob, userId, env)
 
       // Store image metadata
+      const db = createDb(env as any)
       const imageRecord = await db.insert(images).values({
         userId,
         filename: `generated-${taskId}.png`,
@@ -115,7 +131,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       await completeProgress(taskId, {
         imageUrl: uploadResult.publicUrl,
         imageId: imageRecord[0].id
-      }, env)
+      }, env as any)
 
       console.log(`✅ Generation complete: ${uploadResult.key}`)
 
@@ -134,7 +150,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       })
 
     } catch (error) {
-      await failProgress(taskId, error instanceof Error ? error.message : 'Unknown error', env)
+      await failProgress(taskId, error instanceof Error ? error.message : 'Unknown error', env as any)
       throw error
     }
 

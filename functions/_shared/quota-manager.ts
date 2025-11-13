@@ -4,7 +4,7 @@
  * Resets automatically at midnight UTC
  */
 
-import { db } from './db'
+import { createDb } from './db'
 import { imageQuotas } from '../../app/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 
@@ -55,14 +55,34 @@ function getResetTime(): string {
 /**
  * Get quota status for a user
  * @param userId - User ID
+ * @param env - Cloudflare environment
  * @param limits - Custom quota limits (optional)
  * @returns Quota status
  */
 export async function getQuotaStatus(
   userId: string,
+  env?: any,
   limits: QuotaLimits = DEFAULT_LIMITS
 ): Promise<QuotaStatus> {
   const today = getCurrentDateString()
+
+  // If no env provided, return default quota (for backwards compatibility)
+  if (!env) {
+    return {
+      userId,
+      date: today,
+      generationsUsed: 0,
+      uploadsUsed: 0,
+      analysesUsed: 0,
+      generationsRemaining: limits.generationsPerDay,
+      uploadsRemaining: limits.uploadsPerDay,
+      analysesRemaining: limits.analysesPerDay,
+      limits,
+      resetAt: getResetTime()
+    }
+  }
+
+  const db = createDb(env)
 
   // Get or create quota record
   const existing = await db
@@ -112,15 +132,17 @@ export async function getQuotaStatus(
  * Check if user can perform an operation
  * @param userId - User ID
  * @param operation - Operation type
+ * @param env - Cloudflare environment
  * @param limits - Custom quota limits (optional)
  * @returns Whether operation is allowed
  */
 export async function checkQuota(
   userId: string,
   operation: 'generation' | 'upload' | 'analysis',
+  env?: any,
   limits: QuotaLimits = DEFAULT_LIMITS
 ): Promise<{ allowed: boolean; remaining: number; resetAt: string }> {
-  const status = await getQuotaStatus(userId, limits)
+  const status = await getQuotaStatus(userId, env, limits)
 
   let allowed: boolean
   let remaining: number
@@ -155,13 +177,16 @@ export async function checkQuota(
  * Increment quota usage
  * @param userId - User ID
  * @param operation - Operation type
+ * @param env - Cloudflare environment
  * @returns Updated quota status
  */
 export async function incrementQuota(
   userId: string,
-  operation: 'generation' | 'upload' | 'analysis'
+  operation: 'generation' | 'upload' | 'analysis',
+  env: any
 ): Promise<QuotaStatus> {
   const today = getCurrentDateString()
+  const db = createDb(env)
 
   // Get or create quota record
   const existing = await db
@@ -209,22 +234,24 @@ export async function incrementQuota(
 
   console.log(`📊 Incremented ${operation} quota for user ${userId}`)
 
-  return await getQuotaStatus(userId)
+  return await getQuotaStatus(userId, env)
 }
 
 /**
  * Enforce quota (check and increment in one operation)
  * @param userId - User ID
  * @param operation - Operation type
+ * @param env - Cloudflare environment
  * @param limits - Custom quota limits (optional)
  * @throws Error if quota exceeded
  */
 export async function enforceQuota(
   userId: string,
   operation: 'generation' | 'upload' | 'analysis',
+  env?: any,
   limits: QuotaLimits = DEFAULT_LIMITS
 ): Promise<void> {
-  const check = await checkQuota(userId, operation, limits)
+  const check = await checkQuota(userId, operation, env, limits)
 
   if (!check.allowed) {
     throw new Error(
@@ -232,15 +259,19 @@ export async function enforceQuota(
     )
   }
 
-  await incrementQuota(userId, operation)
+  if (env) {
+    await incrementQuota(userId, operation, env)
+  }
 }
 
 /**
  * Reset quota for a user (admin function)
  * @param userId - User ID
+ * @param env - Cloudflare environment
  */
-export async function resetQuota(userId: string): Promise<void> {
+export async function resetQuota(userId: string, env: any): Promise<void> {
   const today = getCurrentDateString()
+  const db = createDb(env)
 
   await db
     .update(imageQuotas)
@@ -261,24 +292,26 @@ export async function resetQuota(userId: string): Promise<void> {
 
 /**
  * Get quota statistics for all users (admin function)
+ * @param env - Cloudflare environment
  * @returns Quota statistics
  */
-export async function getQuotaStatistics(): Promise<{
+export async function getQuotaStatistics(env: any): Promise<{
   totalGenerations: number
   totalUploads: number
   totalAnalyses: number
   activeUsers: number
 }> {
   const today = getCurrentDateString()
+  const db = createDb(env)
 
   const stats = await db
     .select()
     .from(imageQuotas)
     .where(eq(imageQuotas.date, today))
 
-  const totalGenerations = stats.reduce((sum, s) => sum + s.generationsUsed, 0)
-  const totalUploads = stats.reduce((sum, s) => sum + s.uploadsUsed, 0)
-  const totalAnalyses = stats.reduce((sum, s) => sum + s.analysesUsed, 0)
+  const totalGenerations = stats.reduce((sum: number, s: any) => sum + s.generationsUsed, 0)
+  const totalUploads = stats.reduce((sum: number, s: any) => sum + s.uploadsUsed, 0)
+  const totalAnalyses = stats.reduce((sum: number, s: any) => sum + s.analysesUsed, 0)
   const activeUsers = stats.length
 
   return {

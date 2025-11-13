@@ -12,7 +12,7 @@ export function ImageGenerator() {
   const [resolution, setResolution] = useState('1024x1024')
   const [isGenerating, setIsGenerating] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null)
-  const [progress, setProgress] = useState({ percent: 0, message: '', status: 'pending' as const })
+  const [progress, setProgress] = useState<{ percent: number; message: string; status: 'pending' | 'processing' | 'completed' | 'failed' }>({ percent: 0, message: '', status: 'pending' })
   const [result, setResult] = useState<{ imageUrl: string; imageId: string } | null>(null)
   const [quotaRemaining, setQuotaRemaining] = useState(3)
   const [error, setError] = useState<string | null>(null)
