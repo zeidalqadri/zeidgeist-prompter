@@ -17,11 +17,9 @@ binding = "SESSION_STORAGE"
 id = "ebdc9af6ea5549029446fc55a8984b24"
 preview_id = "2001d92c064b45569a78fbd3add9baa5"
 
-# Scheduled triggers for cache optimization
-[triggers]
-crons = [
-  "0 */6 * * *"  # Cache warming every 6 hours
-]
+# Note: Scheduled triggers (cron) are not supported for Pages
+# Cache warming can be triggered manually via /api/scheduled/cache-warmer endpoint
+# Or set up via Cloudflare Workers cron triggers separately
 
 # Observability
 [observability]
