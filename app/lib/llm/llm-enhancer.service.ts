@@ -42,6 +42,17 @@ export class LLMEnhancerService {
     const log = createLogger({ operation: 'enhance_prompt' });
     const startTime = Date.now();
 
+    // Set environment source for Cloudflare Workers
+    if (env) {
+      const { setEnvironmentSource } = await import('./llm-config');
+      setEnvironmentSource(env);
+      log.info('Environment source set for Cloudflare Workers', {
+        hasDeepSeek: !!env.DEEPSEEK_API_KEY,
+        hasMistral: !!env.MISTRAL_API_KEY,
+        hasGemini: !!env.GEMINI_API_KEY
+      });
+    }
+
     // Validate input
     if (!rawPrompt || rawPrompt.trim() === '') {
       return '';

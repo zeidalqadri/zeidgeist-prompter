@@ -15,9 +15,9 @@ import {
   ProviderConfig
 } from './types';
 import {
-  deepseekConfig,
-  mistralConfig,
-  geminiConfig,
+  getDeepseekConfig,
+  getMistralConfig,
+  getGeminiConfig,
   providerPriority
 } from './llm-config';
 import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
@@ -233,7 +233,9 @@ You MUST:
 
 export class DeepSeekProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'deepseek';
-  protected config = deepseekConfig;
+  protected get config(): ProviderConfig {
+    return getDeepseekConfig();
+  }
 
   protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
@@ -282,7 +284,9 @@ export class DeepSeekProvider extends BaseLLMProvider {
 
 export class MistralProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'mistral';
-  protected config = mistralConfig;
+  protected get config(): ProviderConfig {
+    return getMistralConfig();
+  }
 
   protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
@@ -331,7 +335,9 @@ export class MistralProvider extends BaseLLMProvider {
 
 export class GeminiProvider extends BaseLLMProvider {
   readonly name: ProviderSource = 'gemini';
-  protected config = geminiConfig;
+  protected get config(): ProviderConfig {
+    return getGeminiConfig();
+  }
 
   protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
