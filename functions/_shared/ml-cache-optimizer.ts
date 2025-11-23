@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 /**
  * ML-Based Cache Optimizer
  *
@@ -60,7 +61,7 @@ export class MLCacheOptimizer {
         .limit(100)
 
       // Calculate optimization recommendations
-      const optimizations: CacheOptimizationMetrics[] = metrics.map(m => {
+      const optimizations: CacheOptimizationMetrics[] = metrics.map((m: any) => {
         const frequency = m.usageCount
         const avgTime = m.avgProcessingTime || 1000
 
@@ -166,7 +167,7 @@ export class MLCacheOptimizer {
   /**
    * Identify prompts that should be prefetched
    */
-  async getPrefe tchCandidates(env: any): Promise<string[]> {
+  async getPrefetchCandidates(env: any): Promise<string[]> {
     const optimizations = await this.analyzeUsagePatterns(env)
 
     return optimizations

@@ -75,7 +75,7 @@ export function OptimizedImage({
   const transformOptions: ImageTransformOptions = {
     format: 'auto', // Auto-select WebP/AVIF based on browser support
     quality: 85,
-    fit: objectFit,
+    fit: objectFit === 'fill' || objectFit === 'none' ? 'cover' : objectFit as 'scale-down' | 'contain' | 'cover' | 'crop' | 'pad',
     width,
     height
   }

@@ -105,7 +105,7 @@ export class CloudflareImages {
       throw new Error(`Failed to upload image: ${response.statusText}`)
     }
 
-    const data = await response.json()
+    const data = await response.json() as { result: { id: string; variants: string[] } }
     return {
       id: data.result.id,
       variants: data.result.variants

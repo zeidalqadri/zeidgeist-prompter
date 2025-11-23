@@ -97,7 +97,6 @@ export async function onRequestPost(context: any): Promise<Response> {
     // PHASE 0: Check cache for identical prompts (if cache is available)
     if (cacheManager && !testProvider) {
       const cachedResponse = await cacheManager.getCachedResponse(trimmedPrompt, {
-        provider: providerPreferences?.provider,
         temperature: 0.7
       })
 
@@ -210,7 +209,8 @@ export async function onRequestPost(context: any): Promise<Response> {
 
       // Cache successful LLM responses (in background)
       if (cacheManager && !testProvider && !usedLearning && enhancementResponse.enhancedPrompt) {
-        const confidenceScore = enhancementResponse.metadata?.confidence || 0.7
+        const metadata = enhancementResponse.metadata as any
+        const confidenceScore = metadata?.confidence || metadata?.localConfidence || 0.7
         context.waitUntil(
           cacheManager.cacheResponse(
             trimmedPrompt,

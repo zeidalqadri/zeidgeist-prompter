@@ -136,7 +136,7 @@ export class ProviderOptimizer {
         )
         .groupBy(sql`source`)
 
-      const metrics: ProviderMetrics[] = results.map(r => {
+      const metrics: ProviderMetrics[] = results.map((r: any) => {
         const totalRequests = r.totalRequests || 1
         const successRequests = r.successRequests || 0
         const errorRequests = r.errorRequests || 0

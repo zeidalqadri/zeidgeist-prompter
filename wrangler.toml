@@ -9,13 +9,13 @@ compatibility_flags = ["nodejs_compat"]
 # KV Namespaces for caching and optimization
 [[kv_namespaces]]
 binding = "CACHE_STORAGE"
-id = "YOUR_CACHE_STORAGE_ID" # Replace with actual KV namespace ID
-preview_id = "YOUR_PREVIEW_CACHE_STORAGE_ID" # Replace with preview namespace ID
+id = "866d020c22a9413f9c8b636b38910396"
+preview_id = "bcebbeeb90384dfa8e43ec7ad4ca4910"
 
 [[kv_namespaces]]
 binding = "SESSION_STORAGE"
-id = "YOUR_SESSION_STORAGE_ID" # Replace with actual KV namespace ID
-preview_id = "YOUR_PREVIEW_SESSION_STORAGE_ID" # Replace with preview namespace ID
+id = "ebdc9af6ea5549029446fc55a8984b24"
+preview_id = "2001d92c064b45569a78fbd3add9baa5"
 
 # Scheduled triggers for cache optimization
 [triggers]

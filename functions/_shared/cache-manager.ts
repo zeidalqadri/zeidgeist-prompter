@@ -8,6 +8,8 @@
  * - Cache warming strategies
  */
 
+/// <reference types="@cloudflare/workers-types" />
+
 export interface CacheConfig {
   ttl: number; // Time to live in seconds
   swr?: number; // Stale-while-revalidate window in seconds
