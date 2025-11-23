@@ -2,6 +2,7 @@ import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancem
 import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
+import { LLMCacheManager } from "../_shared/cache-manager"
 
 function getCorsHeaders(request: Request, env: any) {
   const origin = request.headers.get('Origin') || '*'
@@ -29,9 +30,15 @@ export async function onRequestOptions(context: any): Promise<Response> {
 export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context
   const startTime = Date.now()
-  
+
+  // Initialize cache manager
+  let cacheManager: LLMCacheManager | null = null
+  if (env.CACHE_STORAGE) {
+    cacheManager = new LLMCacheManager(env.CACHE_STORAGE)
+  }
+
   // Removed debug logging for security
-  
+
   // Add CORS headers with performance optimizations
   const corsHeaders = {
     ...getCorsHeaders(request, env),
@@ -86,6 +93,37 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     // Check for test provider header (from /tweak page testing)
     const testProvider = request.headers.get('X-Test-Provider')
+
+    // PHASE 0: Check cache for identical prompts (if cache is available)
+    if (cacheManager && !testProvider) {
+      const cachedResponse = await cacheManager.getCachedResponse(trimmedPrompt, {
+        provider: providerPreferences?.provider,
+        temperature: 0.7
+      })
+
+      if (cachedResponse) {
+        const cacheTime = Date.now() - startTime
+        console.log(`🚀 Cache HIT! Returning cached response (${cacheTime}ms)`)
+
+        return new Response(JSON.stringify({
+          result: cachedResponse,
+          metadata: {
+            source: 'cache',
+            processingTime: cacheTime,
+            originalLength: trimmedPrompt.length,
+            enhancedLength: cachedResponse.length,
+            cached: true
+          }
+        }), {
+          headers: {
+            ...corsHeaders,
+            'X-Cache': 'HIT',
+            'X-Response-Time': `${cacheTime}ms`
+          }
+        })
+      }
+      console.log('🔍 Cache MISS - proceeding with enhancement')
+    }
 
     // PHASE 1: Smart Enhancement Router - Try learned patterns first
     let enhancementResponse
@@ -166,9 +204,25 @@ export async function onRequestPost(context: any): Promise<Response> {
       }
 
       console.log('🎉 Enhancement returned:', enhancementResponse?.source);
-      
+
       const processingTime = Date.now() - startTime
       console.log('Enhancement completed successfully')
+
+      // Cache successful LLM responses (in background)
+      if (cacheManager && !testProvider && !usedLearning && enhancementResponse.enhancedPrompt) {
+        const confidenceScore = enhancementResponse.metadata?.confidence || 0.7
+        context.waitUntil(
+          cacheManager.cacheResponse(
+            trimmedPrompt,
+            enhancementResponse.enhancedPrompt,
+            {
+              provider: enhancementResponse.source,
+              temperature: 0.7,
+              confidenceScore
+            }
+          ).catch(err => console.error('Failed to cache response:', err))
+        )
+      }
       
       // Log enhancement to database for analytics with optimized connection pool
       try {

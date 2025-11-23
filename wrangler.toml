@@ -6,6 +6,27 @@ pages_build_output_dir = "out"
 # Node.js compatibility for Pages Functions
 compatibility_flags = ["nodejs_compat"]
 
+# KV Namespaces for caching and optimization
+[[kv_namespaces]]
+binding = "CACHE_STORAGE"
+id = "YOUR_CACHE_STORAGE_ID" # Replace with actual KV namespace ID
+preview_id = "YOUR_PREVIEW_CACHE_STORAGE_ID" # Replace with preview namespace ID
+
+[[kv_namespaces]]
+binding = "SESSION_STORAGE"
+id = "YOUR_SESSION_STORAGE_ID" # Replace with actual KV namespace ID
+preview_id = "YOUR_PREVIEW_SESSION_STORAGE_ID" # Replace with preview namespace ID
+
+# Scheduled triggers for cache optimization
+[triggers]
+crons = [
+  "0 */6 * * *"  # Cache warming every 6 hours
+]
+
+# Observability
+[observability]
+enabled = true
+
 # Routes configuration
 # This tells Pages to use Functions for API routes
 # while serving static assets for everything else
