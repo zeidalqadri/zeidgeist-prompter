@@ -50,7 +50,7 @@ export async function scanFileForViruses(
       throw new Error(`VirusTotal upload failed: ${uploadResponse.status}`)
     }
 
-    const uploadData = await uploadResponse.json()
+    const uploadData = await uploadResponse.json() as { data: { id: string } }
     const scanId = uploadData.data.id
 
     // Wait a moment for initial scan
@@ -70,7 +70,7 @@ export async function scanFileForViruses(
       throw new Error(`VirusTotal analysis failed: ${analysisResponse.status}`)
     }
 
-    const analysisData = await analysisResponse.json()
+    const analysisData = await analysisResponse.json() as { data: { attributes: { stats: { malicious: number; suspicious: number; harmless: number; undetected: number } } } }
     const stats = analysisData.data.attributes.stats
 
     // Determine if file is clean
