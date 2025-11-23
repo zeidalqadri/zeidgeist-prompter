@@ -26,7 +26,7 @@ export function ImageGenerator() {
     try {
       const response = await fetch('/api/images/quota')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as { generationsRemaining: number }
         setQuotaRemaining(data.generationsRemaining)
       }
     } catch (err) {
@@ -42,10 +42,10 @@ export function ImageGenerator() {
       try {
         const response = await fetch(`/api/images/progress/${taskId}`)
         if (response.ok) {
-          const data = await response.json()
+          const data = await response.json() as { percent: number; message: string; status: 'pending' | 'processing' | 'completed' | 'failed'; result?: { imageUrl: string; imageId: string }; error?: string }
           setProgress({ percent: data.percent, message: data.message, status: data.status })
 
-          if (data.status === 'completed') {
+          if (data.status === 'completed' && data.result) {
             setResult(data.result)
             setIsGenerating(false)
             setQuotaRemaining(prev => Math.max(0, prev - 1))
@@ -80,11 +80,11 @@ export function ImageGenerator() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json() as { error?: string }
         throw new Error(errorData.error || 'Generation failed')
       }
 
-      const data = await response.json()
+      const data = await response.json() as { taskId: string }
       setTaskId(data.taskId)
 
     } catch (err) {

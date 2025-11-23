@@ -30,7 +30,7 @@ export function ImageAnalyzer() {
         throw new Error(errorData.error || 'Analysis failed')
       }
 
-      const data = await response.json()
+      const data = await response.json() as { result: string; confidence?: number }
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

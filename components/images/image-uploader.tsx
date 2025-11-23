@@ -33,11 +33,11 @@ export function ImageUploader() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json() as { error?: string }
         throw new Error(errorData.error || 'Upload failed')
       }
 
-      const data = await response.json()
+      const data = await response.json() as { success: boolean; imageId: string; publicUrl: string; dimensions?: { width: number; height: number } }
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
