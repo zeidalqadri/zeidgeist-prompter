@@ -100,13 +100,14 @@ echo ""
 print_header "Step 2: Creating KV Namespaces"
 
 print_info "Creating PROGRESS_TRACKER namespace (production)..."
-KV_PROD_OUTPUT=$(wrangler kv:namespace create "PROGRESS_TRACKER" 2>&1 || true)
+KV_PROD_OUTPUT=$(wrangler kv namespace create "PROGRESS_TRACKER" 2>&1 || true)
 
 if echo "$KV_PROD_OUTPUT" | grep -q "already exists"; then
     print_warning "Production namespace already exists"
-    KV_PROD_ID=$(wrangler kv:namespace list | jq -r '.[] | select(.title | contains("PROGRESS_TRACKER")) | select(.title | contains("preview") | not) | .id' | head -1)
+    KV_PROD_ID=$(wrangler kv namespace list | jq -r '.[] | select(.title | contains("PROGRESS_TRACKER")) | select(.title | contains("preview") | not) | .id' | head -1)
 else
-    KV_PROD_ID=$(echo "$KV_PROD_OUTPUT" | grep -oP 'id = "\K[^"]+' || true)
+    # Extract ID using sed instead of grep -P (macOS compatible)
+    KV_PROD_ID=$(echo "$KV_PROD_OUTPUT" | sed -n 's/.*id = "\([^"]*\)".*/\1/p' | head -1)
     if [ -z "$KV_PROD_ID" ]; then
         print_error "Failed to extract production KV namespace ID"
         print_info "Output: $KV_PROD_OUTPUT"
@@ -116,13 +117,18 @@ else
 fi
 
 print_info "Creating PROGRESS_TRACKER namespace (preview)..."
-KV_PREVIEW_OUTPUT=$(wrangler kv:namespace create "PROGRESS_TRACKER" --preview 2>&1 || true)
+KV_PREVIEW_OUTPUT=$(wrangler kv namespace create "PROGRESS_TRACKER" --preview 2>&1 || true)
 
 if echo "$KV_PREVIEW_OUTPUT" | grep -q "already exists"; then
     print_warning "Preview namespace already exists"
-    KV_PREVIEW_ID=$(wrangler kv:namespace list | jq -r '.[] | select(.title | contains("PROGRESS_TRACKER")) | select(.title | contains("preview")) | .id' | head -1)
+    KV_PREVIEW_ID=$(wrangler kv namespace list | jq -r '.[] | select(.title | contains("PROGRESS_TRACKER")) | select(.title | contains("preview")) | .id' | head -1)
 else
-    KV_PREVIEW_ID=$(echo "$KV_PREVIEW_OUTPUT" | grep -oP 'preview_id = "\K[^"]+' || grep -oP 'id = "\K[^"]+' || true)
+    # Extract ID using sed instead of grep -P (macOS compatible)
+    KV_PREVIEW_ID=$(echo "$KV_PREVIEW_OUTPUT" | sed -n 's/.*preview_id = "\([^"]*\)".*/\1/p' | head -1)
+    if [ -z "$KV_PREVIEW_ID" ]; then
+        # Try extracting as regular id if preview_id not found
+        KV_PREVIEW_ID=$(echo "$KV_PREVIEW_OUTPUT" | sed -n 's/.*id = "\([^"]*\)".*/\1/p' | head -1)
+    fi
     if [ -z "$KV_PREVIEW_ID" ]; then
         print_error "Failed to extract preview KV namespace ID"
         print_info "Output: $KV_PREVIEW_OUTPUT"
@@ -163,34 +169,58 @@ fi
 
 echo ""
 
-# Step 4: Database Migration
-print_header "Step 4: Running Database Migration"
+# Step 4: Database Migration (Optional - can be done manually)
+print_header "Step 4: Database Migration"
 
-if [ -z "$DATABASE_URL" ]; then
-    print_warning "DATABASE_URL environment variable not set"
-    read -p "Enter your DATABASE_URL: " DATABASE_URL
-    export DATABASE_URL
-fi
+echo ""
+print_warning "Database migration is optional and can be skipped if:"
+print_warning "  - DATABASE_URL is already configured in Cloudflare Pages"
+print_warning "  - You prefer to run migration manually later"
+echo ""
+read -p "Do you want to run the database migration now? (y/n) " -n 1 -r
+echo ""
 
-if [ -f "migrations/001_add_image_tables.sql" ]; then
-    print_info "Running database migration..."
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [ -z "$DATABASE_URL" ]; then
+        print_warning "DATABASE_URL environment variable not set"
+        echo ""
+        echo "You can:"
+        echo "  1. Enter DATABASE_URL now"
+        echo "  2. Skip and run migration manually later with: ./scripts/verify-database.sh"
+        echo ""
+        read -p "Enter your DATABASE_URL (or press Enter to skip): " DATABASE_URL
 
-    # Check if tables already exist
-    EXISTING_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('images', 'imageGenerations', 'imageAnalyses', 'imageQuotas');" 2>&1 || echo "0")
+        if [ -z "$DATABASE_URL" ]; then
+            print_warning "Skipping database migration"
+            print_info "Run migration later with: ./scripts/verify-database.sh"
+        else
+            export DATABASE_URL
+        fi
+    fi
 
-    if [ "$EXISTING_TABLES" = "4" ]; then
-        print_warning "All image tables already exist, skipping migration"
-    else
-        psql "$DATABASE_URL" -f migrations/001_add_image_tables.sql
-        print_success "Database migration completed"
+    if [ -n "$DATABASE_URL" ] && [ -f "migrations/001_add_image_tables.sql" ]; then
+        print_info "Running database migration..."
 
-        # Verify tables were created
-        CREATED_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('images', 'imageGenerations', 'imageAnalyses', 'imageQuotas');" 2>&1)
-        print_info "Created $CREATED_TABLES image tables"
+        # Check if tables already exist
+        EXISTING_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('images', 'imageGenerations', 'imageAnalyses', 'imageQuotas');" 2>&1 || echo "0")
+
+        if [ "$EXISTING_TABLES" = "4" ]; then
+            print_warning "All image tables already exist, skipping migration"
+        else
+            psql "$DATABASE_URL" -f migrations/001_add_image_tables.sql
+            print_success "Database migration completed"
+
+            # Verify tables were created
+            CREATED_TABLES=$(psql "$DATABASE_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('images', 'imageGenerations', 'imageAnalyses', 'imageQuotas');" 2>&1)
+            print_info "Created $CREATED_TABLES image tables"
+        fi
+    elif [ -n "$DATABASE_URL" ]; then
+        print_error "Migration file not found: migrations/001_add_image_tables.sql"
+        print_warning "Continuing setup without database migration"
     fi
 else
-    print_error "Migration file not found: migrations/001_add_image_tables.sql"
-    exit 1
+    print_warning "Skipping database migration"
+    print_info "Run migration later with: ./scripts/verify-database.sh"
 fi
 
 echo ""
