@@ -80,12 +80,22 @@ print_header "Step 1: Creating R2 Buckets"
 
 create_r2_bucket() {
     BUCKET_NAME=$1
-    if wrangler r2 bucket list | grep -q "^$BUCKET_NAME$"; then
+    # Check if bucket exists in the list
+    if wrangler r2 bucket list 2>/dev/null | grep -q "$BUCKET_NAME"; then
         print_warning "Bucket '$BUCKET_NAME' already exists, skipping..."
     else
         print_info "Creating bucket '$BUCKET_NAME'..."
-        wrangler r2 bucket create "$BUCKET_NAME"
-        print_success "Created bucket '$BUCKET_NAME'"
+        # Capture output and check for "already exists" error
+        CREATE_OUTPUT=$(wrangler r2 bucket create "$BUCKET_NAME" 2>&1)
+        if echo "$CREATE_OUTPUT" | grep -q "already exists"; then
+            print_warning "Bucket '$BUCKET_NAME' already exists, skipping..."
+        elif echo "$CREATE_OUTPUT" | grep -q "ERROR"; then
+            print_error "Failed to create bucket '$BUCKET_NAME'"
+            echo "$CREATE_OUTPUT"
+            exit 1
+        else
+            print_success "Created bucket '$BUCKET_NAME'"
+        fi
     fi
 }
 
