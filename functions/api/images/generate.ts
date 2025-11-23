@@ -49,7 +49,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     }
 
     const userId = auth.userId!
-    const body = await request.json()
+    const body = await request.json() as { prompt: string; style?: string; resolution?: string; aspectRatio?: string }
     const { prompt, style, resolution, aspectRatio } = body
 
     if (!prompt) {

@@ -138,7 +138,7 @@ async function generateWithOpenAI(
 
   options.progressCallback?.(80, 'Processing image...')
 
-  const data = await response.json()
+  const data = await response.json() as { data: Array<{ url: string }> }
   const imageUrl = data.data[0].url
 
   options.progressCallback?.(100, 'Complete!')
@@ -200,7 +200,7 @@ async function generateWithStability(
 
   options.progressCallback?.(80, 'Processing image...')
 
-  const data = await response.json()
+  const data = await response.json() as { artifacts: Array<{ base64: string }> }
   const base64Image = data.artifacts[0].base64
   const imageUrl = `data:image/png;base64,${base64Image}`
 
@@ -277,7 +277,7 @@ async function analyzeWithOpenAI(
     throw new Error(`OpenAI analysis failed: ${error}`)
   }
 
-  const data = await response.json()
+  const data = await response.json() as { choices: Array<{ message: { content: string } }> }
   const result = data.choices[0].message.content
 
   return {
@@ -366,7 +366,7 @@ async function analyzeWithClaude(
     throw new Error(`Claude analysis failed: ${error}`)
   }
 
-  const data = await response.json()
+  const data = await response.json() as { content: Array<{ text: string }> }
   const result = data.content[0].text
 
   return {
@@ -448,7 +448,7 @@ async function analyzeWithGemini(
     throw new Error(`Gemini analysis failed: ${error}`)
   }
 
-  const data = await response.json()
+  const data = await response.json() as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> }
   const result = data.candidates[0].content.parts[0].text
 
   return {

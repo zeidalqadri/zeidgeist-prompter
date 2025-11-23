@@ -21,7 +21,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     }
 
     const userId = auth.userId!
-    const body = await request.json()
+    const body = await request.json() as { imageId: string; analysisType: string; prompt?: string }
     const { imageId, analysisType, prompt } = body
 
     if (!imageId || !analysisType) {
