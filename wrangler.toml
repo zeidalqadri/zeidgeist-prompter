@@ -26,8 +26,8 @@ preview_id = "2001d92c064b45569a78fbd3add9baa5"
 # KV Namespace for image generation progress tracking
 [[kv_namespaces]]
 binding = "PROGRESS_TRACKER"
-id = "progress_tracker_prod"
-preview_id = "progress_tracker_dev"
+id = "3b7a1d99f90b4319a60965b8eb20ea27"
+preview_id = "e7692e286408465e843a69005db78dce"
 
 # Note: Scheduled triggers (cron) are not supported for Pages
 # Cache warming can be triggered manually via /api/scheduled/cache-warmer endpoint
