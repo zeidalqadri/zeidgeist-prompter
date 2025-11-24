@@ -67,10 +67,16 @@ export class SWRMiddleware {
             'X-Cache-Age': Math.floor(age / 1000).toString()
           })
 
-          // Revalidate in background
-          context.waitUntil(
+          // Revalidate in background if waitUntil is available
+          if (context && context.waitUntil) {
+            context.waitUntil(
+              this.revalidate(request, env, config, cacheKey)
+            )
+          } else {
+            // Fall back to direct revalidation without background processing
             this.revalidate(request, env, config, cacheKey)
-          )
+              .catch(err => console.error('[SWR] Background revalidation failed:', err))
+          }
 
           return staleResponse
         }

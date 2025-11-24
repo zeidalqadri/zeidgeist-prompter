@@ -5,7 +5,14 @@
 
 import { readinessCheck } from '../../../app/lib/health/health-checks';
 
-export async function onRequestGet(context: any) {
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
+export async function onRequestGet(context: CloudflareContext) {
   try {
     const result = await readinessCheck(context.env);
     const status = result.status === 'healthy' ? 200 : 503;

@@ -17,6 +17,13 @@ import {
 } from "../../_shared/privacy-guard"
 import { monitorRequest, privacyMonitor } from "../../_shared/privacy-monitor"
 
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
 // Feature flags for migration control with sensible defaults
 function getFeatures(env: any) {
   return {
@@ -45,7 +52,7 @@ interface RequestContext {
 }
 
 // Handle CORS preflight requests
-export async function onRequestOptions(context?: any): Promise<Response> {
+export async function onRequestOptions(context?: CloudflareContext): Promise<Response> {
   const req: Request | undefined = context?.request
   const origin = req?.headers.get('Origin') || undefined
   return new Response(null, {
@@ -61,7 +68,7 @@ export async function onRequestOptions(context?: any): Promise<Response> {
 /**
  * GET /api/engineer/history - Retrieve user's history with dual-mode support
  */
-export async function onRequestGet(context: any): Promise<Response> {
+export async function onRequestGet(context: CloudflareContext): Promise<Response> {
   const { request, env } = context
 
   try {
@@ -393,7 +400,7 @@ export async function onRequestGet(context: any): Promise<Response> {
 /**
  * POST /api/engineer/history - Store new history entry with dual-mode support
  */
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: CloudflareContext): Promise<Response> {
   const { request, env } = context
 
   try {
