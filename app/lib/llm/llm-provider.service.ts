@@ -444,6 +444,14 @@ export class LLMProviderFactory {
   private static providers: Map<ProviderSource, ILLMProvider> = new Map();
 
   /**
+   * Clear provider cache to force re-initialization
+   * Used when environment changes at runtime
+   */
+  static clearProviders(): void {
+    this.providers.clear();
+  }
+
+  /**
    * Get provider instance (singleton pattern)
    */
   static getProvider(name: ProviderSource): ILLMProvider {
