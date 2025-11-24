@@ -35,20 +35,72 @@ function hasEnv(key: string): boolean {
 // Environment validation
 function validateEnvironment(env?: Record<string, string | undefined>): void {
   const source = env || environmentSource;
+  const hasClaude = !!source.CLAUDE_API_KEY;
+  const hasOpenAI = !!source.OPENAI_API_KEY;
   const hasDeepSeek = !!source.DEEPSEEK_API_KEY;
   const hasMistral = !!source.MISTRAL_API_KEY;
+  const hasMoonshot = !!source.MOONSHOT_API_KEY;
   const hasGemini = !!source.GEMINI_API_KEY;
 
-  if (!hasDeepSeek && !hasMistral && !hasGemini) {
+  if (!hasClaude && !hasOpenAI && !hasDeepSeek && !hasMistral && !hasMoonshot && !hasGemini) {
     console.warn('[LLM Config] No external LLM providers configured. Will use local fallback only.');
   } else {
     const providers = [
+      hasClaude && 'Claude',
+      hasOpenAI && 'OpenAI',
       hasDeepSeek && 'DeepSeek',
       hasMistral && 'Mistral',
+      hasMoonshot && 'Moonshot',
       hasGemini && 'Gemini'
     ].filter(Boolean);
     console.log(`[LLM Config] Configured providers: ${providers.join(', ')}`);
   }
+}
+
+/**
+ * Claude model tiers for intelligent selection
+ */
+export const claudeModels = {
+  small: 'claude-3-haiku-20240307',      // Fast, cost-effective
+  medium: 'claude-3-5-sonnet-20241022',  // Balanced
+  large: 'claude-3-5-sonnet-20241022'    // Best quality (or claude-opus if available)
+} as const;
+
+/**
+ * Get Claude configuration
+ */
+export function getClaudeConfig(): ProviderConfig {
+  return {
+    apiKey: getEnv('CLAUDE_API_KEY'),
+    endpoint: getEnv('CLAUDE_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
+    model: getEnv('CLAUDE_MODEL', claudeModels.small),
+    enabled: hasEnv('CLAUDE_API_KEY'),
+    timeout: parseInt(getEnv('CLAUDE_TIMEOUT', '10000'), 10),
+    maxRetries: parseInt(getEnv('CLAUDE_MAX_RETRIES', '2'), 10)
+  };
+}
+
+/**
+ * OpenAI model tiers for intelligent selection
+ */
+export const openaiModels = {
+  small: 'gpt-4o-mini',    // Fast, cost-effective
+  medium: 'gpt-4o',        // Balanced
+  large: 'gpt-4o'          // Best available (gpt-4-turbo if preferred)
+} as const;
+
+/**
+ * Get OpenAI configuration
+ */
+export function getOpenAIConfig(): ProviderConfig {
+  return {
+    apiKey: getEnv('OPENAI_API_KEY'),
+    endpoint: getEnv('OPENAI_ENDPOINT', 'https://api.openai.com/v1/chat/completions'),
+    model: getEnv('OPENAI_MODEL', openaiModels.small),
+    enabled: hasEnv('OPENAI_API_KEY'),
+    timeout: parseInt(getEnv('OPENAI_TIMEOUT', '10000'), 10),
+    maxRetries: parseInt(getEnv('OPENAI_MAX_RETRIES', '2'), 10)
+  };
 }
 
 /**
@@ -66,18 +118,59 @@ export function getDeepseekConfig(): ProviderConfig {
 }
 
 /**
+ * Mistral model tiers for intelligent selection (from legacy system)
+ */
+export const mistralModels = {
+  small: 'mistral-small-latest',    // Fast, cost-effective
+  medium: 'mistral-medium-latest',  // Balanced
+  large: 'mistral-large-latest'     // Best quality
+} as const;
+
+/**
  * Get Mistral configuration
  */
 export function getMistralConfig(): ProviderConfig {
   return {
     apiKey: getEnv('MISTRAL_API_KEY'),
     endpoint: getEnv('MISTRAL_ENDPOINT', 'https://api.mistral.ai/v1/chat/completions'),
-    model: getEnv('MISTRAL_MODEL', 'mistral-large-latest'),
+    model: getEnv('MISTRAL_MODEL', mistralModels.small),
     enabled: hasEnv('MISTRAL_API_KEY'),
     timeout: parseInt(getEnv('MISTRAL_TIMEOUT', '10000'), 10),
     maxRetries: parseInt(getEnv('MISTRAL_MAX_RETRIES', '2'), 10)
   };
 }
+
+/**
+ * Moonshot model tiers for intelligent selection
+ */
+export const moonshotModels = {
+  small: 'moonshot-v1-8k',     // Fast, cost-effective (8k context)
+  medium: 'moonshot-v1-32k',   // Balanced (32k context)
+  large: 'moonshot-v1-128k'    // Best quality (128k context)
+} as const;
+
+/**
+ * Get Moonshot configuration
+ */
+export function getMoonshotConfig(): ProviderConfig {
+  return {
+    apiKey: getEnv('MOONSHOT_API_KEY'),
+    endpoint: getEnv('MOONSHOT_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions'),
+    model: getEnv('MOONSHOT_MODEL', moonshotModels.small),
+    enabled: hasEnv('MOONSHOT_API_KEY'),
+    timeout: parseInt(getEnv('MOONSHOT_TIMEOUT', '10000'), 10),
+    maxRetries: parseInt(getEnv('MOONSHOT_MAX_RETRIES', '2'), 10)
+  };
+}
+
+/**
+ * Gemini model tiers for intelligent selection
+ */
+export const geminiModels = {
+  small: 'gemini-1.5-flash',  // Fast, cost-effective
+  medium: 'gemini-1.5-pro',   // Balanced
+  large: 'gemini-1.5-pro'     // Best available (same as medium currently)
+} as const;
 
 /**
  * Get Gemini configuration
@@ -86,17 +179,20 @@ export function getGeminiConfig(): ProviderConfig {
   return {
     apiKey: getEnv('GEMINI_API_KEY'),
     endpoint: getEnv('GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent'),
-    model: getEnv('GEMINI_MODEL', 'gemini-1.5-pro'),
+    model: getEnv('GEMINI_MODEL', geminiModels.small),
     enabled: hasEnv('GEMINI_API_KEY'),
     timeout: parseInt(getEnv('GEMINI_TIMEOUT', '10000'), 10),
     maxRetries: parseInt(getEnv('GEMINI_MAX_RETRIES', '2'), 10)
   };
 }
 
-// Provider priority order
+// Provider priority order (optimized based on speed and reliability)
 export const providerPriority: ProviderSource[] = [
+  'claude',
+  'openai',
   'deepseek',
   'mistral',
+  'moonshot',
   'gemini',
   'local'
 ];
@@ -106,10 +202,16 @@ export const providerPriority: ProviderSource[] = [
  */
 export function getProviderConfig(provider: ProviderSource): ProviderConfig | null {
   switch (provider) {
+    case 'claude':
+      return getClaudeConfig();
+    case 'openai':
+      return getOpenAIConfig();
     case 'deepseek':
       return getDeepseekConfig();
     case 'mistral':
       return getMistralConfig();
+    case 'moonshot':
+      return getMoonshotConfig();
     case 'gemini':
       return getGeminiConfig();
     default:
@@ -121,8 +223,11 @@ export function getProviderConfig(provider: ProviderSource): ProviderConfig | nu
  * Check if any external provider is configured
  */
 export function hasExternalProvider(): boolean {
-  return hasEnv('DEEPSEEK_API_KEY') ||
+  return hasEnv('CLAUDE_API_KEY') ||
+         hasEnv('OPENAI_API_KEY') ||
+         hasEnv('DEEPSEEK_API_KEY') ||
          hasEnv('MISTRAL_API_KEY') ||
+         hasEnv('MOONSHOT_API_KEY') ||
          hasEnv('GEMINI_API_KEY');
 }
 
@@ -132,8 +237,11 @@ export function hasExternalProvider(): boolean {
 export function getEnabledProviders(): ProviderSource[] {
   const enabled: ProviderSource[] = [];
 
+  if (hasEnv('CLAUDE_API_KEY')) enabled.push('claude');
+  if (hasEnv('OPENAI_API_KEY')) enabled.push('openai');
   if (hasEnv('DEEPSEEK_API_KEY')) enabled.push('deepseek');
   if (hasEnv('MISTRAL_API_KEY')) enabled.push('mistral');
+  if (hasEnv('MOONSHOT_API_KEY')) enabled.push('moonshot');
   if (hasEnv('GEMINI_API_KEY')) enabled.push('gemini');
 
   // Always include local as fallback
