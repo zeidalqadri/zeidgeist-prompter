@@ -1,6 +1,6 @@
 import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
-import { enhancePrompt } from "../_shared/llm-enhancer"
+import { enhancePrompt } from "../_shared/llm-enhancer-refactored"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 import { LLMCacheManager } from "../_shared/cache-manager"
 
@@ -250,11 +250,8 @@ export async function onRequestPost(context: any): Promise<Response> {
 
           // PHASE 7: Real-time Learning - Store successful LLM enhancements for future learning
           if (!usedLearning &&
-              (enhancementResponse.source === 'claude' ||
-               enhancementResponse.source === 'openai' ||
-               enhancementResponse.source === 'deepseek' ||
+              (enhancementResponse.source === 'deepseek' ||
                enhancementResponse.source === 'mistral' ||
-               enhancementResponse.source === 'moonshot' ||
                enhancementResponse.source === 'gemini')) {
             // Store successful enhancement for learning
             console.log('📚 Storing enhancement for learning...');
