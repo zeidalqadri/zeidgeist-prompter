@@ -8,8 +8,24 @@
 // Temporary stub for CircuitBreaker
 const CircuitBreaker = class {
   stats = { failures: 0, successes: 0, rejects: 0, fires: 0 };
-  constructor(fn: any, options: any) {}
-  fire(input: any) { return Promise.resolve(input); }
+  action: any;
+
+  constructor(fn: any, options: any) {
+    this.action = fn;
+  }
+
+  async fire(input: any) {
+    this.stats.fires++;
+    try {
+      const result = await this.action(input);
+      this.stats.successes++;
+      return result;
+    } catch (error) {
+      this.stats.failures++;
+      throw error;
+    }
+  }
+
   on(event: string, handler: any) {}
   open() {}
   close() {}
