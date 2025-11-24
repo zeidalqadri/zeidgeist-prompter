@@ -140,8 +140,9 @@ export async function onRequestPost(context: any): Promise<Response> {
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
-        // High confidence: Use learned patterns (target: 60-70% of cases eventually)
-        if (localAttempt.confidence >= 0.7 && localAttempt.source === 'learned-patterns') {
+        // DISABLED: High confidence local patterns - always use LLM for deployment
+        // The local enhancement system needs more training data before it can be trusted
+        if (false && localAttempt.confidence >= 0.95 && localAttempt.source === 'learned-patterns') {
           console.log('✅ Using learned patterns (high confidence)');
           enhancementResponse = {
             enhancedPrompt: localAttempt.enhancedPrompt,
@@ -154,8 +155,8 @@ export async function onRequestPost(context: any): Promise<Response> {
           }
           usedLearning = true
         }
-        // Medium confidence: Hybrid approach (patterns + LLM refinement)
-        else if (localAttempt.confidence >= 0.4 && localAttempt.source === 'learned-patterns') {
+        // DISABLED: Medium confidence hybrid approach - always use full LLM
+        else if (false && localAttempt.confidence >= 0.4 && localAttempt.source === 'learned-patterns') {
           console.log('🔄 Using hybrid enhancement (medium confidence)');
           // Use local enhancement as a starting point, then refine with LLM
           const llmResponse = await enhancePrompt(
