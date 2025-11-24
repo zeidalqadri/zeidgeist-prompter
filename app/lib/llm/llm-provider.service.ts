@@ -481,9 +481,19 @@ export class LLMProviderFactory {
    * Get fallback chain of providers
    */
   static getProviderChain(): ILLMProvider[] {
-    return providerPriority
-      .map(name => this.getProvider(name))
-      .filter(provider => provider.enabled);
+    console.log('[LLM Factory] Building provider chain...');
+    console.log('[LLM Factory] Provider priority:', providerPriority);
+
+    const allProviders = providerPriority.map(name => {
+      const provider = this.getProvider(name);
+      console.log(`[LLM Factory] Provider ${name}: enabled=${provider.enabled}`);
+      return provider;
+    });
+
+    const enabledProviders = allProviders.filter(provider => provider.enabled);
+    console.log(`[LLM Factory] Enabled providers: ${enabledProviders.map(p => p.name).join(', ')}`);
+
+    return enabledProviders;
   }
 
   /**
