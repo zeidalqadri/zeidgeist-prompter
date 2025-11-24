@@ -15,8 +15,11 @@ import {
   ProviderConfig
 } from './types';
 import {
+  getClaudeConfig,
+  getOpenAIConfig,
   getDeepseekConfig,
   getMistralConfig,
+  getMoonshotConfig,
   getGeminiConfig,
   providerPriority
 } from './llm-config';
@@ -228,6 +231,120 @@ You MUST:
 }
 
 // ============================================================================
+// CLAUDE PROVIDER (ANTHROPIC)
+// ============================================================================
+
+export class ClaudeProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'claude';
+  protected get config(): ProviderConfig {
+    return getClaudeConfig();
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+
+    // Extract system prompt and user messages
+    const systemPrompt = messages[0].content;
+    const userMessages = messages.slice(1).filter(msg => msg.role === 'user' || msg.role === 'assistant');
+
+    // Build Anthropic messages format (alternating user/assistant)
+    const anthropicMessages = userMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        max_tokens: 1024,
+        temperature: 0.2,
+        system: systemPrompt,
+        messages: anthropicMessages
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`Claude API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.content[0].text;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'claude',
+      metadata: {
+        model: this.config.model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
+// OPENAI PROVIDER
+// ============================================================================
+
+export class OpenAIProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'openai';
+  protected get config(): ProviderConfig {
+    return getOpenAIConfig();
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`OpenAI API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'openai',
+      metadata: {
+        model: this.config.model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
 // DEEPSEEK PROVIDER
 // ============================================================================
 
@@ -320,6 +437,57 @@ export class MistralProvider extends BaseLLMProvider {
     return {
       enhancedPrompt,
       source: 'mistral',
+      metadata: {
+        model: this.config.model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
+// MOONSHOT PROVIDER
+// ============================================================================
+
+export class MoonshotProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'moonshot';
+  protected get config(): ProviderConfig {
+    return getMoonshotConfig();
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`Moonshot API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'moonshot',
       metadata: {
         model: this.config.model,
         usage: data.usage,
@@ -457,11 +625,20 @@ export class LLMProviderFactory {
   static getProvider(name: ProviderSource): ILLMProvider {
     if (!this.providers.has(name)) {
       switch (name) {
+        case 'claude':
+          this.providers.set(name, new ClaudeProvider());
+          break;
+        case 'openai':
+          this.providers.set(name, new OpenAIProvider());
+          break;
         case 'deepseek':
           this.providers.set(name, new DeepSeekProvider());
           break;
         case 'mistral':
           this.providers.set(name, new MistralProvider());
+          break;
+        case 'moonshot':
+          this.providers.set(name, new MoonshotProvider());
           break;
         case 'gemini':
           this.providers.set(name, new GeminiProvider());
