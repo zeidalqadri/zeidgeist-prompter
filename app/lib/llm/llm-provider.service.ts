@@ -15,11 +15,20 @@ import {
   ProviderConfig
 } from './types';
 import {
+  getClaudeConfig,
+  getOpenAIConfig,
   getDeepseekConfig,
   getMistralConfig,
+  getMoonshotConfig,
   getGeminiConfig,
-  providerPriority
+  providerPriority,
+  claudeModels,
+  openaiModels,
+  mistralModels,
+  moonshotModels,
+  geminiModels
 } from './llm-config';
+import { analyzePrompt, selectModelTier } from './prompt-analyzer';
 import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
 import { RetryPolicy } from '../resilience/retry-policy';
 import type { EnhancedCircuitBreaker } from '../resilience/circuit-breaker';
@@ -69,6 +78,26 @@ export abstract class BaseLLMProvider implements ILLMProvider {
         }
       );
     }
+  }
+
+  /**
+   * Select appropriate model tier based on prompt complexity
+   * Can be overridden by subclasses for provider-specific logic
+   */
+  protected selectModel(request: EnhancementRequest): string {
+    // Analyze prompt to determine appropriate model tier
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    console.log(`[${this.name}] Prompt analysis:`, {
+      complexity: analysis.complexity,
+      length: analysis.totalLength,
+      tier,
+      taskType: analysis.taskType
+    });
+
+    // Default: return config model (subclasses should override)
+    return this.config.model;
   }
 
   /**
@@ -228,6 +257,152 @@ You MUST:
 }
 
 // ============================================================================
+// CLAUDE PROVIDER (ANTHROPIC)
+// ============================================================================
+
+export class ClaudeProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'claude';
+  protected get config(): ProviderConfig {
+    return getClaudeConfig();
+  }
+
+  protected selectModel(request: EnhancementRequest): string {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    const modelMap = {
+      small: claudeModels.small,
+      medium: claudeModels.medium,
+      large: claudeModels.large
+    };
+
+    const selectedModel = modelMap[tier];
+    console.log(`[Claude] Selected model: ${selectedModel} (tier: ${tier}, complexity: ${analysis.complexity})`);
+    return selectedModel;
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+    const model = this.selectModel(request);
+
+    // Extract system prompt and user messages
+    const systemPrompt = messages[0].content;
+    const userMessages = messages.slice(1).filter(msg => msg.role === 'user' || msg.role === 'assistant');
+
+    // Build Anthropic messages format (alternating user/assistant)
+    const anthropicMessages = userMessages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1024,
+        temperature: 0.2,
+        system: systemPrompt,
+        messages: anthropicMessages
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`Claude API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.content[0].text;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'claude',
+      metadata: {
+        model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
+// OPENAI PROVIDER
+// ============================================================================
+
+export class OpenAIProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'openai';
+  protected get config(): ProviderConfig {
+    return getOpenAIConfig();
+  }
+
+  protected selectModel(request: EnhancementRequest): string {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    const modelMap = {
+      small: openaiModels.small,
+      medium: openaiModels.medium,
+      large: openaiModels.large
+    };
+
+    const selectedModel = modelMap[tier];
+    console.log(`[OpenAI] Selected model: ${selectedModel} (tier: ${tier}, complexity: ${analysis.complexity})`);
+    return selectedModel;
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+    const model = this.selectModel(request);
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`OpenAI API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'openai',
+      metadata: {
+        model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
 // DEEPSEEK PROVIDER
 // ============================================================================
 
@@ -288,9 +463,25 @@ export class MistralProvider extends BaseLLMProvider {
     return getMistralConfig();
   }
 
+  protected selectModel(request: EnhancementRequest): string {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    const modelMap = {
+      small: mistralModels.small,
+      medium: mistralModels.medium,
+      large: mistralModels.large
+    };
+
+    const selectedModel = modelMap[tier];
+    console.log(`[Mistral] Selected model: ${selectedModel} (tier: ${tier}, complexity: ${analysis.complexity})`);
+    return selectedModel;
+  }
+
   protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
+    const model = this.selectModel(request);
 
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
@@ -299,7 +490,7 @@ export class MistralProvider extends BaseLLMProvider {
         'Authorization': `Bearer ${this.config.apiKey}`
       },
       body: JSON.stringify({
-        model: this.config.model,
+        model,
         messages,
         temperature: 0.2,
         max_tokens: 1024
@@ -321,7 +512,74 @@ export class MistralProvider extends BaseLLMProvider {
       enhancedPrompt,
       source: 'mistral',
       metadata: {
-        model: this.config.model,
+        model,
+        usage: data.usage,
+        processingTime: Date.now() - startTime
+      }
+    };
+  }
+}
+
+// ============================================================================
+// MOONSHOT PROVIDER
+// ============================================================================
+
+export class MoonshotProvider extends BaseLLMProvider {
+  readonly name: ProviderSource = 'moonshot';
+  protected get config(): ProviderConfig {
+    return getMoonshotConfig();
+  }
+
+  protected selectModel(request: EnhancementRequest): string {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    const modelMap = {
+      small: moonshotModels.small,
+      medium: moonshotModels.medium,
+      large: moonshotModels.large
+    };
+
+    const selectedModel = modelMap[tier];
+    console.log(`[Moonshot] Selected model: ${selectedModel} (tier: ${tier}, complexity: ${analysis.complexity})`);
+    return selectedModel;
+  }
+
+  protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
+    const startTime = Date.now();
+    const messages = this.buildMessages(request);
+    const model = this.selectModel(request);
+
+    const response = await fetch(this.config.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024
+      }),
+      signal: AbortSignal.timeout(this.config.timeout || 10000)
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`Moonshot API error (${response.status}): ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json() as any;
+    const enhancedPrompt = data.choices[0].message.content;
+
+    this.validateResponse(enhancedPrompt, request.prompt);
+
+    return {
+      enhancedPrompt,
+      source: 'moonshot',
+      metadata: {
+        model,
         usage: data.usage,
         processingTime: Date.now() - startTime
       }
@@ -339,15 +597,34 @@ export class GeminiProvider extends BaseLLMProvider {
     return getGeminiConfig();
   }
 
+  protected selectModel(request: EnhancementRequest): string {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const tier = selectModelTier(analysis.complexity, analysis.totalLength);
+
+    const modelMap = {
+      small: geminiModels.small,
+      medium: geminiModels.medium,
+      large: geminiModels.large
+    };
+
+    const selectedModel = modelMap[tier];
+    console.log(`[Gemini] Selected model: ${selectedModel} (tier: ${tier}, complexity: ${analysis.complexity})`);
+    return selectedModel;
+  }
+
   protected async enhanceInternal(request: EnhancementRequest): Promise<EnhancementResponse> {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
+    const model = this.selectModel(request);
 
     // Extract system prompt and user message
     const systemPrompt = messages[0].content;
     const userMessage = messages[messages.length - 1].content;
 
-    const response = await fetch(`${this.config.endpoint}?key=${this.config.apiKey}`, {
+    // Update endpoint to use selected model
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    const response = await fetch(`${endpoint}?key=${this.config.apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -388,7 +665,7 @@ export class GeminiProvider extends BaseLLMProvider {
       enhancedPrompt,
       source: 'gemini',
       metadata: {
-        model: this.config.model,
+        model,
         processingTime: Date.now() - startTime
       }
     };
@@ -457,11 +734,20 @@ export class LLMProviderFactory {
   static getProvider(name: ProviderSource): ILLMProvider {
     if (!this.providers.has(name)) {
       switch (name) {
+        case 'claude':
+          this.providers.set(name, new ClaudeProvider());
+          break;
+        case 'openai':
+          this.providers.set(name, new OpenAIProvider());
+          break;
         case 'deepseek':
           this.providers.set(name, new DeepSeekProvider());
           break;
         case 'mistral':
           this.providers.set(name, new MistralProvider());
+          break;
+        case 'moonshot':
+          this.providers.set(name, new MoonshotProvider());
           break;
         case 'gemini':
           this.providers.set(name, new GeminiProvider());

@@ -5,7 +5,7 @@
  */
 
 // Provider source identifier
-export type ProviderSource = 'deepseek' | 'mistral' | 'gemini' | 'local' | 'fallback';
+export type ProviderSource = 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'gemini' | 'local' | 'fallback';
 
 // Enhancement request
 export interface EnhancementRequest {
