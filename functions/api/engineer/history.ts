@@ -1,6 +1,13 @@
 // DEPRECATED ENDPOINT - Use /api/engineer/historyDualMode instead
 // This file remains only to return deprecation notices for the old endpoint
 
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
@@ -13,7 +20,7 @@ export async function onRequestOptions(): Promise<Response> {
   })
 }
 
-export async function onRequestGet(context: any): Promise<Response> {
+export async function onRequestGet(context: CloudflareContext): Promise<Response> {
   // DEPRECATED: This endpoint has been replaced with /api/engineer/historyDualMode for enhanced privacy protection
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',
@@ -34,7 +41,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   })
 }
 
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: CloudflareContext): Promise<Response> {
   // DEPRECATED: This endpoint has been replaced with /api/engineer/historyDualMode for enhanced privacy protection
   const corsHeaders = {
     'Access-Control-Allow-Origin': 'https://mstprmpt.zeidgeist.com',

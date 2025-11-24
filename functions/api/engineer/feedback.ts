@@ -1,5 +1,12 @@
 import { createDb, feedback, NewFeedback } from "../../_shared/db"
 
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
 // Handle CORS preflight requests
 export async function onRequestOptions(): Promise<Response> {
   return new Response(null, {
@@ -12,7 +19,7 @@ export async function onRequestOptions(): Promise<Response> {
   })
 }
 
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: CloudflareContext): Promise<Response> {
   const { request, env } = context
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -72,10 +79,17 @@ export async function onRequestPost(context: any): Promise<Response> {
         const score = body.score || 4 // Default to 4 if not provided
         console.log(`👍 Positive feedback (score: ${score}) - reinforcing patterns`);
 
-        context.waitUntil(
+        // Only use waitUntil if it's available (Cloudflare Workers environment)
+        if (context.waitUntil) {
+          context.waitUntil(
+            learningService.reinforcePatterns(env, original, score)
+              .catch(err => console.error('Failed to reinforce patterns:', err))
+          )
+        } else {
+          // Fall back to direct execution without background processing
           learningService.reinforcePatterns(env, original, score)
             .catch(err => console.error('Failed to reinforce patterns:', err))
-        )
+        }
       } else {
         // Negative feedback - penalize patterns
         const score = body.score || 2 // Default to 2 if not provided

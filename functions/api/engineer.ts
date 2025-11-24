@@ -4,6 +4,13 @@ import { enhancePrompt } from "../_shared/llm-enhancer-refactored"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 import { LLMCacheManager } from "../_shared/cache-manager"
 
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
 function getCorsHeaders(request: Request, env: any) {
   const origin = request.headers.get('Origin') || '*'
   const nodeEnv = (env?.NODE_ENV || 'development')
@@ -20,14 +27,14 @@ function getCorsHeaders(request: Request, env: any) {
 import { getProviderPreferences } from "./tweak/provider-preference"
 
 // Handle CORS preflight requests
-export async function onRequestOptions(context: any): Promise<Response> {
+export async function onRequestOptions(context: CloudflareContext): Promise<Response> {
   return new Response(null, {
     status: 200,
     headers: getCorsHeaders(context.request, context.env),
   })
 }
 
-export async function onRequestPost(context: any): Promise<Response> {
+export async function onRequestPost(context: CloudflareContext): Promise<Response> {
   const { request, env } = context
   const startTime = Date.now()
 
@@ -212,7 +219,21 @@ export async function onRequestPost(context: any): Promise<Response> {
       if (cacheManager && !testProvider && !usedLearning && enhancementResponse.enhancedPrompt) {
         const metadata = enhancementResponse.metadata as any
         const confidenceScore = metadata?.confidence || metadata?.localConfidence || 0.7
-        context.waitUntil(
+        // Only use waitUntil if it's available (Cloudflare Workers environment)
+        if (context.waitUntil) {
+          context.waitUntil(
+            cacheManager.cacheResponse(
+              trimmedPrompt,
+              enhancementResponse.enhancedPrompt,
+              {
+                provider: enhancementResponse.source,
+                temperature: 0.7,
+                confidenceScore
+              }
+            ).catch(err => console.error('Failed to cache response:', err))
+          )
+        } else {
+          // Fall back to direct execution without background processing
           cacheManager.cacheResponse(
             trimmedPrompt,
             enhancementResponse.enhancedPrompt,
@@ -222,7 +243,7 @@ export async function onRequestPost(context: any): Promise<Response> {
               confidenceScore
             }
           ).catch(err => console.error('Failed to cache response:', err))
-        )
+        }
       }
       
       // Log enhancement to database for analytics with optimized connection pool
@@ -259,7 +280,18 @@ export async function onRequestPost(context: any): Promise<Response> {
             const learningService = createLearningService()
 
             // Store in background (don't block response)
-            context.waitUntil(
+            if (context.waitUntil) {
+              context.waitUntil(
+                learningService.storeSuccessfulEnhancement(
+                  env,
+                  trimmedPrompt,
+                  enhancementResponse.enhancedPrompt,
+                  enhancementResponse.source,
+                  { context: context || '', processingTime }
+                ).catch(err => console.error('Failed to store enhancement for learning:', err))
+              )
+            } else {
+              // Fall back to direct execution without background processing
               learningService.storeSuccessfulEnhancement(
                 env,
                 trimmedPrompt,
@@ -267,7 +299,7 @@ export async function onRequestPost(context: any): Promise<Response> {
                 enhancementResponse.source,
                 { context: context || '', processingTime }
               ).catch(err => console.error('Failed to store enhancement for learning:', err))
-            )
+            }
           } else if (usedLearning) {
             console.log('ℹ️ Skipping learning storage - used learned patterns');
           }
