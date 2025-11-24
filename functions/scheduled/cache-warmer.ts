@@ -10,7 +10,14 @@ import { getOptimizedDb } from "../_shared/db-pool"
 import { enhancementLogs } from "../_shared/db"
 import { desc, sql, gt } from "drizzle-orm"
 
-export async function onRequestGet(context: any): Promise<Response> {
+// Define proper Cloudflare context types
+interface CloudflareContext {
+  request: Request
+  env: any
+  waitUntil?: (promise: Promise<any>) => void
+}
+
+export async function onRequestGet(context: CloudflareContext): Promise<Response> {
   const { env } = context
 
   try {
@@ -128,7 +135,8 @@ export default {
     console.log('[CacheWarmer] Cron trigger fired at', new Date(event.scheduledTime).toISOString())
 
     // Call the warming function
-    const mockContext = {
+    const mockContext: CloudflareContext = {
+      request: new Request('https://internal/cache-warmer'),
       env,
       waitUntil: ctx.waitUntil.bind(ctx)
     }
