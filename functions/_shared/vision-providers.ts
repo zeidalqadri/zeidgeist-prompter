@@ -138,7 +138,7 @@ async function generateWithOpenAI(
 
   options.progressCallback?.(80, 'Processing image...')
 
-  const data = await response.json() as { data: Array<{ url: string }> }
+  const data = await response.json() as { data: Array<{ url: string; revised_prompt?: string }> }
   const imageUrl = data.data[0].url
 
   options.progressCallback?.(100, 'Complete!')
