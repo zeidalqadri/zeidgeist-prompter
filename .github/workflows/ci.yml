@@ -200,41 +200,33 @@ jobs:
     - name: Validate required secrets for preview deployment
       run: |
         echo "🔐 Validating required secrets for preview deployment..."
-        
-        # Check critical secrets
+
+        # Check critical secrets - only CLOUDFLARE_API_TOKEN is required
+        # Other secrets are configured directly in Cloudflare dashboard
         if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
           echo "❌ CLOUDFLARE_API_TOKEN is required for deployment"
           exit 1
         fi
-        
-        if [ -z "$STAGING_DATABASE_URL" ]; then
-          echo "❌ STAGING_DATABASE_URL is required for preview"
-          exit 1
-        fi
-        
-        if [ -z "$STAGING_JWT_SECRET" ]; then
-          echo "❌ STAGING_JWT_SECRET is required for authentication"
-          exit 1
-        fi
-        
-        if [ -z "$STAGING_NEXTAUTH_SECRET" ]; then
-          echo "❌ STAGING_NEXTAUTH_SECRET is required for NextAuth"
-          exit 1
-        fi
-        
-        # Check at least one AI API key is available
+
+        # Warn about optional secrets (configured in Cloudflare dashboard)
+        [ -z "$STAGING_DATABASE_URL" ] && echo "ℹ️  STAGING_DATABASE_URL not in GitHub - using Cloudflare env vars"
+        [ -z "$STAGING_JWT_SECRET" ] && echo "ℹ️  STAGING_JWT_SECRET not in GitHub - using Cloudflare env vars"
+        [ -z "$STAGING_NEXTAUTH_SECRET" ] && echo "ℹ️  STAGING_NEXTAUTH_SECRET not in GitHub - using Cloudflare env vars"
+
+        # Check AI API keys (optional - configured in Cloudflare)
         api_keys_available=0
         [ ! -z "$CLAUDE_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
         [ ! -z "$OPENAI_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
         [ ! -z "$MISTRAL_API_KEY" ] && api_keys_available=$((api_keys_available + 1))
-        
+
         if [ $api_keys_available -eq 0 ]; then
-          echo "❌ At least one AI API key (CLAUDE_API_KEY, OPENAI_API_KEY, or MISTRAL_API_KEY) is required"
-          exit 1
+          echo "ℹ️  No AI API keys in GitHub secrets - using Cloudflare env vars"
+        else
+          echo "✅ $api_keys_available AI API key(s) available in GitHub"
         fi
-        
-        echo "✅ All required secrets are configured"
-        echo "✅ $api_keys_available AI API key(s) available"
+
+        echo "✅ CLOUDFLARE_API_TOKEN configured - deployment can proceed"
+        echo "ℹ️  Other secrets are managed via Cloudflare dashboard"
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}

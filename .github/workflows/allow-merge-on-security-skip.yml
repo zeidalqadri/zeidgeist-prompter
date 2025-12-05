@@ -4,6 +4,7 @@ name: Allow Merge on Security Check Skip
 # due to missing permissions or configuration issues
 
 permissions:
+  contents: read
   checks: write
   statuses: write
   pull-requests: write
