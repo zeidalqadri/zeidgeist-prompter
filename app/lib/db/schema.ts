@@ -125,6 +125,17 @@ export const trainingExamples = pgTable('training_examples', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
 
+// Extension downloads tracking table
+export const extensionDownloads = pgTable('extension_downloads', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  extensionVersion: text('extension_version').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  referrer: text('referrer'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
 // Audit logs table for comprehensive security logging
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -182,3 +193,5 @@ export type UserSession = typeof userSessions.$inferSelect
 export type NewUserSession = typeof userSessions.$inferInsert
 export type AuditLog = typeof auditLogs.$inferSelect
 export type NewAuditLog = typeof auditLogs.$inferInsert
+export type ExtensionDownload = typeof extensionDownloads.$inferSelect
+export type NewExtensionDownload = typeof extensionDownloads.$inferInsert

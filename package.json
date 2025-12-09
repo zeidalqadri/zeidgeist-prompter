@@ -41,7 +41,9 @@
     "api:dev": "wrangler pages dev out --port=8788 --compatibility-flag nodejs_compat",
     "validate:env": "node -e \"require('./app/lib/config/environment').validateEnvironment(); console.log('✅ Environment validation passed')\"",
     "deployment:readiness": "node scripts/deployment/deployment-readiness.js",
-    "preview:test": "node scripts/setup-preview-testing.js"
+    "preview:test": "node scripts/setup-preview-testing.js",
+    "ext:prepare": "node scripts/build-extension.js",
+    "build:full": "npm run ext:prepare && npm run build"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",

@@ -105,7 +105,8 @@ export function createDb(env: Record<string, string>) {
       feedback,
       enhancementLogs,
       dsarRequests,
-      trainingExamples
+      trainingExamples,
+      extensionDownloads
     }
   })
 }
@@ -129,6 +130,17 @@ export const dsarRequests = pgTable('dsar_requests', {
   processedAt: timestamp('processed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().default(sql`now()`)
+})
+
+// Extension downloads tracking table
+export const extensionDownloads = pgTable('extension_downloads', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  extensionVersion: text('extension_version').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  referrer: text('referrer'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().default(sql`now()`)
 })
 
 // Training examples storage for dynamic learning
@@ -163,3 +175,5 @@ export type DsarRequest = typeof dsarRequests.$inferSelect
 export type NewDsarRequest = typeof dsarRequests.$inferInsert
 export type TrainingExample = typeof trainingExamples.$inferSelect
 export type NewTrainingExample = typeof trainingExamples.$inferInsert
+export type ExtensionDownload = typeof extensionDownloads.$inferSelect
+export type NewExtensionDownload = typeof extensionDownloads.$inferInsert

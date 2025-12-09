@@ -21,6 +21,8 @@
     "/*.ico",
     "/*.map",
     "/*.txt",
-    "/*.xml"
+    "/*.xml",
+    "/*.zip",
+    "/extension/*"
   ]
 }
