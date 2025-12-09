@@ -45,3 +45,4 @@ next-env.d.ts
 # local PR drafts
 PR_BODY.md
 .dev.vars*
+mstprmpt-X-v*.zip
