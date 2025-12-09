@@ -57,10 +57,10 @@ export function AuthRequiredModal({ onClose, returnAction = "download" }: AuthRe
         <div className="flex flex-col gap-3">
           <Button
             onClick={handleSignIn}
-            className="w-full bg-black text-white hover:bg-gray-800"
+            className="w-full bg-black text-white-pure hover:bg-gray-800"
           >
-            <LogIn size={16} className="mr-2" />
-            Sign In
+            <LogIn size={16} className="mr-2 text-white-pure" />
+            <span className="text-white-pure">Sign In</span>
           </Button>
 
           <Button
@@ -72,10 +72,6 @@ export function AuthRequiredModal({ onClose, returnAction = "download" }: AuthRe
             Create Account
           </Button>
         </div>
-
-        <p className="text-xs text-gray-500 mt-4 text-center">
-          Free account required for download tracking
-        </p>
       </div>
     </div>
   )
