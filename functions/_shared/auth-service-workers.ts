@@ -353,14 +353,26 @@ export class CloudflareAuthService {
         };
       }
 
-      // Check if user exists
-      const existingUser = await this.db.select()
+      // Check if email already exists
+      const existingEmail = await this.db.select()
         .from(users)
         .where(eq(users.email, email.toLowerCase()))
         .limit(1);
 
-      if (existingUser.length > 0) {
-        return { success: false, error: 'User already exists' };
+      if (existingEmail.length > 0) {
+        return { success: false, error: 'An account with this email already exists' };
+      }
+
+      // Check if username already exists (if provided)
+      if (username) {
+        const existingUsername = await this.db.select()
+          .from(users)
+          .where(eq(users.username, username.toLowerCase()))
+          .limit(1);
+
+        if (existingUsername.length > 0) {
+          return { success: false, error: 'This username is already taken' };
+        }
       }
 
       // Hash password
@@ -384,8 +396,24 @@ export class CloudflareAuthService {
       };
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
-      return { success: false, error: errorMessage };
+
+      // Sanitize error messages - never expose raw database errors to users
+      // Check for unique constraint violations that might have slipped through race conditions
+      const errorStr = error instanceof Error ? error.message : String(error);
+
+      if (errorStr.includes('unique') || errorStr.includes('duplicate') || errorStr.includes('UNIQUE constraint')) {
+        if (errorStr.toLowerCase().includes('email')) {
+          return { success: false, error: 'An account with this email already exists' };
+        }
+        if (errorStr.toLowerCase().includes('username')) {
+          return { success: false, error: 'This username is already taken' };
+        }
+        // Generic unique constraint message (don't expose which field)
+        return { success: false, error: 'An account with these details already exists' };
+      }
+
+      // Generic error for all other cases - never expose database internals
+      return { success: false, error: 'Registration failed. Please try again later.' };
     }
   }
 
