@@ -17,6 +17,27 @@ binding = "SESSION_STORAGE"
 id = "ebdc9af6ea5549029446fc55a8984b24"
 preview_id = "2001d92c064b45569a78fbd3add9baa5"
 
+# D1 Database for auth tables (Cloudflare-native, edge-optimized)
+# Create with: wrangler d1 create zeidgeist-auth
+# After creation, update the database_id below
+[[d1_databases]]
+binding = "AUTH_DB"
+database_name = "zeidgeist-auth"
+database_id = "2ceef6e7-9ba6-48a4-a1ec-214d2c54f5d2"  # Update after running: wrangler d1 create zeidgeist-auth
+
+# Durable Objects for rate limiting
+# NOTE: Durable Objects require a separate Worker deployment
+# The RateLimiterDO class is in functions/_shared/rate-limiter-durable-object.ts
+# To use: Deploy as separate worker and reference via service binding
+# For now, rate limiting uses KV (functions/_shared/rate-limiter.ts)
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER"
+# class_name = "RateLimiterDO"
+#
+# [[migrations]]
+# tag = "v1"
+# new_classes = ["RateLimiterDO"]
+
 # Note: Scheduled triggers (cron) are not supported for Pages
 # Cache warming can be triggered manually via /api/scheduled/cache-warmer endpoint
 # Or set up via Cloudflare Workers cron triggers separately
