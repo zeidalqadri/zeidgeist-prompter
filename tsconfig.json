@@ -30,6 +30,7 @@
     "vitest.config.ts",
     "playwright.config.ts",
     "playwright-tests",
-    "open-next.config.ts"
+    "open-next.config.ts",
+    "extension"
   ]
 }
