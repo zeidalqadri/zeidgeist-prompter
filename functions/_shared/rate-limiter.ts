@@ -78,6 +78,11 @@ export const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     maxRequests: 3,
     blockDuration: 3600000 // 1 hour
   },
+  '/api/extension/download': {
+    windowMs: 86400000, // 24 hours
+    maxRequests: 5,
+    blockDuration: 86400000 // 24 hours
+  },
   'default': {
     windowMs: 60000,
     maxRequests: 30
