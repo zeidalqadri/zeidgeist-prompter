@@ -1,0 +1,138 @@
+/* mstprmpt Content Script Styles */
+/* These styles are injected into AI chat pages */
+
+.mstprmpt-btn-container {
+  --mstprmpt-primary: #000000;
+  --mstprmpt-primary-hover: #1a1a1a;
+  --mstprmpt-bg: #ffffff;
+  --mstprmpt-text: #ffffff;
+  --mstprmpt-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --mstprmpt-transition: all 0.15s ease;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin: 4px;
+  z-index: 10000;
+}
+
+.mstprmpt-floating-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--mstprmpt-primary);
+  color: var(--mstprmpt-text);
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  transition: var(--mstprmpt-transition);
+  box-shadow: var(--mstprmpt-shadow);
+  white-space: nowrap;
+}
+
+.mstprmpt-floating-btn:hover {
+  background: var(--mstprmpt-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.mstprmpt-floating-btn:active {
+  transform: translateY(0);
+}
+
+.mstprmpt-floating-btn:focus-visible {
+  outline: 2px solid var(--mstprmpt-primary);
+  outline-offset: 2px;
+}
+
+.mstprmpt-floating-btn.mstprmpt-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.mstprmpt-floating-btn.mstprmpt-loading .mstprmpt-icon {
+  animation: mstprmpt-spin 1s linear infinite;
+}
+
+.mstprmpt-icon {
+  flex-shrink: 0;
+}
+
+.mstprmpt-label {
+  font-weight: 600;
+}
+
+/* Hidden state */
+.mstprmpt-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+}
+
+/* Animations */
+@keyframes mstprmpt-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mstprmpt-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mstprmpt-btn-container:not(.mstprmpt-hidden) {
+  animation: mstprmpt-fade-in 0.2s ease-out;
+}
+
+/* Toast notification */
+.mstprmpt-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #1f2937;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10001;
+  pointer-events: none;
+}
+
+.mstprmpt-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .mstprmpt-btn-container {
+    --mstprmpt-primary: #ffffff;
+    --mstprmpt-primary-hover: #f0f0f0;
+    --mstprmpt-text: #000000;
+  }
+
+  .mstprmpt-toast {
+    background: #ffffff;
+    color: #1f2937;
+  }
+}

@@ -67,7 +67,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
     const body = await request.json() as any
     console.log('JSON parsed successfully')
     
-    const { prompt, context, isRefinement, isExpansion, repeatCount } = body
+    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount } = body
     console.log('Request data extracted:', { hasPrompt: !!prompt })
 
     // Enhanced input validation
@@ -143,7 +143,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         console.log('🧠 Checking learned patterns first...');
         const { createAdaptiveEnhancer } = await import('../_shared/learning')
         const adaptiveEnhancer = createAdaptiveEnhancer()
-        const localAttempt = await adaptiveEnhancer.enhance(env, trimmedPrompt, context || undefined)
+        const localAttempt = await adaptiveEnhancer.enhance(env, trimmedPrompt, promptContext || undefined)
 
         console.log(`📊 Local pattern confidence: ${localAttempt.confidence.toFixed(2)} (source: ${localAttempt.source})`);
 
@@ -168,7 +168,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
           // Use local enhancement as a starting point, then refine with LLM
           const llmResponse = await enhancePrompt(
             localAttempt.enhancedPrompt, // Start with local enhancement
-            context || "",
+            promptContext || "",
             {
               isRefinement: true, // Mark as refinement since we're building on local
               isExpansion: !!isExpansion,
@@ -198,7 +198,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         console.log('🔧 Using full LLM enhancement (low confidence or test mode)...');
         enhancementResponse = await enhancePrompt(
           trimmedPrompt,
-          context || "",
+          promptContext || "",
           {
             isRefinement: !!isRefinement,
             isExpansion: !!isExpansion,
@@ -254,7 +254,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         } else {
           const enhancementLog: NewEnhancementLog = {
             promptLength: trimmedPrompt.length,
-            hasContext: !!(context && context.trim()),
+            hasContext: !!(promptContext && promptContext.trim()),
             isRefinement: !!isRefinement,
             isExpansion: !!isExpansion,
             repeatCount: repeatCount || 0,
@@ -287,7 +287,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
                   trimmedPrompt,
                   enhancementResponse.enhancedPrompt,
                   enhancementResponse.source,
-                  { context: context || '', processingTime }
+                  { context: promptContext || '', processingTime }
                 ).catch(err => console.error('Failed to store enhancement for learning:', err))
               )
             } else {
@@ -297,7 +297,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
                 trimmedPrompt,
                 enhancementResponse.enhancedPrompt,
                 enhancementResponse.source,
-                { context: context || '', processingTime }
+                { context: promptContext || '', processingTime }
               ).catch(err => console.error('Failed to store enhancement for learning:', err))
             }
           } else if (usedLearning) {
@@ -333,8 +333,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
       if (!fallbackEnhanced.endsWith('.') && !fallbackEnhanced.endsWith('?') && !fallbackEnhanced.endsWith('!')) {
         fallbackEnhanced += '.'
       }
-      if (context && context.trim()) {
-        fallbackEnhanced = `Context: ${context}\n\nPrompt: ${fallbackEnhanced}`
+      if (promptContext && promptContext.trim()) {
+        fallbackEnhanced = `Context: ${promptContext}\n\nPrompt: ${fallbackEnhanced}`
       }
 
       return new Response(JSON.stringify({
