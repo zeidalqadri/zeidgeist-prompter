@@ -7,6 +7,7 @@ import { Button } from "./ui/button"
 import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import { LLMUsageTracker } from '../app/lib/llm-usage-tracker'
+import { ExtensionDownloadButton } from './extension-download-button'
 
 // Lazy load FeedbackForm since it's not immediately needed
 const FeedbackForm = lazy(() => import("./feedback-form"))
@@ -384,6 +385,53 @@ export default function PromptEngineer() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // Post-auth download trigger - automatically downloads extension after user returns from auth
+  useEffect(() => {
+    const checkPostAuthDownload = async () => {
+      // Check URL params for action=download (from auth redirect)
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+
+      // Also check sessionStorage flag
+      const downloadAfterAuth = sessionStorage.getItem('downloadAfterAuth');
+
+      if (action === 'download' || downloadAfterAuth === 'true') {
+        // Clear the flag
+        sessionStorage.removeItem('downloadAfterAuth');
+
+        // Clean up URL params
+        if (action === 'download') {
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+
+        // Trigger the download
+        try {
+          const response = await fetch('/api/extension/download', {
+            method: 'POST',
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mstprmpt-extension.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+        } catch (error) {
+          console.error('Post-auth download failed:', error);
+        }
+      }
+    };
+
+    checkPostAuthDownload();
+  }, []);
 
   // Load prompt history from localStorage on component mount - optimized
   useEffect(() => {
@@ -840,6 +888,7 @@ export default function PromptEngineer() {
           </a>
           <span className="text-black font-medium text-xs sm:text-sm ml-2">v0.6.8</span>
         </h1>
+        <ExtensionDownloadButton />
       </div>
 
       <div className="grid gap-6">
