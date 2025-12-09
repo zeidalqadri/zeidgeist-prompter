@@ -31,6 +31,7 @@
     "playwright.config.ts",
     "playwright-tests",
     "open-next.config.ts",
-    "extension"
+    "extension",
+    "functions"
   ]
 }
