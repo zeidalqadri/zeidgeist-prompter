@@ -44,7 +44,8 @@ interface AuthResult {
 }
 
 // Constants
-const ITERATIONS = 210000; // Increased from 100k to 210k for 2025 security standards
+// Cloudflare Workers limits PBKDF2 to 100,000 iterations max
+const ITERATIONS = 100000;
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 32;
 const MAX_LOGIN_ATTEMPTS = 3;
@@ -80,8 +81,13 @@ async function hashPassword(password: string): Promise<string> {
   const combined = new Uint8Array(salt.length + KEY_LENGTH);
   combined.set(salt);
   combined.set(new Uint8Array(hash), salt.length);
-  
-  return btoa(String.fromCharCode(...combined));
+
+  // Use a loop instead of spread operator for Workers compatibility
+  let binaryString = '';
+  for (let i = 0; i < combined.length; i++) {
+    binaryString += String.fromCharCode(combined[i]);
+  }
+  return btoa(binaryString);
 }
 
 /**
@@ -166,11 +172,17 @@ async function generateJWT(payload: any, secret: string, expiresIn: number = 900
     encoder.encode(message)
   );
   
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  // Use a loop instead of spread operator for Workers compatibility
+  const sigArray = new Uint8Array(signature);
+  let sigBinaryString = '';
+  for (let i = 0; i < sigArray.length; i++) {
+    sigBinaryString += String.fromCharCode(sigArray[i]);
+  }
+  const encodedSignature = btoa(sigBinaryString)
     .replace(/=/g, '')
     .replace(/\+/g, '-')
     .replace(/\//g, '_');
-  
+
   return `${message}.${encodedSignature}`;
 }
 
@@ -781,7 +793,12 @@ export class CloudflareAuthService {
     const encoder = new TextEncoder();
     const data = encoder.encode(token);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+    const hashArray = new Uint8Array(hashBuffer);
+    let binaryString = '';
+    for (let i = 0; i < hashArray.length; i++) {
+      binaryString += String.fromCharCode(hashArray[i]);
+    }
+    return btoa(binaryString);
   }
 
   private async handleFailedLogin(userId: string): Promise<void> {
