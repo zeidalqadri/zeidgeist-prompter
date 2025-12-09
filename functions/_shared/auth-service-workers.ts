@@ -273,12 +273,46 @@ async function verifyTOTP(secret: string, token: string): Promise<boolean> {
   return code.toString().padStart(6, '0') === token;
 }
 
+// KV Namespace type for session caching
+interface KVNamespace {
+  get<T = unknown>(key: string, options?: { type: 'json' }): Promise<T | null>;
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+// Cached session data structure
+interface CachedSession {
+  userId: string;
+  user: SanitizedUser;
+  expiresAt: number;
+  cachedAt: number;
+}
+
 export class CloudflareAuthService {
   private db: any;
   private jwtSecret: string;
+  private sessionKV: KVNamespace | null;
+
+  // Session cache TTL (5 minutes - shorter than token expiry for security)
+  private static readonly SESSION_CACHE_TTL = 300;
 
   constructor(env: any) {
+    // Try to create database connection (Neon via DATABASE_URL)
     this.db = createDb(env);
+
+    // Check database connection - require either Neon or D1
+    if (!this.db && !env.AUTH_DB) {
+      throw new Error('FATAL: No database configured. Set DATABASE_URL for Neon or configure AUTH_DB (D1) binding.');
+    }
+
+    // If Neon DB not available but D1 is, we'll use D1 in methods
+    // Note: Full D1 integration requires using D1AuthDatabase adapter
+    if (!this.db && env.AUTH_DB) {
+      console.info('Using D1 database (AUTH_DB) - Neon DATABASE_URL not configured');
+      // For now, throw a more helpful error - D1 adapter needs to be integrated
+      throw new Error('D1 database configured but D1 adapter not yet integrated into CloudflareAuthService. Please set DATABASE_URL for Neon connection.');
+    }
 
     // CRITICAL SECURITY: Enforce JWT_SECRET requirement - no fallback allowed
     if (!env.JWT_SECRET) {
@@ -291,6 +325,9 @@ export class CloudflareAuthService {
     }
 
     this.jwtSecret = env.JWT_SECRET;
+
+    // Optional KV namespace for session caching (degrades gracefully if not available)
+    this.sessionKV = env.SESSION_STORAGE || null;
   }
 
   /**
@@ -347,7 +384,8 @@ export class CloudflareAuthService {
       };
     } catch (error) {
       console.error('Registration error:', error);
-      return { success: false, error: 'Registration failed' };
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -476,26 +514,101 @@ export class CloudflareAuthService {
   }
 
   /**
-   * Validate token
+   * Validate token with KV session caching
+   * Flow: JWT verify → KV cache check → DB fallback → Cache update
    */
   async validateToken(token: string): Promise<SanitizedUser | null> {
     try {
+      // Step 1: Verify JWT signature and expiration (local, fast)
       const payload = await verifyJWT(token, this.jwtSecret);
       if (!payload) return null;
 
+      const userId = payload.sub;
+      const sessionId = payload.session_id;
+      const cacheKey = `session:${sessionId}:${userId}`;
+
+      // Step 2: Check KV cache first (edge-fast)
+      if (this.sessionKV) {
+        try {
+          const cached = await this.sessionKV.get<CachedSession>(cacheKey, { type: 'json' });
+          if (cached && cached.expiresAt > Date.now()) {
+            // Cache hit - return cached user data
+            return cached.user;
+          }
+        } catch (kvError) {
+          // KV error - fall through to DB (degraded but functional)
+          console.warn('Session KV cache read error:', kvError);
+        }
+      }
+
+      // Step 3: Cache miss or KV unavailable - query database
       const [user] = await this.db.select()
         .from(users)
         .where(and(
-          eq(users.id, payload.sub),
+          eq(users.id, userId),
           eq(users.isActive, true)
         ))
         .limit(1);
 
-      return user ? this.sanitizeUser(user) : null;
+      if (!user) return null;
+
+      const sanitizedUser = this.sanitizeUser(user);
+
+      // Step 4: Update KV cache for next request
+      if (this.sessionKV && sessionId) {
+        try {
+          const cachedSession: CachedSession = {
+            userId: user.id,
+            user: sanitizedUser,
+            expiresAt: Date.now() + (CloudflareAuthService.SESSION_CACHE_TTL * 1000),
+            cachedAt: Date.now()
+          };
+          await this.sessionKV.put(
+            cacheKey,
+            JSON.stringify(cachedSession),
+            { expirationTtl: CloudflareAuthService.SESSION_CACHE_TTL }
+          );
+        } catch (kvError) {
+          // KV write error - log but don't fail the request
+          console.warn('Session KV cache write error:', kvError);
+        }
+      }
+
+      return sanitizedUser;
     } catch (error) {
       console.error('Token validation error:', error);
       return null;
     }
+  }
+
+  /**
+   * Invalidate session cache (call on logout)
+   */
+  async invalidateSession(sessionId: string, userId: string): Promise<void> {
+    if (this.sessionKV) {
+      const cacheKey = `session:${sessionId}:${userId}`;
+      try {
+        await this.sessionKV.delete(cacheKey);
+      } catch (kvError) {
+        console.warn('Session KV cache invalidation error:', kvError);
+      }
+    }
+  }
+
+  /**
+   * Invalidate all sessions for a user (call on password change, account disable, etc.)
+   */
+  async invalidateAllUserSessions(userId: string): Promise<void> {
+    // Revoke all sessions in database
+    try {
+      await this.db.update(userSessions)
+        .set({ isRevoked: true })
+        .where(eq(userSessions.userId, userId));
+    } catch (error) {
+      console.error('Failed to revoke user sessions:', error);
+    }
+    // Note: KV entries will expire naturally via TTL
+    // For immediate invalidation, would need to track session IDs separately
   }
 
   /**
