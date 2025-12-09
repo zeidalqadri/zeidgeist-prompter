@@ -1,5 +1,5 @@
 # Cloudflare Pages configuration for static Next.js with Pages Functions
-name = "zeidgeist-prompter"
+name = "aipromptise"
 compatibility_date = "2024-01-15"
 pages_build_output_dir = "out"
 

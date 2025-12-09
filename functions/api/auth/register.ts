@@ -79,10 +79,24 @@ export async function onRequestPost(context: any): Promise<Response> {
 
   } catch (error) {
     console.error('Registration endpoint error:', error);
-    
+
+    // Sanitize error messages for production
+    let errorMessage = 'Registration failed. Please try again.';
+
+    if (error instanceof Error) {
+      // Check for specific configuration errors
+      if (error.message.includes('JWT_SECRET')) {
+        errorMessage = 'Server configuration error: Authentication not configured.';
+      } else if (error.message.includes('database') || error.message.includes('AUTH_DB') || error.message.includes('DATABASE_URL')) {
+        errorMessage = 'Server configuration error: Database not configured.';
+      } else if (error.message.includes('FATAL')) {
+        errorMessage = 'Server configuration error. Please contact support.';
+      }
+    }
+
     return new Response(JSON.stringify({
       success: false,
-      error: 'Registration failed. Please try again.'
+      error: errorMessage
     }), {
       status: 500,
       headers: corsHeaders
