@@ -6,6 +6,7 @@
 import { eq, and, gt } from 'drizzle-orm';
 import { createDb } from './db';
 import { users, userSessions, type User, type NewUser, type UserSession, type NewUserSession } from '../../app/lib/db/schema';
+import { D1AuthDatabase, createD1AuthDb, type D1User } from './db-d1';
 
 // Use Web Crypto API instead of Node.js crypto
 const crypto = globalThis.crypto;
@@ -291,6 +292,8 @@ interface CachedSession {
 
 export class CloudflareAuthService {
   private db: any;
+  private d1Db: D1AuthDatabase | null;
+  private useD1: boolean;
   private jwtSecret: string;
   private sessionKV: KVNamespace | null;
 
@@ -298,20 +301,19 @@ export class CloudflareAuthService {
   private static readonly SESSION_CACHE_TTL = 300;
 
   constructor(env: any) {
-    // Try to create database connection (Neon via DATABASE_URL)
-    this.db = createDb(env);
+    // Try D1 first (preferred for Cloudflare-native edge performance)
+    this.d1Db = createD1AuthDb(env);
+    this.useD1 = this.d1Db !== null;
 
-    // Check database connection - require either Neon or D1
-    if (!this.db && !env.AUTH_DB) {
-      throw new Error('FATAL: No database configured. Set DATABASE_URL for Neon or configure AUTH_DB (D1) binding.');
-    }
-
-    // If Neon DB not available but D1 is, we'll use D1 in methods
-    // Note: Full D1 integration requires using D1AuthDatabase adapter
-    if (!this.db && env.AUTH_DB) {
-      console.info('Using D1 database (AUTH_DB) - Neon DATABASE_URL not configured');
-      // For now, throw a more helpful error - D1 adapter needs to be integrated
-      throw new Error('D1 database configured but D1 adapter not yet integrated into CloudflareAuthService. Please set DATABASE_URL for Neon connection.');
+    // Fall back to Neon if D1 not available
+    if (!this.useD1) {
+      this.db = createDb(env);
+      if (!this.db) {
+        throw new Error('FATAL: No database configured. Set AUTH_DB (D1) or DATABASE_URL (Neon).');
+      }
+    } else {
+      this.db = null;
+      console.info('Using D1 database (AUTH_DB) for authentication');
     }
 
     // CRITICAL SECURITY: Enforce JWT_SECRET requirement - no fallback allowed
@@ -334,8 +336,8 @@ export class CloudflareAuthService {
    * User Registration
    */
   async register(
-    email: string, 
-    password: string, 
+    email: string,
+    password: string,
     username?: string,
     metadata?: any
   ): Promise<AuthResult> {
@@ -347,12 +349,46 @@ export class CloudflareAuthService {
 
       // Validate password strength
       if (password.length < 12) {
-        return { 
-          success: false, 
-          error: 'Password must be at least 12 characters long' 
+        return {
+          success: false,
+          error: 'Password must be at least 12 characters long'
         };
       }
 
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // D1 database path (preferred)
+      if (this.useD1 && this.d1Db) {
+        // Check if email exists
+        const existingEmail = await this.d1Db.findUserByEmail(email);
+        if (existingEmail) {
+          return { success: false, error: 'An account with this email already exists' };
+        }
+
+        // Check if username exists (if provided)
+        if (username) {
+          const existingUsername = await this.d1Db.findUserByUsername(username);
+          if (existingUsername) {
+            return { success: false, error: 'This username is already taken' };
+          }
+        }
+
+        // Create user in D1
+        const newUser = await this.d1Db.createUser({
+          email,
+          username,
+          passwordHash,
+          metadata: metadata ? JSON.stringify(metadata) : undefined
+        });
+
+        return {
+          success: true,
+          user: this.sanitizeD1User(newUser)
+        };
+      }
+
+      // Neon/Drizzle database path (fallback)
       // Check if email already exists
       const existingEmail = await this.db.select()
         .from(users)
@@ -374,9 +410,6 @@ export class CloudflareAuthService {
           return { success: false, error: 'This username is already taken' };
         }
       }
-
-      // Hash password
-      const passwordHash = await hashPassword(password);
 
       // Create user
       const [newUser] = await this.db.insert(users).values({
@@ -422,11 +455,23 @@ export class CloudflareAuthService {
    */
   async login(email: string, password: string, totpCode?: string): Promise<AuthResult> {
     try {
-      // Get user
-      const [user] = await this.db.select()
-        .from(users)
-        .where(eq(users.email, email.toLowerCase()))
-        .limit(1);
+      let user: any;
+
+      // D1 database path (preferred)
+      if (this.useD1 && this.d1Db) {
+        const d1User = await this.d1Db.findUserByEmail(email);
+        if (!d1User) {
+          return { success: false, error: 'Invalid credentials' };
+        }
+        user = D1AuthDatabase.toAuthUser(d1User);
+      } else {
+        // Neon/Drizzle database path (fallback)
+        const [dbUser] = await this.db.select()
+          .from(users)
+          .where(eq(users.email, email.toLowerCase()))
+          .limit(1);
+        user = dbUser;
+      }
 
       if (!user) {
         return { success: false, error: 'Invalid credentials' };
@@ -435,9 +480,9 @@ export class CloudflareAuthService {
       // Check lockout
       if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
         const remainingTime = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000);
-        return { 
-          success: false, 
-          error: `Account locked. Try again in ${remainingTime} minutes` 
+        return {
+          success: false,
+          error: `Account locked. Try again in ${remainingTime} minutes`
         };
       }
 
@@ -456,10 +501,10 @@ export class CloudflareAuthService {
       // Check MFA
       if (user.mfaEnabled && user.totpSecret) {
         if (!totpCode) {
-          return { 
-            success: false, 
+          return {
+            success: false,
             requiresMFA: true,
-            error: 'MFA code required' 
+            error: 'MFA code required'
           };
         }
 
@@ -471,20 +516,28 @@ export class CloudflareAuthService {
       }
 
       // Reset login attempts
-      await this.db.update(users)
-        .set({ 
-          loginAttempts: 0, 
-          lockedUntil: null, 
-          lastLogin: new Date() 
-        })
-        .where(eq(users.id, user.id));
+      if (this.useD1 && this.d1Db) {
+        await this.d1Db.updateUser(user.id, {
+          loginAttempts: 0,
+          lockedUntil: null,
+          lastLogin: new Date().toISOString()
+        });
+      } else {
+        await this.db.update(users)
+          .set({
+            loginAttempts: 0,
+            lockedUntil: null,
+            lastLogin: new Date()
+          })
+          .where(eq(users.id, user.id));
+      }
 
       // Create session
       const session = await this.createSession(user);
 
       return {
         success: true,
-        user: this.sanitizeUser(user),
+        user: this.useD1 ? this.sanitizeD1User(user) : this.sanitizeUser(user),
         session
       };
     } catch (error) {
@@ -496,9 +549,9 @@ export class CloudflareAuthService {
   /**
    * Create session with JWT
    */
-  private async createSession(user: User): Promise<AuthSession> {
+  private async createSession(user: any): Promise<AuthSession> {
     const sessionId = crypto.randomUUID();
-    
+
     const accessToken = await generateJWT(
       {
         sub: user.id,
@@ -508,7 +561,7 @@ export class CloudflareAuthService {
       this.jwtSecret,
       900 // 15 minutes
     );
-    
+
     const refreshToken = btoa(crypto.getRandomValues(new Uint8Array(32)).join(''));
     const idToken = await generateJWT(
       {
@@ -519,16 +572,26 @@ export class CloudflareAuthService {
       this.jwtSecret,
       3600 // 1 hour
     );
-    
+
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const tokenHash = await this.hashToken(accessToken);
 
     // Store session
-    await this.db.insert(userSessions).values({
-      id: sessionId,
-      userId: user.id,
-      tokenHash: await this.hashToken(accessToken),
-      expiresAt
-    });
+    if (this.useD1 && this.d1Db) {
+      await this.d1Db.createSession({
+        id: sessionId,
+        userId: user.id,
+        tokenHash,
+        expiresAt
+      });
+    } else {
+      await this.db.insert(userSessions).values({
+        id: sessionId,
+        userId: user.id,
+        tokenHash,
+        expiresAt
+      });
+    }
 
     return {
       id: sessionId,
@@ -570,17 +633,27 @@ export class CloudflareAuthService {
       }
 
       // Step 3: Cache miss or KV unavailable - query database
-      const [user] = await this.db.select()
-        .from(users)
-        .where(and(
-          eq(users.id, userId),
-          eq(users.isActive, true)
-        ))
-        .limit(1);
+      let user: any;
+      let sanitizedUser: SanitizedUser;
 
-      if (!user) return null;
+      if (this.useD1 && this.d1Db) {
+        const d1User = await this.d1Db.findActiveUserById(userId);
+        if (!d1User) return null;
+        user = D1AuthDatabase.toAuthUser(d1User);
+        sanitizedUser = this.sanitizeD1User(d1User);
+      } else {
+        const [dbUser] = await this.db.select()
+          .from(users)
+          .where(and(
+            eq(users.id, userId),
+            eq(users.isActive, true)
+          ))
+          .limit(1);
 
-      const sanitizedUser = this.sanitizeUser(user);
+        if (!dbUser) return null;
+        user = dbUser;
+        sanitizedUser = this.sanitizeUser(user);
+      }
 
       // Step 4: Update KV cache for next request
       if (this.sessionKV && sessionId) {
@@ -712,22 +785,39 @@ export class CloudflareAuthService {
   }
 
   private async handleFailedLogin(userId: string): Promise<void> {
-    const [user] = await this.db.select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
+    let user: any;
 
-    if (!user) return;
+    if (this.useD1 && this.d1Db) {
+      const d1User = await this.d1Db.findUserById(userId);
+      if (!d1User) return;
+      user = D1AuthDatabase.toAuthUser(d1User);
 
-    const attempts = user.loginAttempts + 1;
-    const shouldLock = attempts >= MAX_LOGIN_ATTEMPTS;
+      const attempts = user.loginAttempts + 1;
+      const shouldLock = attempts >= MAX_LOGIN_ATTEMPTS;
 
-    await this.db.update(users)
-      .set({
+      await this.d1Db.updateUser(userId, {
         loginAttempts: attempts,
-        lockedUntil: shouldLock ? new Date(Date.now() + LOCKOUT_DURATION) : null
-      })
-      .where(eq(users.id, userId));
+        lockedUntil: shouldLock ? new Date(Date.now() + LOCKOUT_DURATION).toISOString() : null
+      });
+    } else {
+      const [dbUser] = await this.db.select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!dbUser) return;
+      user = dbUser;
+
+      const attempts = user.loginAttempts + 1;
+      const shouldLock = attempts >= MAX_LOGIN_ATTEMPTS;
+
+      await this.db.update(users)
+        .set({
+          loginAttempts: attempts,
+          lockedUntil: shouldLock ? new Date(Date.now() + LOCKOUT_DURATION) : null
+        })
+        .where(eq(users.id, userId));
+    }
   }
 
   private isValidEmail(email: string): boolean {
@@ -744,6 +834,18 @@ export class CloudflareAuthService {
       mfaEnabled: user.mfaEnabled,
       isActive: user.isActive,
       lastLogin: user.lastLogin
+    };
+  }
+
+  private sanitizeD1User(d1User: D1User): SanitizedUser {
+    return {
+      id: d1User.id,
+      email: d1User.email,
+      username: d1User.username,
+      emailVerified: d1User.email_verified === 1,
+      mfaEnabled: d1User.mfa_enabled === 1,
+      isActive: d1User.is_active === 1,
+      lastLogin: d1User.last_login ? new Date(d1User.last_login) : null
     };
   }
 }

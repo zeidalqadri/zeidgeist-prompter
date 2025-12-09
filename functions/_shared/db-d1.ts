@@ -111,6 +111,14 @@ export class D1AuthDatabase {
     return await stmt.first<D1User>();
   }
 
+  async findUserByUsername(username: string): Promise<D1User | null> {
+    const stmt = this.db.prepare(
+      'SELECT * FROM users WHERE username = ? LIMIT 1'
+    ).bind(username.toLowerCase());
+
+    return await stmt.first<D1User>();
+  }
+
   async createUser(user: {
     email: string;
     username?: string;
