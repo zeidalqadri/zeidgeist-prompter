@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const returnTo = searchParams?.get("returnTo") || "/"
 
   // Password strength checks
-  const hasMinLength = password.length >= 8
+  const hasMinLength = password.length >= 12
   const hasUppercase = /[A-Z]/.test(password)
   const hasNumber = /[0-9]/.test(password)
   const passwordsMatch = password === confirmPassword && password.length > 0
@@ -151,7 +151,7 @@ export default function RegisterPage() {
               <div className="mt-2 space-y-1">
                 <div className={`flex items-center text-xs ${hasMinLength ? 'text-green-600' : 'text-gray-500'}`}>
                   <Check size={12} className={`mr-1 ${hasMinLength ? 'opacity-100' : 'opacity-30'}`} />
-                  At least 8 characters
+                  At least 12 characters
                 </div>
                 <div className={`flex items-center text-xs ${hasUppercase ? 'text-green-600' : 'text-gray-500'}`}>
                   <Check size={12} className={`mr-1 ${hasUppercase ? 'opacity-100' : 'opacity-30'}`} />
