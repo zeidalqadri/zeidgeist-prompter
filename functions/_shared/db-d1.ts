@@ -243,6 +243,29 @@ export class D1AuthDatabase {
     ).bind(userId).run();
   }
 
+  async revokeAllUserSessionsExcept(userId: string, exceptSessionId: string): Promise<void> {
+    await this.db.prepare(
+      'UPDATE user_sessions SET is_revoked = 1 WHERE user_id = ? AND id != ?'
+    ).bind(userId, exceptSessionId).run();
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.prepare(
+      'UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?'
+    ).bind(passwordHash, now, userId).run();
+  }
+
+  async listUserSessions(userId: string): Promise<D1Session[]> {
+    const result = await this.db.prepare(
+      `SELECT * FROM user_sessions
+       WHERE user_id = ? AND is_revoked = 0 AND expires_at > datetime('now')
+       ORDER BY last_accessed DESC`
+    ).bind(userId).all<D1Session>();
+
+    return result.results || [];
+  }
+
   async updateSessionLastAccessed(id: string): Promise<void> {
     await this.db.prepare(
       'UPDATE user_sessions SET last_accessed = datetime("now") WHERE id = ?'

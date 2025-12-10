@@ -68,12 +68,36 @@ export async function onRequestPost(context: any): Promise<Response> {
           userAgent
         });
       }
-      
-      return new Response(JSON.stringify({
+
+      // Build response - only include requiresMFA when it's the actual reason
+      // This prevents user enumeration by not revealing MFA status on wrong password
+      const responseBody: {
+        success: boolean;
+        error?: string;
+        requiresMFA?: boolean;
+        isLocked?: boolean;
+        lockoutMinutes?: number;
+      } = {
         success: false,
-        error: result.error,
-        requiresMFA: result.requiresMFA
-      }), {
+        error: result.error
+      };
+
+      // Only include requiresMFA when password was correct and MFA is needed
+      if (result.requiresMFA && result.error === 'MFA code required') {
+        responseBody.requiresMFA = true;
+      }
+
+      // Include lockout info if account is locked (helps UX without security risk)
+      if (result.error && result.error.includes('Account locked')) {
+        responseBody.isLocked = true;
+        // Extract remaining minutes from error message
+        const match = result.error.match(/(\d+) minutes/);
+        if (match) {
+          responseBody.lockoutMinutes = parseInt(match[1], 10);
+        }
+      }
+
+      return new Response(JSON.stringify(responseBody), {
         status: result.requiresMFA ? 200 : 401,
         headers: corsHeaders
       });
@@ -85,6 +109,27 @@ export async function onRequestPost(context: any): Promise<Response> {
       mfaUsed: result.user!.mfaEnabled,
       userId: result.user!.id
     });
+
+    // Cache warming: Pre-populate session cache for faster first authenticated request
+    // Uses waitUntil for non-blocking async cache write
+    if (env.SESSION_STORAGE && result.session && result.user) {
+      const SESSION_CACHE_TTL = 600; // 10 minutes
+      const cacheKey = `session:${result.session.id}:${result.user.id}`;
+      const cachedSession = {
+        userId: result.user.id,
+        user: result.user,
+        expiresAt: Date.now() + (SESSION_CACHE_TTL * 1000),
+        cachedAt: Date.now()
+      };
+
+      context.waitUntil(
+        env.SESSION_STORAGE.put(cacheKey, JSON.stringify(cachedSession), {
+          expirationTtl: SESSION_CACHE_TTL
+        }).catch((err: Error) => {
+          console.warn('Session cache warming failed:', err);
+        })
+      );
+    }
 
     // Success response
     return new Response(JSON.stringify({

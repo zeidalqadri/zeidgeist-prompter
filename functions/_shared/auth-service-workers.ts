@@ -251,14 +251,14 @@ function generateTOTPSecret(): string {
 }
 
 /**
- * Simplified TOTP verification (basic implementation)
+ * TOTP verification with time window tolerance
+ * Checks current time step plus/minus 1 step (90-second total window)
+ * This accommodates slight clock drift on user devices
  */
 async function verifyTOTP(secret: string, token: string): Promise<boolean> {
-  // This is a simplified version - in production, use a proper TOTP library
-  // or implement full TOTP algorithm
   const timeStep = 30;
-  const time = Math.floor(Date.now() / 1000 / timeStep);
-  
+  const currentTime = Math.floor(Date.now() / 1000 / timeStep);
+
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
@@ -267,23 +267,32 @@ async function verifyTOTP(secret: string, token: string): Promise<boolean> {
     false,
     ['sign']
   );
-  
-  const buffer = new ArrayBuffer(8);
-  const view = new DataView(buffer);
-  view.setUint32(4, time, false);
-  
-  const hmac = await crypto.subtle.sign('HMAC', key, buffer);
-  const hmacArray = new Uint8Array(hmac);
-  
-  const offset = hmacArray[hmacArray.length - 1] & 0x0f;
-  const code = (
-    ((hmacArray[offset] & 0x7f) << 24) |
-    ((hmacArray[offset + 1] & 0xff) << 16) |
-    ((hmacArray[offset + 2] & 0xff) << 8) |
-    (hmacArray[offset + 3] & 0xff)
-  ) % 1000000;
-  
-  return code.toString().padStart(6, '0') === token;
+
+  // Check current time step and ±1 window for clock drift tolerance
+  for (const timeOffset of [-1, 0, 1]) {
+    const time = currentTime + timeOffset;
+
+    const buffer = new ArrayBuffer(8);
+    const view = new DataView(buffer);
+    view.setUint32(4, time, false);
+
+    const hmac = await crypto.subtle.sign('HMAC', key, buffer);
+    const hmacArray = new Uint8Array(hmac);
+
+    const offset = hmacArray[hmacArray.length - 1] & 0x0f;
+    const code = (
+      ((hmacArray[offset] & 0x7f) << 24) |
+      ((hmacArray[offset + 1] & 0xff) << 16) |
+      ((hmacArray[offset + 2] & 0xff) << 8) |
+      (hmacArray[offset + 3] & 0xff)
+    ) % 1000000;
+
+    if (code.toString().padStart(6, '0') === token) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // KV Namespace type for session caching
@@ -309,8 +318,9 @@ export class CloudflareAuthService {
   private jwtSecret: string;
   private sessionKV: KVNamespace | null;
 
-  // Session cache TTL (5 minutes - shorter than token expiry for security)
-  private static readonly SESSION_CACHE_TTL = 300;
+  // Session cache TTL (10 minutes - provides good cache hit rate while
+  // session revocation is still checked on each request)
+  private static readonly SESSION_CACHE_TTL = 600;
 
   constructor(env: any) {
     // Try D1 first (preferred for Cloudflare-native edge performance)
@@ -618,7 +628,7 @@ export class CloudflareAuthService {
 
   /**
    * Validate token with KV session caching
-   * Flow: JWT verify → KV cache check → DB fallback → Cache update
+   * Flow: JWT verify → Session revocation check → KV cache check → DB fallback → Cache update
    */
   async validateToken(token: string): Promise<SanitizedUser | null> {
     try {
@@ -628,9 +638,39 @@ export class CloudflareAuthService {
 
       const userId = payload.sub;
       const sessionId = payload.session_id;
+
+      // Step 2: Verify session is not revoked (CRITICAL SECURITY CHECK)
+      if (!sessionId) {
+        console.warn('Token missing session_id claim');
+        return null;
+      }
+
+      // Check session revocation in database
+      if (this.useD1 && this.d1Db) {
+        const session = await this.d1Db.findSessionById(sessionId);
+        if (!session) {
+          console.warn('Session not found in database:', sessionId);
+          return null;
+        }
+        if (session.is_revoked === 1) {
+          console.warn('Session has been revoked:', sessionId);
+          // Invalidate cache if it exists
+          if (this.sessionKV) {
+            const cacheKey = `session:${sessionId}:${userId}`;
+            await this.sessionKV.delete(cacheKey).catch(() => {});
+          }
+          return null;
+        }
+        // Check if session has expired
+        if (new Date(session.expires_at) < new Date()) {
+          console.warn('Session has expired:', sessionId);
+          return null;
+        }
+      }
+
       const cacheKey = `session:${sessionId}:${userId}`;
 
-      // Step 2: Check KV cache first (edge-fast)
+      // Step 3: Check KV cache (edge-fast)
       if (this.sessionKV) {
         try {
           const cached = await this.sessionKV.get<CachedSession>(cacheKey, { type: 'json' });
@@ -644,7 +684,7 @@ export class CloudflareAuthService {
         }
       }
 
-      // Step 3: Cache miss or KV unavailable - query database
+      // Step 4: Cache miss or KV unavailable - query database for user
       let user: any;
       let sanitizedUser: SanitizedUser;
 
@@ -667,7 +707,7 @@ export class CloudflareAuthService {
         sanitizedUser = this.sanitizeUser(user);
       }
 
-      // Step 4: Update KV cache for next request
+      // Step 5: Update KV cache for next request
       if (this.sessionKV && sessionId) {
         try {
           const cachedSession: CachedSession = {
@@ -764,12 +804,13 @@ export class CloudflareAuthService {
         .where(eq(users.id, userId))
         .limit(1);
 
-      if (!user || !user.mfaSecret) {
+      // Fix: Check totpSecret (not mfaSecret) - this is where setupMFA stores the secret
+      if (!user || !user.totpSecret) {
         return false;
       }
 
-      // Verify TOTP code
-      const isValid = await verifyTOTP(user.mfaSecret, totpCode);
+      // Verify TOTP code against the correct field
+      const isValid = await verifyTOTP(user.totpSecret, totpCode);
       if (!isValid) {
         return false;
       }
@@ -783,6 +824,81 @@ export class CloudflareAuthService {
     } catch (error) {
       console.error('MFA enable error:', error);
       return false;
+    }
+  }
+
+  /**
+   * Change password for authenticated user
+   * Verifies current password, updates to new password, and revokes other sessions
+   */
+  async changePassword(
+    userId: string,
+    currentSessionId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Validate new password strength
+      if (newPassword.length < 12) {
+        return {
+          success: false,
+          error: 'New password must be at least 12 characters long'
+        };
+      }
+
+      let user: any;
+
+      // Fetch user
+      if (this.useD1 && this.d1Db) {
+        const d1User = await this.d1Db.findUserById(userId);
+        if (!d1User) {
+          return { success: false, error: 'User not found' };
+        }
+        user = D1AuthDatabase.toAuthUser(d1User);
+      } else {
+        const [dbUser] = await this.db.select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+
+        if (!dbUser) {
+          return { success: false, error: 'User not found' };
+        }
+        user = dbUser;
+      }
+
+      // Verify current password
+      const passwordMatch = await verifyPassword(currentPassword, user.passwordHash);
+      if (!passwordMatch) {
+        return { success: false, error: 'Current password is incorrect' };
+      }
+
+      // Hash new password
+      const newPasswordHash = await hashPassword(newPassword);
+
+      // Update password in database
+      if (this.useD1 && this.d1Db) {
+        await this.d1Db.updateUserPassword(userId, newPasswordHash);
+        // Revoke all sessions except current
+        await this.d1Db.revokeAllUserSessionsExcept(userId, currentSessionId);
+      } else {
+        await this.db.update(users)
+          .set({ passwordHash: newPasswordHash })
+          .where(eq(users.id, userId));
+
+        // Revoke all sessions except current
+        await this.db.update(userSessions)
+          .set({ isRevoked: true })
+          .where(and(
+            eq(userSessions.userId, userId),
+            eq(userSessions.id, currentSessionId) === false
+          ));
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Password change error:', error);
+      return { success: false, error: 'Failed to change password' };
     }
   }
 
