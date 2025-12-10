@@ -25,18 +25,23 @@ binding = "AUTH_DB"
 database_name = "zeidgeist-auth"
 database_id = "2ceef6e7-9ba6-48a4-a1ec-214d2c54f5d2"  # Update after running: wrangler d1 create zeidgeist-auth
 
-# Durable Objects for rate limiting
-# NOTE: Durable Objects require a separate Worker deployment
-# The RateLimiterDO class is in functions/_shared/rate-limiter-durable-object.ts
-# To use: Deploy as separate worker and reference via service binding
-# For now, rate limiting uses KV (functions/_shared/rate-limiter.ts)
-# [[durable_objects.bindings]]
-# name = "RATE_LIMITER"
-# class_name = "RateLimiterDO"
+# Durable Objects for Rate Limiting
+# NOTE: Durable Objects require a separate Worker deployment for Pages
 #
-# [[migrations]]
-# tag = "v1"
-# new_classes = ["RateLimiterDO"]
+# Current Setup (works now):
+# - Uses KV-based rate limiting via rate-limiter.ts
+# - HybridRateLimiter in rate-limiter-hybrid.ts provides unified interface
+#
+# Future Setup (for strong consistency):
+# 1. Create separate Worker with RateLimiterDO class
+# 2. Deploy: wrangler deploy -c wrangler.workers.toml
+# 3. Add service binding below
+# 4. HybridRateLimiter will automatically prefer DO over KV
+#
+# [[services]]
+# binding = "RATE_LIMITER_SERVICE"
+# service = "rate-limiter-worker"
+# environment = "production"
 
 # Note: Scheduled triggers (cron) are not supported for Pages
 # Cache warming can be triggered manually via /api/scheduled/cache-warmer endpoint
