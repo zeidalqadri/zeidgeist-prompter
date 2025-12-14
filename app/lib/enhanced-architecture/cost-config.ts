@@ -32,14 +32,36 @@ export interface CostPreset {
 }
 
 /**
+ * Default lambda value for cost optimization
+ * Research shows λ=0.007 provides optimal balance between quality and cost
+ */
+const DEFAULT_LAMBDA = 0.007;
+
+/**
  * Default configuration - balanced quality and cost
+ * Note: Uses static defaults for Cloudflare Workers compatibility
+ * (process.env is not available in Workers runtime)
  */
 export const DEFAULT_COST_CONFIG: CostOptimizationConfig = {
-  lambda: parseFloat(process.env.DEFAULT_LAMBDA || '0.007'),
+  lambda: DEFAULT_LAMBDA,
   enablePostProcessing: true,
   minQualityThreshold: 0.7,
   maxCompressionRatio: 0.5
 };
+
+/**
+ * Create cost config from runtime environment
+ * Use this in Cloudflare Workers to read from env object
+ */
+export function createCostConfigFromEnv(env?: Record<string, string | undefined>): CostOptimizationConfig {
+  const lambdaEnv = env?.DEFAULT_LAMBDA;
+  return {
+    lambda: lambdaEnv ? parseFloat(lambdaEnv) : DEFAULT_LAMBDA,
+    enablePostProcessing: true,
+    minQualityThreshold: 0.7,
+    maxCompressionRatio: 0.5
+  };
+}
 
 /**
  * Cost optimization presets for different use cases
