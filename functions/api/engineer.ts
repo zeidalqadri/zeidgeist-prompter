@@ -3,6 +3,7 @@ import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer-refactored"
 import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
 import { LLMCacheManager } from "../_shared/cache-manager"
+import { validateLambda, DEFAULT_COST_CONFIG } from "../../app/lib/enhanced-architecture/cost-config"
 
 // Define proper Cloudflare context types
 interface CloudflareContext {
@@ -67,8 +68,17 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
     const body = await request.json() as any
     console.log('JSON parsed successfully')
     
-    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount } = body
-    console.log('Request data extracted:', { hasPrompt: !!prompt })
+    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount, lambda } = body
+    console.log('Request data extracted:', { hasPrompt: !!prompt, lambda })
+
+    // Build cost optimization config from request
+    const effectiveLambda = typeof lambda === 'number' ? validateLambda(lambda) : DEFAULT_COST_CONFIG.lambda
+    const costConfig = {
+      lambda: effectiveLambda,
+      enablePostProcessing: effectiveLambda > 0,
+      minQualityThreshold: DEFAULT_COST_CONFIG.minQualityThreshold,
+      maxCompressionRatio: DEFAULT_COST_CONFIG.maxCompressionRatio
+    }
 
     // Enhanced input validation
     if (!prompt || typeof prompt !== 'string') {
@@ -308,14 +318,22 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         console.error("Failed to log enhancement:", logError)
       }
 
-      return new Response(JSON.stringify({ 
+      // Extract cost metrics if available
+      const responseMetadata = enhancementResponse.metadata as any
+      const costMetrics = responseMetadata?.costMetrics
+
+      return new Response(JSON.stringify({
         result: enhancementResponse.enhancedPrompt,
         metadata: {
           source: enhancementResponse.source,
           processingTime,
           originalLength: trimmedPrompt.length,
           enhancedLength: enhancementResponse.enhancedPrompt.length,
-          // Debug information removed for security
+          // Cost optimization metrics
+          costMetrics: costMetrics || {
+            lambdaUsed: effectiveLambda,
+            compressionApplied: false
+          }
         }
       }), {
         headers: corsHeaders

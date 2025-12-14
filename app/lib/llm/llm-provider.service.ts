@@ -28,7 +28,18 @@ import {
   moonshotModels,
   geminiModels
 } from './llm-config';
-import { analyzePrompt, selectModelTier } from './prompt-analyzer';
+import {
+  analyzePrompt,
+  selectModelTier,
+  analyzePromptWithStrategy,
+  selectModelTierWithStrategy
+} from './prompt-analyzer';
+import { ReasoningStrategy } from './reasoning-strategy';
+import {
+  getStrategySystemPrompt,
+  getStrategyPromptContent,
+  parseStrategyResponse
+} from '../../../prompts/strategy-system-prompts';
 import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
 import { RetryPolicy } from '../resilience/retry-policy';
 import type { EnhancedCircuitBreaker } from '../resilience/circuit-breaker';
@@ -177,6 +188,64 @@ You MUST:
     messages.push({ role: 'user', content: userMessage });
 
     return messages;
+  }
+
+  /**
+   * Build messages with strategy-aware system prompt
+   *
+   * Uses the detected reasoning strategy to select appropriate prompts
+   * (Phase 2: Automatic Module Selection)
+   */
+  buildMessagesWithStrategy(
+    request: EnhancementRequest,
+    strategy: ReasoningStrategy
+  ): ChatMessage[] {
+    const { prompt, context, isRefinement = false } = request;
+
+    // Get strategy-specific system prompt
+    const strategyPrompt = getStrategyPromptContent(strategy);
+
+    // Add refinement instructions if needed
+    const refinementAddition = isRefinement ? `
+
+IMPORTANT: This is an iterative refinement. The prompt has already been refined once.
+Build upon the previous enhancement with substantial improvements.` : '';
+
+    const systemPrompt = strategyPrompt + refinementAddition;
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt }
+    ];
+
+    // Add fewer examples for strategy prompts (they're already more detailed)
+    const examples = trainingExamples.slice(0, 2);
+    for (const example of examples) {
+      messages.push({
+        role: 'user',
+        content: example.context
+          ? `Prompt: ${example.rawPrompt}\nContext: ${example.context}`
+          : `Prompt: ${example.rawPrompt}`
+      });
+      messages.push({ role: 'assistant', content: example.enhancedPrompt });
+    }
+
+    // Add actual prompt to enhance
+    const userMessage = context
+      ? `Prompt: ${prompt}\nContext: ${context}`
+      : `Prompt: ${prompt}`;
+
+    messages.push({ role: 'user', content: userMessage });
+
+    return messages;
+  }
+
+  /**
+   * Parse response based on strategy
+   *
+   * Extracts the final enhanced prompt from strategy-formatted responses
+   */
+  protected parseStrategyResponse(response: string, strategy: ReasoningStrategy): string {
+    return parseStrategyResponse(response, strategy);
   }
 
   /**
