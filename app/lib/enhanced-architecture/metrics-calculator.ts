@@ -1,7 +1,12 @@
 /**
  * Advanced quality metrics calculator for prompt evaluation
  * Provides objective measurements for prompt quality and enhancement effectiveness
+ *
+ * Extended with cost-aware optimization (Promptomatix-style lambda scoring)
  */
+
+import { estimateTokens } from './token-counter';
+import { CostOptimizationConfig, DEFAULT_COST_CONFIG } from './cost-config';
 
 export interface QualityMetrics {
   clarity: number;
@@ -27,6 +32,53 @@ export interface ComparisonMetrics {
   strengthsGained: string[];
   weaknessesRemaining: string[];
   recommendations: string[];
+}
+
+/**
+ * Cost-aware metrics extending quality metrics with token/cost information
+ * Uses Promptomatix-style optimization: Score = Quality - (λ × TokenCount/1000)
+ */
+export interface CostAwareMetrics extends QualityMetrics {
+  /** Estimated token count */
+  tokenCount: number;
+
+  /** Optimization score factoring in lambda penalty */
+  optimizationScore: number;
+
+  /** Quality per token ratio (efficiency metric) */
+  lengthEfficiency: number;
+
+  /** Cost estimates */
+  costEstimate: {
+    inputTokens: number;
+    estimatedCost: number; // USD estimate
+  };
+
+  /** Lambda value used for calculation */
+  lambdaUsed: number;
+}
+
+/**
+ * Result of cost-aware comparison between original and optimized prompts
+ */
+export interface CostComparisonMetrics extends ComparisonMetrics {
+  /** Token savings information */
+  tokenSavings: {
+    originalTokens: number;
+    optimizedTokens: number;
+    tokensSaved: number;
+    percentageSaved: number;
+  };
+
+  /** Cost savings */
+  costSavings: {
+    originalCost: number;
+    optimizedCost: number;
+    costSaved: number;
+  };
+
+  /** Whether optimization maintained quality threshold */
+  qualityMaintained: boolean;
 }
 
 export class MetricsCalculator {
@@ -326,7 +378,7 @@ export class MetricsCalculator {
 
   private generateRecommendations(metrics: QualityMetrics): string[] {
     const recommendations: string[] = [];
-    
+
     if (metrics.clarity < 0.8) {
       recommendations.push('Break down complex sentences and add clear structure');
     }
@@ -344,5 +396,171 @@ export class MetricsCalculator {
     }
 
     return recommendations;
+  }
+
+  // ============================================
+  // COST-AWARE OPTIMIZATION METHODS
+  // ============================================
+
+  /** Average cost per 1K tokens (rough estimate across providers) */
+  private static readonly AVG_COST_PER_1K_TOKENS = 0.002;
+
+  /**
+   * Calculate cost-aware metrics incorporating lambda penalty
+   *
+   * Optimization objective (Promptomatix formula):
+   * Score = Quality - (λ × TokenCount / 1000)
+   *
+   * @param prompt - The prompt text to analyze
+   * @param lambda - Lambda value (0.0 to 0.02). Higher = more length penalty
+   * @returns Cost-aware metrics including optimization score
+   */
+  calculateCostAwareMetrics(
+    prompt: string,
+    lambda: number = DEFAULT_COST_CONFIG.lambda
+  ): CostAwareMetrics {
+    // Get base quality metrics
+    const baseMetrics = this.calculateMetrics(prompt);
+
+    // Estimate token count
+    const tokenCount = estimateTokens(prompt);
+
+    // Calculate optimization score with lambda penalty
+    // Normalize token count to thousands for reasonable scale
+    const lengthPenalty = lambda * (tokenCount / 1000);
+    const optimizationScore = Math.max(0, baseMetrics.overall - lengthPenalty);
+
+    // Calculate efficiency (quality per token)
+    const lengthEfficiency = tokenCount > 0
+      ? baseMetrics.overall / tokenCount
+      : 0;
+
+    // Estimate cost
+    const estimatedCost = (tokenCount / 1000) * MetricsCalculator.AVG_COST_PER_1K_TOKENS;
+
+    return {
+      ...baseMetrics,
+      tokenCount,
+      optimizationScore,
+      lengthEfficiency,
+      costEstimate: {
+        inputTokens: tokenCount,
+        estimatedCost
+      },
+      lambdaUsed: lambda
+    };
+  }
+
+  /**
+   * Compare original and optimized prompts with cost analysis
+   *
+   * @param original - Original prompt
+   * @param optimized - Optimized/compressed prompt
+   * @param config - Cost optimization configuration
+   * @returns Comparison metrics with token and cost savings
+   */
+  compareCostAware(
+    original: string,
+    optimized: string,
+    config: CostOptimizationConfig = DEFAULT_COST_CONFIG
+  ): CostComparisonMetrics {
+    // Get base comparison
+    const baseComparison = this.comparePrompts(original, optimized);
+
+    // Calculate token metrics
+    const originalTokens = estimateTokens(original);
+    const optimizedTokens = estimateTokens(optimized);
+    const tokensSaved = originalTokens - optimizedTokens;
+    const percentageSaved = originalTokens > 0
+      ? (tokensSaved / originalTokens) * 100
+      : 0;
+
+    // Calculate cost metrics
+    const originalCost = (originalTokens / 1000) * MetricsCalculator.AVG_COST_PER_1K_TOKENS;
+    const optimizedCost = (optimizedTokens / 1000) * MetricsCalculator.AVG_COST_PER_1K_TOKENS;
+    const costSaved = originalCost - optimizedCost;
+
+    // Check if quality threshold is maintained
+    const optimizedMetrics = this.calculateMetrics(optimized);
+    const qualityMaintained = optimizedMetrics.overall >= config.minQualityThreshold;
+
+    return {
+      ...baseComparison,
+      tokenSavings: {
+        originalTokens,
+        optimizedTokens,
+        tokensSaved,
+        percentageSaved: Math.round(percentageSaved * 10) / 10
+      },
+      costSavings: {
+        originalCost,
+        optimizedCost,
+        costSaved
+      },
+      qualityMaintained
+    };
+  }
+
+  /**
+   * Determine if optimization is worthwhile based on config
+   *
+   * @param original - Original prompt
+   * @param optimized - Optimized prompt
+   * @param config - Cost optimization configuration
+   * @returns Whether to use the optimized version
+   */
+  shouldUseOptimized(
+    original: string,
+    optimized: string,
+    config: CostOptimizationConfig = DEFAULT_COST_CONFIG
+  ): {
+    useOptimized: boolean;
+    reason: string;
+    metrics: CostComparisonMetrics;
+  } {
+    const comparison = this.compareCostAware(original, optimized, config);
+
+    // Check quality threshold
+    if (!comparison.qualityMaintained) {
+      return {
+        useOptimized: false,
+        reason: `Quality dropped below threshold (${config.minQualityThreshold})`,
+        metrics: comparison
+      };
+    }
+
+    // Check if optimization actually reduced length
+    if (comparison.tokenSavings.tokensSaved <= 0) {
+      return {
+        useOptimized: false,
+        reason: 'No token savings achieved',
+        metrics: comparison
+      };
+    }
+
+    // Check compression ratio limit
+    const compressionRatio = comparison.tokenSavings.percentageSaved / 100;
+    if (compressionRatio > config.maxCompressionRatio) {
+      return {
+        useOptimized: false,
+        reason: `Compression exceeded max ratio (${config.maxCompressionRatio * 100}%)`,
+        metrics: comparison
+      };
+    }
+
+    // Lambda = 0 means no optimization desired
+    if (config.lambda === 0) {
+      return {
+        useOptimized: false,
+        reason: 'Lambda is 0 (max quality mode)',
+        metrics: comparison
+      };
+    }
+
+    return {
+      useOptimized: true,
+      reason: `Saved ${comparison.tokenSavings.tokensSaved} tokens (${comparison.tokenSavings.percentageSaved}%) while maintaining quality`,
+      metrics: comparison
+    };
   }
 }

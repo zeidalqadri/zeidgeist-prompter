@@ -4,8 +4,13 @@
  * Analyzes prompt complexity, patterns, and characteristics to enable
  * intelligent model selection across all LLM providers.
  *
+ * Extended with reasoning strategy detection (Phase 2: Automatic Module Selection)
+ *
  * Ported from legacy system and enhanced for multi-provider support.
  */
+
+import { ReasoningStrategy, StrategyDetectionResult } from './reasoning-strategy';
+import { detectStrategy, StrategyDetector } from './strategy-detector';
 
 export type PromptComplexity = 'simple' | 'moderate' | 'complex';
 
@@ -15,6 +20,20 @@ export interface PromptAnalysis {
   hasComplexPatterns: boolean;
   estimatedTokens: number;
   taskType?: string;
+}
+
+/**
+ * Extended analysis including reasoning strategy
+ */
+export interface PromptAnalysisWithStrategy extends PromptAnalysis {
+  /** Detected reasoning strategy */
+  strategy: ReasoningStrategy;
+
+  /** Strategy detection confidence */
+  strategyConfidence: number;
+
+  /** Full strategy detection result */
+  strategyDetection: StrategyDetectionResult;
 }
 
 /**
@@ -145,4 +164,114 @@ export function selectModelTier(
 
   // Use large models for complex tasks or long content
   return 'large';
+}
+
+// ============================================
+// STRATEGY-AWARE ANALYSIS (Phase 2)
+// ============================================
+
+/**
+ * Analyze prompt with reasoning strategy detection
+ *
+ * Extends basic analysis with automatic module selection
+ */
+export function analyzePromptWithStrategy(
+  prompt: string,
+  context?: string
+): PromptAnalysisWithStrategy {
+  // Get base analysis
+  const baseAnalysis = analyzePrompt(prompt, context);
+
+  // Detect reasoning strategy
+  const strategyDetection = detectStrategy(prompt, context);
+
+  return {
+    ...baseAnalysis,
+    strategy: strategyDetection.strategy,
+    strategyConfidence: strategyDetection.confidence,
+    strategyDetection
+  };
+}
+
+/**
+ * Get recommended strategy based on task type and complexity
+ *
+ * Maps task types to appropriate reasoning strategies
+ */
+export function getRecommendedStrategy(
+  taskType: string,
+  complexity: PromptComplexity
+): ReasoningStrategy {
+  // Task type to strategy mapping
+  const taskStrategyMap: Record<string, ReasoningStrategy> = {
+    // PoT strategies
+    'technical': complexity === 'complex' ? 'pot' : 'cot',
+    'calculation': 'pot',
+
+    // CoT strategies
+    'analysis': 'cot',
+    'evaluation': 'cot',
+    'comparison': 'cot',
+
+    // ReAct strategies
+    'research': 'react',
+    'verification': 'react',
+
+    // Default to predict or CoT based on complexity
+    'classification': 'predict',
+    'summarization': complexity === 'simple' ? 'predict' : 'cot',
+    'creative': complexity === 'complex' ? 'cot' : 'predict',
+    'general': complexity === 'complex' ? 'cot' : 'predict'
+  };
+
+  return taskStrategyMap[taskType] || (complexity === 'simple' ? 'predict' : 'cot');
+}
+
+/**
+ * Select model tier considering both complexity and strategy
+ *
+ * Some strategies benefit from larger models
+ */
+export function selectModelTierWithStrategy(
+  complexity: PromptComplexity,
+  totalLength: number,
+  strategy: ReasoningStrategy,
+  lengthThresholds = { simple: 500, moderate: 2000 }
+): 'small' | 'medium' | 'large' {
+  // Get base tier
+  let tier = selectModelTier(complexity, totalLength, lengthThresholds);
+
+  // Upgrade tier for complex reasoning strategies
+  if (strategy === 'pot' || strategy === 'react') {
+    // These strategies benefit from larger models
+    if (tier === 'small') tier = 'medium';
+  }
+
+  if (strategy === 'cot' && complexity === 'complex') {
+    // Complex CoT needs larger models
+    tier = 'large';
+  }
+
+  return tier;
+}
+
+/**
+ * Quick strategy detection for simple use cases
+ */
+export function quickDetectStrategy(prompt: string): ReasoningStrategy {
+  return detectStrategy(prompt).strategy;
+}
+
+/**
+ * Check if a prompt would benefit from explicit reasoning steps
+ */
+export function shouldShowReasoningSteps(
+  strategy: ReasoningStrategy,
+  confidence: number
+): boolean {
+  // Predict strategy never shows steps
+  if (strategy === 'predict') return false;
+
+  // Other strategies show steps if confidence is high enough
+  return confidence >= 0.5;
 }

@@ -558,7 +558,7 @@ export function selectPrompt(
   if (domain && DOMAIN_SPECIFIC_PROMPTS[domain]) {
     return DOMAIN_SPECIFIC_PROMPTS[domain];
   }
-  
+
   switch (task) {
     case 'enhance':
       return CHAIN_OF_THOUGHT_ENHANCEMENT_PROMPT;
@@ -571,6 +571,124 @@ export function selectPrompt(
     default:
       return CHAIN_OF_THOUGHT_ENHANCEMENT_PROMPT;
   }
+}
+
+// ============================================
+// STRATEGY-AWARE PROMPT SELECTION (Phase 2)
+// ============================================
+
+import type { ReasoningStrategy } from '../app/lib/llm/reasoning-strategy';
+import { STRATEGY_SYSTEM_PROMPTS, StrategySystemPrompt } from './strategy-system-prompts';
+
+/**
+ * Extended prompt selection with strategy awareness
+ *
+ * Combines task type, domain, and reasoning strategy for optimal prompt selection
+ */
+export function selectPromptWithStrategy(
+  task: 'enhance' | 'refine' | 'validate' | 'metrics',
+  options?: {
+    domain?: 'technical' | 'business' | 'creative' | 'academic';
+    strategy?: ReasoningStrategy;
+  }
+): SystemPrompt | StrategySystemPrompt {
+  const { domain, strategy } = options || {};
+
+  // If strategy is specified, use strategy-specific prompt for enhancement
+  if (strategy && task === 'enhance') {
+    const strategyPrompt = STRATEGY_SYSTEM_PROMPTS[strategy];
+    if (strategyPrompt) {
+      return strategyPrompt;
+    }
+  }
+
+  // Fall back to existing selection logic
+  return selectPrompt(task, domain);
+}
+
+/**
+ * Get the best prompt based on prompt analysis
+ *
+ * Analyzes the prompt and selects the most appropriate system prompt
+ */
+export async function selectPromptAuto(
+  prompt: string,
+  context?: string,
+  options?: {
+    task?: 'enhance' | 'refine' | 'validate' | 'metrics';
+    preferStrategy?: boolean;
+  }
+): Promise<SystemPrompt | StrategySystemPrompt> {
+  const { task = 'enhance', preferStrategy = true } = options || {};
+
+  // Import analyzer to avoid circular dependencies
+  const { analyzePromptWithStrategy } = await import('../app/lib/llm/prompt-analyzer');
+
+  // Analyze prompt to detect strategy
+  const analysis = analyzePromptWithStrategy(prompt, context);
+
+  // If strategy detection is confident and preferred, use strategy prompt
+  if (preferStrategy && analysis.strategyConfidence >= 0.5 && task === 'enhance') {
+    return STRATEGY_SYSTEM_PROMPTS[analysis.strategy];
+  }
+
+  // Map task type to domain for better prompt selection
+  const domainMap: Record<string, 'technical' | 'business' | 'creative' | 'academic' | undefined> = {
+    'technical': 'technical',
+    'analysis': 'business',
+    'evaluation': 'business',
+    'creative': 'creative',
+    'classification': undefined,
+    'summarization': undefined,
+    'general': undefined
+  };
+
+  const domain = analysis.taskType ? domainMap[analysis.taskType] : undefined;
+
+  return selectPrompt(task, domain);
+}
+
+/**
+ * Get strategy-specific prompt content with domain overlay
+ */
+export function getEnhancedStrategyPrompt(
+  strategy: ReasoningStrategy,
+  domain?: 'technical' | 'business' | 'creative' | 'academic'
+): string {
+  const basePrompt = STRATEGY_SYSTEM_PROMPTS[strategy]?.content || '';
+
+  if (!domain) {
+    return basePrompt;
+  }
+
+  // Add domain-specific additions
+  const domainAdditions: Record<string, string> = {
+    technical: `
+## Technical Focus
+- Include technical specifications
+- Consider architecture and performance
+- Add code examples where helpful`,
+
+    business: `
+## Business Focus
+- Consider ROI and business impact
+- Include stakeholder perspectives
+- Add measurable KPIs`,
+
+    creative: `
+## Creative Focus
+- Allow for creative interpretation
+- Include style and tone guidance
+- Consider audience engagement`,
+
+    academic: `
+## Academic Focus
+- Maintain scholarly rigor
+- Include methodology considerations
+- Reference relevant frameworks`
+  };
+
+  return basePrompt + (domainAdditions[domain] || '');
 }
 
 /**
