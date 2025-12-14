@@ -202,6 +202,16 @@ interface EngineerResponse {
     source?: string;
     model?: string;
     processingTime?: number;
+    costMetrics?: {
+      originalTokens: number;
+      optimizedTokens: number;
+      tokensSaved: number;
+      percentageSaved: number;
+      qualityScore: number;
+      optimizationScore: number;
+      compressionApplied: boolean;
+      lambdaUsed: number;
+    };
   };
 }
 
@@ -226,6 +236,15 @@ interface PromptState {
   hasRefinedPrompt: boolean;
   enhancementSource: string | null;
   enhancementTime: number | null;
+  costMetrics: {
+    originalTokens: number;
+    optimizedTokens: number;
+    tokensSaved: number;
+    percentageSaved: number;
+    qualityScore: number;
+    compressionApplied: boolean;
+    lambdaUsed: number;
+  } | null;
 }
 
 type PromptAction =
@@ -245,6 +264,7 @@ type PromptAction =
   | { type: 'TOGGLE_EXPAND_ITEM'; payload: number }
   | { type: 'SET_HAS_REFINED_PROMPT'; payload: boolean }
   | { type: 'SET_ENHANCEMENT_METADATA'; payload: { source: string | null; time: number | null } }
+  | { type: 'SET_COST_METRICS'; payload: PromptState['costMetrics'] }
   | { type: 'CLEAR_ALL' }
   | { type: 'RESET_FORM' };
 
@@ -265,6 +285,7 @@ const initialState: PromptState = {
   hasRefinedPrompt: false,
   enhancementSource: null,
   enhancementTime: null,
+  costMetrics: null,
 };
 
 function promptReducer(state: PromptState, action: PromptAction): PromptState {
@@ -311,11 +332,13 @@ function promptReducer(state: PromptState, action: PromptAction): PromptState {
     case 'SET_HAS_REFINED_PROMPT':
       return { ...state, hasRefinedPrompt: action.payload };
     case 'SET_ENHANCEMENT_METADATA':
-      return { 
-        ...state, 
+      return {
+        ...state,
         enhancementSource: action.payload.source,
         enhancementTime: action.payload.time
       };
+    case 'SET_COST_METRICS':
+      return { ...state, costMetrics: action.payload };
     case 'CLEAR_ALL':
       return {
         ...state,
@@ -336,7 +359,8 @@ function promptReducer(state: PromptState, action: PromptAction): PromptState {
         showFeedback: false,
         error: null,
         enhancementSource: null,
-        enhancementTime: null
+        enhancementTime: null,
+        costMetrics: null
       };
     default:
       return state;
@@ -630,14 +654,22 @@ export default function PromptEngineer() {
           const source = data.metadata.source || null;
           const processingTime = data.metadata.processingTime || null;
           
-          dispatch({ 
-            type: 'SET_ENHANCEMENT_METADATA', 
-            payload: { 
-              source: source, 
-              time: processingTime 
-            } 
+          dispatch({
+            type: 'SET_ENHANCEMENT_METADATA',
+            payload: {
+              source: source,
+              time: processingTime
+            }
           });
-          
+
+          // Set cost metrics if available
+          if (data.metadata.costMetrics) {
+            dispatch({
+              type: 'SET_COST_METRICS',
+              payload: data.metadata.costMetrics
+            });
+          }
+
           // Track LLM usage for /tweak page analytics
           if (source) {
             LLMUsageTracker.trackUsage(source, processingTime || undefined);
@@ -959,8 +991,8 @@ export default function PromptEngineer() {
               <div className="bg-gray-50 p-3 rounded border border-gray-300 text-sm text-black whitespace-pre-wrap font-medium">{state.result}</div>
               
               {/* Enhancement metadata display */}
-              {(state.enhancementSource || state.enhancementTime !== null) && (
-                <div className="mt-2 flex items-center gap-4 text-xs text-black">
+              {(state.enhancementSource || state.enhancementTime !== null || state.costMetrics) && (
+                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-black">
                   {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
@@ -972,6 +1004,29 @@ export default function PromptEngineer() {
                       <Clock size={12} />
                       <span>{state.enhancementTime}ms</span>
                     </div>
+                  )}
+                  {/* Cost optimization metrics */}
+                  {state.costMetrics && (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">Tokens:</span>
+                        <span>{state.costMetrics.optimizedTokens}</span>
+                        {state.costMetrics.compressionApplied && state.costMetrics.tokensSaved > 0 && (
+                          <span className="text-green-600">
+                            (-{state.costMetrics.tokensSaved} saved, {state.costMetrics.percentageSaved}%)
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">Quality:</span>
+                        <span>{Math.round(state.costMetrics.qualityScore * 100)}%</span>
+                      </div>
+                      {state.costMetrics.lambdaUsed > 0 && (
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <span>λ={state.costMetrics.lambdaUsed.toFixed(3)}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -1069,8 +1124,8 @@ export default function PromptEngineer() {
               </div>
               
               {/* Enhancement metadata display for context refinement */}
-              {(state.enhancementSource || state.enhancementTime !== null) && (
-                <div className="mt-2 flex items-center gap-4 text-xs text-black">
+              {(state.enhancementSource || state.enhancementTime !== null || state.costMetrics) && (
+                <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-black">
                   {state.enhancementSource && (
                     <div className="flex items-center gap-1">
                       <Zap size={12} />
@@ -1081,6 +1136,12 @@ export default function PromptEngineer() {
                     <div className="flex items-center gap-1">
                       <Clock size={12} />
                       <span>{state.enhancementTime}ms</span>
+                    </div>
+                  )}
+                  {/* Cost optimization metrics */}
+                  {state.costMetrics && state.costMetrics.compressionApplied && (
+                    <div className="flex items-center gap-1 text-green-600">
+                      <span>Optimized: -{state.costMetrics.tokensSaved} tokens ({state.costMetrics.percentageSaved}%)</span>
                     </div>
                   )}
                 </div>

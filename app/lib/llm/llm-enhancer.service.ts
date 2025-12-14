@@ -2,14 +2,17 @@
  * LLM Enhancer Service
  *
  * High-level orchestration service for prompt enhancement
- * Integrates safety validation, context optimization, and provider management
+ * Integrates safety validation, context optimization, provider management,
+ * and cost-aware optimization.
  */
 
 import { LLMProviderFactory } from './llm-provider.service';
-import { EnhancementRequest, EnhancementResponse } from './types';
+import { EnhancementRequest, EnhancementResponse, CostMetrics } from './types';
 import { SafetyValidator } from '../enhanced-architecture/safety-validator';
 import { AdvancedContextManager } from '../enhanced-architecture/context-manager';
 import { MetricsCalculator } from '../enhanced-architecture/metrics-calculator';
+import { CostAwareOptimizer, OptimizationResult } from '../enhanced-architecture/cost-optimizer';
+import { CostOptimizationConfig, DEFAULT_COST_CONFIG, createCostConfig } from '../enhanced-architecture/cost-config';
 import { AdaptiveEnhancer } from '../learning/adaptive-enhancer';
 import { withDatabase } from '../db';
 import { enhancementLogs } from '../db/schema';
@@ -22,23 +25,33 @@ export class LLMEnhancerService {
   private contextManager: AdvancedContextManager;
   private metricsCalculator: MetricsCalculator;
   private adaptiveEnhancer: AdaptiveEnhancer;
+  private costOptimizer: CostAwareOptimizer;
 
   constructor() {
     this.safetyValidator = new SafetyValidator();
     this.contextManager = new AdvancedContextManager();
     this.metricsCalculator = new MetricsCalculator();
     this.adaptiveEnhancer = new AdaptiveEnhancer();
+    this.costOptimizer = new CostAwareOptimizer();
   }
 
   /**
-   * Main enhancement method
+   * Main enhancement method with cost-aware optimization
+   *
+   * @param rawPrompt - The raw prompt to enhance
+   * @param context - Optional context
+   * @param isRefinement - Whether this is a refinement of an existing prompt
+   * @param env - Environment variables (Cloudflare Workers)
+   * @param costConfig - Optional cost optimization configuration
+   * @returns Enhanced prompt and metadata
    */
   async enhance(
     rawPrompt: string,
     context: string = '',
     isRefinement: boolean = false,
-    env?: any
-  ): Promise<string> {
+    env?: any,
+    costConfig?: Partial<CostOptimizationConfig>
+  ): Promise<{ enhancedPrompt: string; costMetrics?: CostMetrics }> {
     const log = createLogger({ operation: 'enhance_prompt' });
     const startTime = Date.now();
 
@@ -53,9 +66,12 @@ export class LLMEnhancerService {
       });
     }
 
+    // Build effective cost config
+    const effectiveCostConfig = createCostConfig(costConfig || {});
+
     // Validate input
     if (!rawPrompt || rawPrompt.trim() === '') {
-      return '';
+      return { enhancedPrompt: '' };
     }
 
     let promptString = String(rawPrompt).trim();
@@ -113,12 +129,34 @@ export class LLMEnhancerService {
       recordLatency('prompt_enhancement', duration, { source: 'learned_pattern' });
       recordLLMRequest('local', 'learned_pattern', duration, true);
 
+      // Apply cost optimization to learned pattern result
+      const optimizationResult = await this.costOptimizer.optimize(
+        adaptiveResult.enhanced,
+        effectiveCostConfig
+      );
+
+      const finalPrompt = optimizationResult.compressionApplied
+        ? optimizationResult.optimizedPrompt
+        : adaptiveResult.enhanced;
+
       // Store successful enhancement
       if (env) {
-        await this.storeEnhancement(env, promptString, processedContext, adaptiveResult.enhanced, 'local');
+        await this.storeEnhancement(env, promptString, processedContext, finalPrompt, 'local');
       }
 
-      return adaptiveResult.enhanced;
+      return {
+        enhancedPrompt: finalPrompt,
+        costMetrics: {
+          originalTokens: optimizationResult.originalMetrics.tokenCount,
+          optimizedTokens: optimizationResult.optimizedMetrics.tokenCount,
+          tokensSaved: optimizationResult.tokensSaved,
+          percentageSaved: optimizationResult.percentageSaved,
+          qualityScore: optimizationResult.optimizedMetrics.overall,
+          optimizationScore: optimizationResult.optimizedMetrics.optimizationScore,
+          compressionApplied: optimizationResult.compressionApplied,
+          lambdaUsed: effectiveCostConfig.lambda
+        }
+      };
     }
 
     // Step 4: Use external provider with fallback chain
@@ -160,19 +198,48 @@ export class LLMEnhancerService {
         true
       );
 
+      // Step 5: Apply cost-aware optimization to enhanced prompt
+      const optimizationResult = await this.costOptimizer.optimize(
+        response.enhancedPrompt,
+        effectiveCostConfig
+      );
+
+      const finalPrompt = optimizationResult.compressionApplied
+        ? optimizationResult.optimizedPrompt
+        : response.enhancedPrompt;
+
+      log.info('Cost optimization applied', {
+        compressionApplied: optimizationResult.compressionApplied,
+        tokensSaved: optimizationResult.tokensSaved,
+        percentageSaved: optimizationResult.percentageSaved,
+        lambda: effectiveCostConfig.lambda
+      });
+
       // Store enhancement for learning
       if (env) {
         await this.storeEnhancement(
           env,
           promptString,
           processedContext,
-          response.enhancedPrompt,
+          finalPrompt,
           response.source,
           response.metadata?.processingTime
         );
       }
 
-      return response.enhancedPrompt;
+      return {
+        enhancedPrompt: finalPrompt,
+        costMetrics: {
+          originalTokens: optimizationResult.originalMetrics.tokenCount,
+          optimizedTokens: optimizationResult.optimizedMetrics.tokenCount,
+          tokensSaved: optimizationResult.tokensSaved,
+          percentageSaved: optimizationResult.percentageSaved,
+          qualityScore: optimizationResult.optimizedMetrics.overall,
+          optimizationScore: optimizationResult.optimizedMetrics.optimizationScore,
+          compressionApplied: optimizationResult.compressionApplied,
+          lambdaUsed: effectiveCostConfig.lambda
+        }
+      };
     } catch (error) {
       const duration = Date.now() - startTime;
       log.error('All providers failed', error as Error, { duration });
@@ -180,7 +247,8 @@ export class LLMEnhancerService {
       recordLatency('prompt_enhancement', duration, { source: 'failed' });
 
       // Last resort: return generic enhancement
-      return this.generateGenericEnhancement(promptString);
+      const genericEnhancement = this.generateGenericEnhancement(promptString);
+      return { enhancedPrompt: genericEnhancement };
     }
   }
 

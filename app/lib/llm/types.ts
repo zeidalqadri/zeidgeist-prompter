@@ -4,6 +4,8 @@
  * Shared type definitions for LLM provider abstraction layer
  */
 
+import { CostOptimizationConfig } from '../enhanced-architecture/cost-config';
+
 // Provider source identifier
 export type ProviderSource = 'claude' | 'openai' | 'deepseek' | 'mistral' | 'moonshot' | 'gemini' | 'local' | 'fallback';
 
@@ -12,6 +14,20 @@ export interface EnhancementRequest {
   prompt: string;
   context?: string;
   isRefinement?: boolean;
+  /** Cost optimization configuration */
+  costConfig?: Partial<CostOptimizationConfig>;
+}
+
+// Cost metrics for response
+export interface CostMetrics {
+  originalTokens: number;
+  optimizedTokens: number;
+  tokensSaved: number;
+  percentageSaved: number;
+  qualityScore: number;
+  optimizationScore: number;
+  compressionApplied: boolean;
+  lambdaUsed: number;
 }
 
 // Enhancement response
@@ -22,6 +38,8 @@ export interface EnhancementResponse {
     model?: string;
     usage?: Record<string, unknown>;
     processingTime?: number;
+    /** Cost optimization metrics */
+    costMetrics?: CostMetrics;
   };
 }
 

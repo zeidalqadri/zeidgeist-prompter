@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import LLMProviderSelector from '../../components/llm-provider-selector'
+import { COST_PRESETS } from '../lib/enhanced-architecture/cost-config'
 
 interface ProviderStatus {
   provider: string
@@ -19,6 +20,39 @@ export default function TweakPage() {
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(false)
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null)
+
+  // Cost optimization state
+  const [lambdaValue, setLambdaValue] = useState(0.007)
+  const [selectedPreset, setSelectedPreset] = useState('balanced')
+
+  // Load saved lambda from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('promptomatix-lambda')
+    if (saved) {
+      const parsed = parseFloat(saved)
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 0.02) {
+        setLambdaValue(parsed)
+        // Find matching preset
+        const preset = Object.entries(COST_PRESETS).find(
+          ([, p]) => Math.abs(p.config.lambda - parsed) < 0.001
+        )
+        if (preset) {
+          setSelectedPreset(preset[0])
+        } else {
+          setSelectedPreset('custom')
+        }
+      }
+    }
+  }, [])
+
+  // Save lambda to localStorage and cookie for API
+  const saveLambda = (value: number, preset: string) => {
+    setLambdaValue(value)
+    setSelectedPreset(preset)
+    localStorage.setItem('promptomatix-lambda', value.toString())
+    // Also set a cookie for API access
+    document.cookie = `promptomatix-lambda=${value}; path=/; max-age=86400; SameSite=Lax`
+  }
 
   // Simple password protection (can be enhanced with proper auth)
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -188,6 +222,96 @@ export default function TweakPage() {
         ) : (
           <LLMProviderSelector providers={providers} onUpdate={loadProviderStatus} />
         )}
+
+        {/* Cost Optimization Controls */}
+        <div className="mt-8 bg-white border border-gray-10 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-black-primary">Cost Optimization</h2>
+              <p className="text-sm text-gray-60 mt-1">
+                Adjust the lambda parameter to balance quality vs. token efficiency
+              </p>
+            </div>
+            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+              Promptomatix
+            </span>
+          </div>
+
+          {/* Preset Buttons */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {Object.entries(COST_PRESETS).map(([key, preset]) => (
+              <button
+                key={key}
+                onClick={() => saveLambda(preset.config.lambda, key)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedPreset === key
+                    ? 'bg-black-primary text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+            {selectedPreset === 'custom' && (
+              <span className="px-4 py-2 rounded-md text-sm font-medium bg-purple-100 text-purple-800">
+                Custom
+              </span>
+            )}
+          </div>
+
+          {/* Lambda Slider */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-black-primary">
+                Lambda Value (λ)
+              </label>
+              <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
+                {lambdaValue.toFixed(3)}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="0.02"
+              step="0.001"
+              value={lambdaValue}
+              onChange={(e) => {
+                const value = parseFloat(e.target.value)
+                saveLambda(value, 'custom')
+              }}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black-primary"
+            />
+            <div className="flex justify-between text-xs text-gray-60 mt-1">
+              <span>Max Quality (0)</span>
+              <span>Balanced</span>
+              <span>Max Savings (0.02)</span>
+            </div>
+          </div>
+
+          {/* Current Settings Info */}
+          <div className="bg-white-soft rounded-md p-4 border border-gray-10">
+            <h4 className="text-sm font-medium text-black-primary mb-2">Current Setting</h4>
+            <p className="text-sm text-gray-60">
+              {selectedPreset !== 'custom' && COST_PRESETS[selectedPreset as keyof typeof COST_PRESETS]
+                ? COST_PRESETS[selectedPreset as keyof typeof COST_PRESETS].description
+                : `Custom lambda value: ${lambdaValue.toFixed(3)} - Fine-tuned for your specific needs`}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="text-gray-60">Expected token reduction:</span>
+                <span className="ml-2 font-medium text-black-primary">
+                  {lambdaValue === 0 ? 'None' : lambdaValue <= 0.007 ? '~20-30%' : lambdaValue <= 0.010 ? '~30-40%' : '~40-50%'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-60">Quality retention:</span>
+                <span className="ml-2 font-medium text-black-primary">
+                  {lambdaValue === 0 ? '100%' : lambdaValue <= 0.007 ? '~99%' : lambdaValue <= 0.010 ? '~97%' : '~95%'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Footer Information */}
         <div className="mt-12 p-4 bg-white-soft border border-gray-10 rounded-lg">

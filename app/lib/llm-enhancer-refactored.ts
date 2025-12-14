@@ -36,7 +36,8 @@ export async function enhancePrompt(
   env?: any
 ): Promise<string> {
   const service = getEnhancerService();
-  return service.enhance(rawPrompt, context, isRefinement, env);
+  const result = await service.enhance(rawPrompt, context, isRefinement, env);
+  return result.enhancedPrompt;
 }
 
 /**
