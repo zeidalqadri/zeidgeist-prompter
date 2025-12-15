@@ -268,7 +268,7 @@ export class LearningService {
     if (!db) return []
 
     try {
-      return await executeWithRetry(() =>
+      const result: TrainingExample[] = await executeWithRetry(() =>
         db
           .select()
           .from(trainingExamples)
@@ -276,6 +276,7 @@ export class LearningService {
           .orderBy(desc(trainingExamples.quality))
           .limit(MAX_PATTERNS_PER_QUERY)
       )
+      return result
     } catch (error) {
       console.error('Failed to fetch existing patterns:', error)
       return []
@@ -512,7 +513,7 @@ export class LearningService {
 
     try {
       // Query with limit
-      const patterns = await executeWithRetry(() =>
+      const patterns: TrainingExample[] = await executeWithRetry(() =>
         db
           .select()
           .from(trainingExamples)
@@ -673,7 +674,7 @@ export class LearningService {
       const [totalPatternsResult, llmDependency, accuracy] = await Promise.all([
         executeWithRetry(() =>
           db.select({ count: sql<number>`count(*)` }).from(trainingExamples)
-        ),
+        ) as Promise<{ count: number }[]>,
         this.calculateLLMDependency(env),
         this.calculateAccuracy(env)
       ])
@@ -710,7 +711,7 @@ export class LearningService {
           })
           .from(enhancementLogs)
           .where(gte(enhancementLogs.createdAt, oneWeekAgo))
-      )
+      ) as { total: number; local: number | null }[]
 
       const { total, local } = result[0] || { total: 0, local: 0 }
       if (total === 0) return 1
@@ -747,7 +748,7 @@ export class LearningService {
               gte(enhancementLogs.createdAt, oneWeekAgo)
             )
           )
-      )
+      ) as { total: number; successful: number | null }[]
 
       const { total, successful } = result[0] || { total: 0, successful: 0 }
       if (total === 0) return 0
