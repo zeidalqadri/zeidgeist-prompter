@@ -22,18 +22,30 @@ APP_ENV = "production"
 
 [[kv_namespaces]]
 binding = "SESSION_STORAGE"
-preview_id = "dev-sessions"
-id = "production-sessions"
+id = "ebdc9af6ea5549029446fc55a8984b24"
+preview_id = "2001d92c064b45569a78fbd3add9baa5"
 
 [[kv_namespaces]]
 binding = "CACHE_STORAGE"
-preview_id = "dev-cache"
-id = "production-cache"
+id = "866d020c22a9413f9c8b636b38910396"
+preview_id = "bcebbeeb90384dfa8e43ec7ad4ca4910"
 
-[[durable_objects.bindings]]
-name = "RATE_LIMITER"
-class_name = "RateLimiter"
-script_name = "rate-limiter"
+# Durable Objects for Rate Limiting (optional - KV fallback is used if unavailable)
+# Requires a separate Worker deployment with the RateLimiter DO class
+# [[durable_objects.bindings]]
+# name = "RATE_LIMITER"
+# class_name = "RateLimiter"
+# script_name = "rate-limiter"
+
+# D1 Database for auth tables (shared with Pages)
+[[d1_databases]]
+binding = "AUTH_DB"
+database_name = "zeidgeist-auth"
+database_id = "2ceef6e7-9ba6-48a4-a1ec-214d2c54f5d2"
+
+# Scheduled triggers for learning cycle
+[triggers]
+crons = ["0 2 * * *"]  # Daily at 2 AM UTC
 
 [observability]
 enabled = true
