@@ -738,7 +738,7 @@ export class LearningService {
         db
           .select({
             total: sql<number>`count(*)`,
-            successful: sql<number>`sum(case when f.was_successful = 1 and f.score >= 4 then 1 else 0 end)`
+            successful: sql<number>`sum(case when ${feedback.wasSuccessful} = 1 and ${feedback.score} >= 4 then 1 else 0 end)`
           })
           .from(enhancementLogs)
           .leftJoin(feedback, eq(feedback.enhancementId, enhancementLogs.id))
