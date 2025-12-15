@@ -1,13 +1,50 @@
 /**
- * Pattern Extractor for Cloudflare Workers
+ * Pattern Extractor for Cloudflare Workers - OPTIMIZED
  *
  * This module extracts reusable patterns from successful LLM enhancements.
- * Fully compatible with Cloudflare Workers runtime - no Node.js dependencies.
+ *
+ * OPTIMIZATIONS APPLIED:
+ * - Static STOP_WORDS (eliminates repeated allocations)
+ * - Set.has() instead of Array.includes() (O(1) vs O(n))
+ * - Query limits on database operations
+ * - Pre-computed word sets for faster comparisons
+ * - Limited pattern group sizes to prevent memory growth
  */
 
-import { createDb, enhancementLogs, feedback, trainingExamples } from '../db'
-import { eq, and, gte, sql } from 'drizzle-orm'
+import { createDb, enhancementLogs, feedback } from '../db'
+import { eq, and, gte } from 'drizzle-orm'
 import { DateUtils } from '../adapters'
+
+// ============================================
+// CONFIGURATION CONSTANTS
+// ============================================
+
+/** Maximum enhancements to process per extraction */
+const MAX_ENHANCEMENTS_TO_PROCESS = 200
+
+/** Maximum patterns per group (prevents unbounded growth) */
+const MAX_PATTERNS_PER_GROUP = 50
+
+/** Maximum transformations to extract per enhancement */
+const MAX_TRANSFORMATIONS_PER_ENHANCEMENT = 20
+
+// ============================================
+// STATIC CACHES (Module-level singletons)
+// ============================================
+
+/** Static stop words set - created once, reused everywhere */
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at',
+  'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is',
+  'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had',
+  'do', 'does', 'did', 'will', 'would', 'should', 'could',
+  'may', 'might', 'must', 'can', 'this', 'that', 'these',
+  'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+])
+
+// ============================================
+// INTERFACES
+// ============================================
 
 export interface EnhancementPattern {
   originalText: string
@@ -24,6 +61,10 @@ interface Transformation {
   to: string
   position?: number
 }
+
+// ============================================
+// PATTERN EXTRACTOR CLASS
+// ============================================
 
 export class PatternExtractor {
   private readonly MIN_CONFIDENCE_THRESHOLD = 0.55
@@ -43,7 +84,7 @@ export class PatternExtractor {
     const startDate = DateUtils.daysAgo(timeWindow)
 
     try {
-      // Get successful enhancements with positive feedback
+      // Get successful enhancements with positive feedback (WITH LIMIT)
       const successfulEnhancements = await db
         .select({
           original: enhancementLogs.originalPrompt,
@@ -65,7 +106,9 @@ export class PatternExtractor {
             gte(feedback.score, 4)
           )
         )
+        .limit(MAX_ENHANCEMENTS_TO_PROCESS)
 
+      console.log(`Processing ${successfulEnhancements.length} enhancements for pattern extraction`)
       return this.analyzeEnhancements(successfulEnhancements)
     } catch (error) {
       console.error('Failed to extract patterns:', error)
@@ -76,6 +119,7 @@ export class PatternExtractor {
   /**
    * Extract transformations from a single enhancement
    * Used for real-time learning
+   * OPTIMIZED: Uses Set for O(1) lookups instead of Array.includes()
    */
   extractTransformations(
     original: string,
@@ -85,17 +129,24 @@ export class PatternExtractor {
     const originalWords = original.toLowerCase().split(/\s+/)
     const enhancedWords = enhanced.toLowerCase().split(/\s+/)
 
-    const commonPhrases = this.findCommonPhrases(originalWords, enhancedWords)
+    // Pre-compute Sets for O(1) lookup
+    const originalWordSet = new Set(originalWords)
+    const enhancedWordSet = new Set(enhancedWords)
 
-    // Identify replacements
-    for (let i = 0; i < originalWords.length; i++) {
+    const commonPhrases = this.findCommonPhrasesFast(originalWordSet, enhancedWordSet)
+
+    // Identify replacements (with limit)
+    let transformationCount = 0
+    for (let i = 0; i < originalWords.length && transformationCount < MAX_TRANSFORMATIONS_PER_ENHANCEMENT; i++) {
       const word = originalWords[i]
-      if (!enhancedWords.includes(word) && !commonPhrases.has(word)) {
+
+      // Use Set.has() instead of Array.includes() - O(1) vs O(n)
+      if (!enhancedWordSet.has(word) && !commonPhrases.has(word)) {
         const context = originalWords.slice(
           Math.max(0, i - 2),
           Math.min(originalWords.length, i + 3)
         )
-        const replacement = this.findReplacement(context, enhancedWords)
+        const replacement = this.findReplacementFast(context, enhancedWords, enhancedWordSet)
 
         if (replacement) {
           transformations.push({
@@ -104,16 +155,22 @@ export class PatternExtractor {
             to: replacement,
             position: i,
           })
+          transformationCount++
         }
       }
     }
 
-    // Identify additions
-    const addedWords = enhancedWords.filter(
-      word => !originalWords.includes(word) && !commonPhrases.has(word)
-    )
+    // Identify additions (with limit)
+    const addedWords: string[] = []
+    for (const word of enhancedWords) {
+      if (transformationCount >= MAX_TRANSFORMATIONS_PER_ENHANCEMENT) break
+      // Use Set.has() instead of Array.includes()
+      if (!originalWordSet.has(word) && !commonPhrases.has(word)) {
+        addedWords.push(word)
+      }
+    }
 
-    for (const added of addedWords) {
+    for (const added of addedWords.slice(0, 10)) { // Limit additions
       transformations.push({
         type: 'addition',
         from: '',
@@ -161,7 +218,12 @@ export class PatternExtractor {
       if (!patternGroups.has(patternKey)) {
         patternGroups.set(patternKey, [])
       }
-      patternGroups.get(patternKey)!.push(pattern)
+
+      const group = patternGroups.get(patternKey)!
+      // Limit group size to prevent memory growth
+      if (group.length < MAX_PATTERNS_PER_GROUP) {
+        group.push(pattern)
+      }
     }
 
     // Filter patterns that appear frequently enough
@@ -181,51 +243,47 @@ export class PatternExtractor {
 
   /**
    * Extract keywords from text for pattern matching
+   * OPTIMIZED: Uses static STOP_WORDS set
    */
   private extractKeywords(text: string): string[] {
-    const stopWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at',
-      'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is',
-      'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had',
-      'do', 'does', 'did', 'will', 'would', 'should', 'could',
-      'may', 'might', 'must', 'can', 'this', 'that', 'these',
-      'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
-    ])
-
     return text
       .toLowerCase()
       .split(/\s+/)
-      .filter(word => word.length > 2 && !stopWords.has(word))
+      .filter(word => word.length > 2 && !STOP_WORDS.has(word))
       .slice(0, 10)
   }
 
   /**
    * Generate a unique key for pattern grouping
+   * OPTIMIZED: Removed unnecessary sort for simple key generation
    */
   private generatePatternKey(
     transformations: Transformation[],
     keywords: string[]
   ): string {
-    const transformationTypes = transformations
-      .map(t => t.type)
-      .sort()
-      .join('-')
-    const keywordSet = keywords.slice(0, 3).sort().join('-')
+    // Use Set for deduplication instead of sort
+    const transformationTypes = [...new Set(transformations.map(t => t.type))].join('-')
+    const keywordSet = keywords.slice(0, 3).join('-')
     return `${transformationTypes}:${keywordSet}`
   }
 
   /**
-   * Find common phrases between two word arrays
+   * Find common phrases between two word sets
+   * OPTIMIZED: Takes Sets directly, O(min(m,n)) instead of O(m*n)
    */
-  private findCommonPhrases(
-    words1: string[],
-    words2: string[]
+  private findCommonPhrasesFast(
+    words1Set: Set<string>,
+    words2Set: Set<string>
   ): Set<string> {
     const common = new Set<string>()
-    const words2Set = new Set(words2)
 
-    for (const word of words1) {
-      if (words2Set.has(word)) {
+    // Iterate over smaller set for efficiency
+    const [smallerSet, largerSet] = words1Set.size < words2Set.size
+      ? [words1Set, words2Set]
+      : [words2Set, words1Set]
+
+    for (const word of smallerSet) {
+      if (largerSet.has(word)) {
         common.add(word)
       }
     }
@@ -235,18 +293,29 @@ export class PatternExtractor {
 
   /**
    * Find replacement word in enhanced text based on context
+   * OPTIMIZED: Uses pre-computed Set for O(1) lookups
    */
-  private findReplacement(
+  private findReplacementFast(
     context: string[],
-    enhancedWords: string[]
+    enhancedWords: string[],
+    enhancedWordSet: Set<string>
   ): string | null {
-    for (let i = 0; i < enhancedWords.length; i++) {
+    // Early exit if context words aren't in enhanced text
+    let contextMatches = 0
+    for (const word of context) {
+      if (enhancedWordSet.has(word)) contextMatches++
+    }
+    if (contextMatches < 2) return null
+
+    // Find replacement with limited search
+    const maxSearchPositions = Math.min(enhancedWords.length, 100)
+    for (let i = 0; i < maxSearchPositions; i++) {
       const enhancedContext = enhancedWords.slice(
         Math.max(0, i - 2),
         Math.min(enhancedWords.length, i + 3)
       )
 
-      const similarity = this.contextSimilarity(context, enhancedContext)
+      const similarity = this.contextSimilarityFast(context, enhancedContext)
       if (similarity > 0.6) {
         return enhancedWords[i]
       }
@@ -257,14 +326,26 @@ export class PatternExtractor {
 
   /**
    * Calculate context similarity
+   * OPTIMIZED: More efficient set operations
    */
-  private contextSimilarity(context1: string[], context2: string[]): number {
+  private contextSimilarityFast(context1: string[], context2: string[]): number {
+    if (context1.length === 0 || context2.length === 0) return 0
+
     const set1 = new Set(context1)
     const set2 = new Set(context2)
-    const intersection = new Set([...set1].filter(x => set2.has(x)))
-    const union = new Set([...set1, ...set2])
 
-    return union.size > 0 ? intersection.size / union.size : 0
+    // Count intersection efficiently
+    let intersectionCount = 0
+    const [smallerSet, largerSet] = set1.size < set2.size ? [set1, set2] : [set2, set1]
+
+    for (const word of smallerSet) {
+      if (largerSet.has(word)) intersectionCount++
+    }
+
+    // Union size = set1.size + set2.size - intersection
+    const unionSize = set1.size + set2.size - intersectionCount
+
+    return unionSize > 0 ? intersectionCount / unionSize : 0
   }
 
   /**

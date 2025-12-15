@@ -4,13 +4,18 @@
 //  - /api/tweak/provider-status (GET/OPTIONS)
 //  - /api/tweak/provider-preference (GET/POST/OPTIONS)
 //  - /api/health/* (GET)
+//  - /api/learning/status (GET/OPTIONS)
+//  - /api/learning/trigger (POST/OPTIONS)
 
 import * as Engineer from '../functions/api/engineer'
 import * as ProviderStatus from '../functions/api/tweak/provider-status'
 import * as ProviderPreference from '../functions/api/tweak/provider-preference'
 import * as HealthIndex from '../functions/api/health/index'
+import * as LearningStatus from '../functions/api/learning/status'
+import * as LearningTrigger from '../functions/api/learning/trigger'
+import LearningCycle from '../functions/scheduled/learning-cycle'
 
-type Env = Record<string, string>
+type Env = Record<string, any>
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -59,6 +64,19 @@ export default {
         return new Response('Method Not Allowed', { status: 405 })
       }
 
+      // Learning API routes
+      if (pathname === '/api/learning/status') {
+        if (request.method === 'OPTIONS') return handleOptions(LearningStatus)
+        if (request.method === 'GET') return LearningStatus.onRequestGet({ env, request })
+        return new Response('Method Not Allowed', { status: 405 })
+      }
+
+      if (pathname === '/api/learning/trigger') {
+        if (request.method === 'OPTIONS') return handleOptions(LearningTrigger)
+        if (request.method === 'POST') return LearningTrigger.onRequestPost({ env, request })
+        return new Response('Method Not Allowed', { status: 405 })
+      }
+
       return new Response('Not Found', { status: 404 })
     } catch (err) {
       return new Response(
@@ -66,6 +84,15 @@ export default {
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
     }
+  },
+
+  // Scheduled handler for learning cycle cron job
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    return LearningCycle.scheduled(controller, env as any, ctx)
   },
 }
 
