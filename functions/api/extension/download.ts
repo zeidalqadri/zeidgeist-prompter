@@ -11,6 +11,7 @@ import { CloudflareAuthService } from "../../_shared/auth-service-workers";
 import { getSecurityHeaders } from "../../_shared/privacy-guard";
 import { createDb, extensionDownloads } from "../../_shared/db";
 import { count, and, eq, gte } from "drizzle-orm";
+import { DateUtils } from "../../_shared/adapters";
 
 // Extension version - update when releasing new versions
 const EXTENSION_VERSION = "1.0.0";
@@ -94,7 +95,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     // Check rate limit - count downloads in last 24 hours
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = DateUtils.hoursAgo(24);
     const [downloadCount] = await db
       .select({ count: count() })
       .from(extensionDownloads)

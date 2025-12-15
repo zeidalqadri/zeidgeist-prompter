@@ -33,7 +33,7 @@ export async function onRequestGet(context: any): Promise<Response> {
   const features = getFeatures(env)
 
   healthStatus.checks.environment = {
-    DATABASE_URL: !!env?.DATABASE_URL,
+    AUTH_DB: !!env?.AUTH_DB,
     USER_AUTH_ENABLED: `${features.USER_AUTH_ENABLED} (env: ${env?.USER_AUTH_ENABLED || 'not set'})`,
     IP_FALLBACK_ENABLED: `${features.IP_FALLBACK_ENABLED} (env: ${env?.IP_FALLBACK_ENABLED || 'not set'})`,
     DUAL_MODE_ENABLED: `${features.DUAL_MODE_ENABLED} (env: ${env?.DUAL_MODE_ENABLED || 'not set'})`,
@@ -50,31 +50,32 @@ export async function onRequestGet(context: any): Promise<Response> {
           features.USER_AUTH_ENABLED ? 'User auth only' : 'IP-based only'
   }
 
-  // Check 2: Database connectivity
-  if (env?.DATABASE_URL) {
+  // Check 2: Database connectivity (D1)
+  if (env?.AUTH_DB) {
     try {
       const { createDb } = await import("../../_shared/db")
       const db = createDb(env)
 
       // Try a simple query to test connection
-      const result = await db.execute('SELECT 1 as test')
+      const result = await db.run('SELECT 1 as test')
 
       healthStatus.checks.database = {
         status: 'connected',
+        type: 'Cloudflare D1',
         test: result ? 'success' : 'failed'
       }
     } catch (dbError) {
       healthStatus.checks.database = {
         status: 'error',
         error: dbError instanceof Error ? dbError.message : 'Unknown error',
-        hint: 'Check DATABASE_URL configuration and network connectivity'
+        hint: 'Check AUTH_DB binding in wrangler.toml'
       }
     }
   } else {
     healthStatus.checks.database = {
       status: 'not configured',
-      error: 'DATABASE_URL environment variable is missing',
-      hint: 'Add DATABASE_URL to Cloudflare Pages environment variables'
+      error: 'AUTH_DB (D1) binding is missing',
+      hint: 'Add D1 database binding to wrangler.toml'
     }
   }
 

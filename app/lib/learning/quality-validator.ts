@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * A/B testing should be ported to Workers or removed if not needed.
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ */
 // PHASE 5: A/B Testing Framework for Quality Validation
 import { db, enhancementLogs, NewEnhancementLog } from '../db';
 import { sql } from 'drizzle-orm';

@@ -1,3 +1,12 @@
+/**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Learning scheduling is now handled by Cloudflare Workers scheduled events.
+ * See: functions/scheduled/learning-cycle.ts
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ */
 import { LearningService } from './learning-service';
 import { AdaptiveEnhancer } from './adaptive-enhancer';
 

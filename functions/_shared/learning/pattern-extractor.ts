@@ -7,6 +7,7 @@
 
 import { createDb, enhancementLogs, feedback, trainingExamples } from '../db'
 import { eq, and, gte, sql } from 'drizzle-orm'
+import { DateUtils } from '../adapters'
 
 export interface EnhancementPattern {
   originalText: string
@@ -39,8 +40,7 @@ export class PatternExtractor {
       return []
     }
 
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - timeWindow)
+    const startDate = DateUtils.daysAgo(timeWindow)
 
     try {
       // Get successful enhancements with positive feedback
