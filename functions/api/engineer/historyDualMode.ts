@@ -114,11 +114,11 @@ export async function onRequestGet(context: CloudflareContext): Promise<Response
 
   try {
     // Validate database connection
-    if (!env?.DATABASE_URL) {
-      console.error("Database configuration missing: DATABASE_URL not found in environment")
+    if (!env?.AUTH_DB) {
+      console.error("Database configuration missing: AUTH_DB (D1) not found in environment")
       return new Response(JSON.stringify({
         error: "Database connection not configured. Please check environment variables.",
-        details: "DATABASE_URL is missing from environment configuration"
+        details: "AUTH_DB (D1) is missing from environment configuration"
       }), {
         status: 503,
         headers: corsHeaders
@@ -380,7 +380,7 @@ export async function onRequestGet(context: CloudflareContext): Promise<Response
       debug: {
         ...errorDetails,
         env: {
-          hasDatabaseUrl: !!env?.DATABASE_URL,
+          hasAuthDb: !!env?.AUTH_DB,
           nodeEnv: (env.NODE_ENV || 'production') || 'production'
         }
       }
@@ -437,11 +437,11 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
 
   try {
     // Validate database connection
-    if (!env?.DATABASE_URL) {
-      console.error("Database configuration missing: DATABASE_URL not found in environment")
+    if (!env?.AUTH_DB) {
+      console.error("Database configuration missing: AUTH_DB (D1) not found in environment")
       return new Response(JSON.stringify({
         error: "Database connection not configured. Please check environment variables.",
-        details: "DATABASE_URL is missing from environment configuration"
+        details: "AUTH_DB (D1) is missing from environment configuration"
       }), {
         status: 503,
         headers: corsHeaders
@@ -489,12 +489,16 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
       })
     }
 
+    // Create timestamp as ISO string for SQLite
+    const timestampStr = new Date(timestamp || Date.now()).toISOString()
+
     // Create new history record with appropriate isolation
     const newHistory: NewPromptHistory = {
+      id: crypto.randomUUID(),
       original,
       refined,
       context: context || null,
-      timestamp: new Date(timestamp || Date.now()),
+      timestamp: timestampStr,
       metadata: metadata ? JSON.stringify(metadata) : null,
       userId: requestContext.userId || null,
       ipAddress: requestContext.ipAddress
@@ -511,7 +515,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
       originalLength: original.length,
       refinedLength: refined.length,
       hasContext: !!context,
-      timestamp: newHistory.timestamp?.toISOString()
+      timestamp: timestampStr
     })
 
     // Log privacy event (non-blocking)

@@ -1,4 +1,11 @@
 /**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Job queuing is now handled by Cloudflare Workers with waitUntil().
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ *
  * Learning Queue Service
  *
  * Queue abstraction for asynchronous learning job processing

@@ -48,6 +48,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
 
     // Create new feedback record with aligned schema
     const newFeedback: NewFeedback = {
+      id: crypto.randomUUID(),
       originalPrompt: original,
       enhancedPrompt: refined,
       wasSuccessful: wasSuccessful,

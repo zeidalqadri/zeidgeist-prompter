@@ -3,7 +3,7 @@
  * Uses Web Crypto API and Workers-compatible libraries
  */
 
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, not } from 'drizzle-orm';
 import { createDb } from './db';
 import { users, userSessions, type User, type NewUser, type UserSession, type NewUserSession } from '../../app/lib/db/schema';
 import { D1AuthDatabase, createD1AuthDb, type D1User } from './db-d1';
@@ -891,7 +891,7 @@ export class CloudflareAuthService {
           .set({ isRevoked: true })
           .where(and(
             eq(userSessions.userId, userId),
-            eq(userSessions.id, currentSessionId) === false
+            not(eq(userSessions.id, currentSessionId))
           ));
       }
 

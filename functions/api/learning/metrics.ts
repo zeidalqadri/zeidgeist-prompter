@@ -1,4 +1,9 @@
+/**
+ * @deprecated This endpoint uses the deprecated Node.js learning metrics.
+ * TODO: Port to use functions/_shared/learning/service.ts getStatistics()
+ */
 // API endpoint for learning metrics dashboard
+// @ts-ignore - Using deprecated module pending migration
 import { getLearningMetrics } from '../../../app/lib/learning/learning-metrics';
 
 function getCorsHeaders(request: Request) {

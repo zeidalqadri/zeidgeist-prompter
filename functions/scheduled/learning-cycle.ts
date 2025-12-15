@@ -1,8 +1,14 @@
-// Note: LearningService requires Node.js environment with process.env.DATABASE_URL
-// For Cloudflare Workers, we'll need to temporarily set global for compatibility
+// Learning cycle scheduled worker using D1 database
+
+// D1 Database interface
+interface D1Database {
+  prepare(query: string): any;
+  batch<T = unknown>(statements: any[]): Promise<any[]>;
+  exec(query: string): Promise<any>;
+}
 
 export interface Env {
-  DATABASE_URL: string;
+  AUTH_DB: D1Database;
 }
 
 /**

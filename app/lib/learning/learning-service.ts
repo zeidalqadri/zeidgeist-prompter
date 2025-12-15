@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Use functions/_shared/learning/service.ts instead (Workers-only).
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ */
 import { db, trainingExamples, enhancementLogs, feedback } from '../db';
 import { PatternExtractor, EnhancementPattern } from './pattern-extractor';
 import { eq, and, gte } from 'drizzle-orm';
