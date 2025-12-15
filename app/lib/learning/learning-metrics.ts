@@ -1,3 +1,12 @@
+// @ts-nocheck - File is deprecated, type errors are expected
+/**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Learning metrics are now handled in the Workers-only learning service.
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ */
 // PHASE 6: Learning Metrics and Monitoring
 import { db, enhancementLogs, trainingExamples, feedback } from '../db';
 import { gte, eq, and, sql } from 'drizzle-orm';

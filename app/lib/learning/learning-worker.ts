@@ -1,4 +1,13 @@
+// @ts-nocheck - File is deprecated, type errors are expected
 /**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Learning workers are now Cloudflare Workers scheduled events.
+ * See: functions/scheduled/learning-cycle.ts
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ *
  * Learning Worker
  *
  * Background worker for processing learning jobs from the queue

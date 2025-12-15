@@ -10,13 +10,14 @@ import { createDb, trainingExamples, enhancementLogs, feedback } from '../db'
 import { eq, and, gte, desc, sql } from 'drizzle-orm'
 import { PatternExtractor, EnhancementPattern } from './pattern-extractor'
 import type { TrainingExample, NewTrainingExample } from '../db'
+import { DateUtils } from '../adapters'
 
 export interface LearningMetrics {
   totalPatterns: number
   newPatternsLearned: number
   llmDependencyScore: number
   accuracyScore: number
-  lastLearningCycle: Date
+  lastLearningCycle: string  // ISO date string for D1 compatibility
 }
 
 export interface LearningConfig {
@@ -101,7 +102,7 @@ export class LearningService {
         newPatternsLearned: 0,
         llmDependencyScore: 1,
         accuracyScore: 0,
-        lastLearningCycle: new Date()
+        lastLearningCycle: DateUtils.now()
       }
     }
 
@@ -148,6 +149,7 @@ export class LearningService {
         } else {
           // Create new pattern
           const newExample: NewTrainingExample = {
+            id: crypto.randomUUID(),
             rawPrompt: pattern.originalText,
             enhancedPrompt: pattern.enhancedText,
             context: pattern.context,
@@ -242,7 +244,7 @@ export class LearningService {
         .set({
           quality: updatedQuality,
           usageCount: updatedUsageCount,
-          updatedAt: new Date()
+          updatedAt: DateUtils.now()
         })
         .where(eq(trainingExamples.id, patternId))
     } catch (error) {
@@ -257,7 +259,7 @@ export class LearningService {
     const db = createDb(env)
     if (!db) return
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const oneWeekAgo = DateUtils.daysAgo(7)
 
     try {
       const recentFeedback = await db
@@ -299,7 +301,7 @@ export class LearningService {
 
           await db
             .update(trainingExamples)
-            .set({ quality: newQuality, updatedAt: new Date() })
+            .set({ quality: newQuality, updatedAt: DateUtils.now() })
             .where(eq(trainingExamples.id, pattern.id))
         }
       }
@@ -366,7 +368,7 @@ export class LearningService {
           .set({
             quality: newQuality,
             usageCount: (pattern.usageCount || 0) + 1,
-            updatedAt: new Date()
+            updatedAt: DateUtils.now()
           })
           .where(eq(trainingExamples.id, pattern.id))
 
@@ -466,7 +468,7 @@ export class LearningService {
         newPatternsLearned: newPatterns,
         llmDependencyScore: 1,
         accuracyScore: 0,
-        lastLearningCycle: new Date()
+        lastLearningCycle: DateUtils.now()
       }
     }
 
@@ -488,7 +490,7 @@ export class LearningService {
         newPatternsLearned: newPatterns,
         llmDependencyScore: llmDependency,
         accuracyScore: accuracy,
-        lastLearningCycle: new Date(),
+        lastLearningCycle: DateUtils.now(),
       }
     } catch (error) {
       console.error('Failed to calculate metrics:', error)
@@ -497,7 +499,7 @@ export class LearningService {
         newPatternsLearned: newPatterns,
         llmDependencyScore: 1,
         accuracyScore: 0,
-        lastLearningCycle: new Date()
+        lastLearningCycle: DateUtils.now()
       }
     }
   }
@@ -509,7 +511,7 @@ export class LearningService {
     const db = createDb(env)
     if (!db) return 1
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const oneWeekAgo = DateUtils.daysAgo(7)
 
     try {
       const recentEnhancements = await db
@@ -539,7 +541,7 @@ export class LearningService {
     const db = createDb(env)
     if (!db) return 0
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const oneWeekAgo = DateUtils.daysAgo(7)
 
     try {
       const localEnhancementsWithFeedback = await db

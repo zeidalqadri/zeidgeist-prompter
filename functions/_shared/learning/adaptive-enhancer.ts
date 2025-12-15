@@ -10,6 +10,7 @@ import { createDb, trainingExamples, enhancementLogs } from '../db'
 import { eq, and, gte, desc, sql } from 'drizzle-orm'
 import { LearningService } from './service'
 import type { TrainingExample, NewEnhancementLog } from '../db'
+import { DateUtils } from '../adapters'
 
 export interface LocalEnhancement {
   enhancedPrompt: string
@@ -377,6 +378,7 @@ export class AdaptiveEnhancer {
 
     try {
       const log: NewEnhancementLog = {
+        id: crypto.randomUUID(),
         originalPrompt: original,
         enhancedPrompt: enhanced,
         promptLength: original.length,
@@ -400,7 +402,7 @@ export class AdaptiveEnhancer {
           .update(trainingExamples)
           .set({
             usageCount: sql`${trainingExamples.usageCount} + 1`,
-            updatedAt: new Date()
+            updatedAt: DateUtils.now()
           })
           .where(eq(trainingExamples.id, pattern.id))
       }
@@ -455,7 +457,7 @@ export class AdaptiveEnhancer {
     if (!db) return null
 
     try {
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      const oneWeekAgo = DateUtils.daysAgo(7)
 
       const stats = await db
         .select({

@@ -78,7 +78,9 @@ export class HybridRateLimiter {
 
     // Initialize KV limiter if available (used as fallback or primary)
     if (env.CACHE_STORAGE) {
-      this.kvLimiter = new DistributedRateLimiter(env.CACHE_STORAGE);
+      // Type assertion needed due to @cloudflare/workers-types version variance
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.kvLimiter = new DistributedRateLimiter(env.CACHE_STORAGE as any);
     }
   }
 

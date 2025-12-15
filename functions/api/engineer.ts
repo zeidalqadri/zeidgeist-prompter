@@ -263,6 +263,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
           console.log('Database not available - skipping logging')
         } else {
           const enhancementLog: NewEnhancementLog = {
+            id: crypto.randomUUID(),
             promptLength: trimmedPrompt.length,
             hasContext: !!(promptContext && promptContext.trim()),
             isRefinement: !!isRefinement,

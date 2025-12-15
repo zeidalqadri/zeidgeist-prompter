@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * Use functions/_shared/learning/adaptive-enhancer.ts instead (Workers-only).
+ *
+ * Migration: Learning system has been consolidated to Cloudflare Workers
+ * to leverage D1 database and edge runtime. This Node.js version is kept
+ * for reference only.
+ */
 import { db, trainingExamples, enhancementLogs } from '../db';
 import { LearningService } from './learning-service';
 import { gte, desc } from 'drizzle-orm';

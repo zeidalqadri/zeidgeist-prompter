@@ -1,4 +1,9 @@
+/**
+ * @deprecated This endpoint uses the deprecated Node.js quality validator.
+ * TODO: Port A/B testing to Workers or remove if not needed
+ */
 // API endpoint for A/B test results
+// @ts-ignore - Using deprecated module pending migration
 import { getQualityValidator } from '../../../app/lib/learning/quality-validator';
 
 function getCorsHeaders(request: Request) {
