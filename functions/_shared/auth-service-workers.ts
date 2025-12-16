@@ -570,8 +570,9 @@ export class CloudflareAuthService {
 
   /**
    * Create session with JWT
+   * Made public to allow auto-login after registration
    */
-  private async createSession(user: any): Promise<AuthSession> {
+  async createSession(user: any): Promise<AuthSession> {
     const sessionId = crypto.randomUUID();
 
     const accessToken = await generateJWT(
@@ -952,6 +953,197 @@ export class CloudflareAuthService {
         .where(eq(users.id, userId));
     }
   }
+
+  // ============ Recovery PIN Methods ============
+
+  /**
+   * Set or update recovery PIN for a user
+   * @param userId - The user's ID
+   * @param pin - 6-digit PIN
+   */
+  async setRecoveryPIN(userId: string, pin: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Validate PIN format
+      if (!/^\d{6}$/.test(pin)) {
+        return { success: false, error: 'PIN must be exactly 6 digits' };
+      }
+
+      // Hash the PIN using same PBKDF2 as passwords
+      const pinHash = await hashPassword(pin);
+
+      if (this.useD1 && this.d1Db) {
+        await this.d1Db.updateUserRecoveryPIN(userId, pinHash);
+      } else {
+        await this.db.update(users)
+          .set({
+            metadata: JSON.stringify({
+              ...JSON.parse((await this.db.select().from(users).where(eq(users.id, userId)))[0]?.metadata || '{}'),
+              recoveryPinHash: pinHash,
+              recoveryPinAttempts: 0,
+              recoveryPinLockedUntil: null
+            })
+          })
+          .where(eq(users.id, userId));
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Set recovery PIN error:', error);
+      return { success: false, error: 'Failed to set recovery PIN' };
+    }
+  }
+
+  /**
+   * Reset password using email + recovery PIN verification
+   * Includes rate limiting to prevent brute force attacks
+   */
+  async resetPasswordWithPIN(
+    email: string,
+    pin: string,
+    newPassword: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Validate PIN format
+      if (!/^\d{6}$/.test(pin)) {
+        return { success: false, error: 'Invalid PIN format' };
+      }
+
+      // Validate new password
+      if (newPassword.length < 12) {
+        return { success: false, error: 'New password must be at least 12 characters' };
+      }
+
+      // Find user by email
+      let user: any;
+      if (this.useD1 && this.d1Db) {
+        user = await this.d1Db.findUserByEmail(email.toLowerCase());
+      } else {
+        const [dbUser] = await this.db.select()
+          .from(users)
+          .where(eq(users.email, email.toLowerCase()))
+          .limit(1);
+        user = dbUser;
+      }
+
+      if (!user) {
+        // Don't reveal if email exists (security)
+        return { success: false, error: 'Invalid email or PIN' };
+      }
+
+      // Get PIN hash and lockout status
+      let pinHash: string | null = null;
+      let pinAttempts = 0;
+      let lockedUntil: string | null = null;
+
+      if (this.useD1 && this.d1Db) {
+        pinHash = user.recovery_pin_hash;
+        pinAttempts = user.recovery_pin_attempts || 0;
+        lockedUntil = user.recovery_pin_locked_until;
+      } else {
+        const metadata = JSON.parse(user.metadata || '{}');
+        pinHash = metadata.recoveryPinHash;
+        pinAttempts = metadata.recoveryPinAttempts || 0;
+        lockedUntil = metadata.recoveryPinLockedUntil;
+      }
+
+      // Check if no PIN is set
+      if (!pinHash) {
+        return { success: false, error: 'No recovery PIN set for this account' };
+      }
+
+      // Check lockout
+      if (lockedUntil && new Date(lockedUntil) > new Date()) {
+        const remainingMinutes = Math.ceil((new Date(lockedUntil).getTime() - Date.now()) / 60000);
+        return { success: false, error: `Too many attempts. Try again in ${remainingMinutes} minutes` };
+      }
+
+      // Verify PIN
+      const pinValid = await verifyPassword(pin, pinHash);
+
+      if (!pinValid) {
+        // Track failed attempt
+        await this.handleFailedPINAttempt(user.id);
+        return { success: false, error: 'Invalid email or PIN' };
+      }
+
+      // PIN valid - reset password
+      const newPasswordHash = await hashPassword(newPassword);
+
+      if (this.useD1 && this.d1Db) {
+        await this.d1Db.updateUserPassword(user.id, newPasswordHash);
+        await this.d1Db.resetPINAttempts(user.id);
+        // Revoke all sessions for security
+        await this.d1Db.revokeAllUserSessions(user.id);
+      } else {
+        await this.db.update(users)
+          .set({
+            passwordHash: newPasswordHash,
+            metadata: JSON.stringify({
+              ...JSON.parse(user.metadata || '{}'),
+              recoveryPinAttempts: 0,
+              recoveryPinLockedUntil: null
+            })
+          })
+          .where(eq(users.id, user.id));
+
+        // Revoke all sessions
+        await this.db.update(userSessions)
+          .set({ isRevoked: true })
+          .where(eq(userSessions.userId, user.id));
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Reset password with PIN error:', error);
+      return { success: false, error: 'Password reset failed' };
+    }
+  }
+
+  /**
+   * Handle failed PIN attempt - increment counter and possibly lock account
+   */
+  private async handleFailedPINAttempt(userId: string): Promise<void> {
+    const MAX_PIN_ATTEMPTS = 5;
+    const PIN_LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes
+
+    try {
+      let currentAttempts = 0;
+
+      if (this.useD1 && this.d1Db) {
+        const user = await this.d1Db.findUserById(userId);
+        currentAttempts = user?.recovery_pin_attempts || 0;
+      } else {
+        const [user] = await this.db.select({ metadata: users.metadata })
+          .from(users)
+          .where(eq(users.id, userId));
+        const metadata = JSON.parse(user?.metadata || '{}');
+        currentAttempts = metadata.recoveryPinAttempts || 0;
+      }
+
+      const newAttempts = currentAttempts + 1;
+      const shouldLock = newAttempts >= MAX_PIN_ATTEMPTS;
+      const lockUntil = shouldLock ? new Date(Date.now() + PIN_LOCKOUT_DURATION).toISOString() : null;
+
+      if (this.useD1 && this.d1Db) {
+        await this.d1Db.updatePINAttempts(userId, newAttempts, lockUntil);
+      } else {
+        const [user] = await this.db.select().from(users).where(eq(users.id, userId));
+        await this.db.update(users)
+          .set({
+            metadata: JSON.stringify({
+              ...JSON.parse(user?.metadata || '{}'),
+              recoveryPinAttempts: newAttempts,
+              recoveryPinLockedUntil: lockUntil
+            })
+          })
+          .where(eq(users.id, userId));
+      }
+    } catch (error) {
+      console.error('Handle failed PIN attempt error:', error);
+    }
+  }
+
+  // ============ Private Helper Methods ============
 
   private isValidEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

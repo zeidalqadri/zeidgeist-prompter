@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "../../../components/ui/button"
-import { Loader2, Eye, EyeOff, ArrowLeft, Check } from "lucide-react"
+import { Loader2, Eye, EyeOff, ArrowLeft, Check, HelpCircle } from "lucide-react"
 import Link from "next/link"
 
 export default function RegisterPage() {
@@ -17,6 +17,9 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [recoveryPin, setRecoveryPin] = useState("")
+  const [showPinInfo, setShowPinInfo] = useState(false)
 
   const returnTo = searchParams?.get("returnTo") || "/"
 
@@ -48,7 +51,12 @@ export default function RegisterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, username: username || undefined, password })
+        body: JSON.stringify({
+          email,
+          username: username || undefined,
+          password,
+          recoveryPin: recoveryPin.length === 6 ? recoveryPin : undefined
+        })
       })
 
       const data = await response.json() as { success?: boolean; error?: string }
@@ -59,9 +67,15 @@ export default function RegisterPage() {
         return
       }
 
-      // Success - redirect to return URL
-      const decodedReturn = decodeURIComponent(returnTo)
-      router.push(decodedReturn)
+      // Success - show feedback then redirect
+      setShowSuccess(true)
+      setIsLoading(false)
+
+      // Brief delay to show success message, then redirect
+      setTimeout(() => {
+        const decodedReturn = decodeURIComponent(returnTo)
+        router.push(decodedReturn)
+      }, 1500)
     } catch (err) {
       console.error("Registration error:", err)
       setError("Registration failed. Please try again.")
@@ -87,6 +101,13 @@ export default function RegisterPage() {
           <p className="text-gray-600 mb-6">
             Create a free account to download the Chrome extension
           </p>
+
+          {showSuccess && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded text-green-700 text-sm flex items-center">
+              <Check size={16} className="mr-2 flex-shrink-0" />
+              Account created successfully! Redirecting...
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
@@ -184,9 +205,47 @@ export default function RegisterPage() {
               )}
             </div>
 
+            {/* Optional Recovery PIN */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="recoveryPin" className="block text-sm font-medium text-black">
+                  Recovery PIN (optional)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPinInfo(!showPinInfo)}
+                  className="text-gray-500 hover:text-black"
+                  aria-label="What is recovery PIN?"
+                >
+                  <HelpCircle size={16} />
+                </button>
+              </div>
+
+              {showPinInfo && (
+                <div className="mb-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600">
+                  A 6-digit PIN that lets you reset your password if you forget it.
+                  You can set or change this later in your account settings.
+                </div>
+              )}
+
+              <input
+                type="text"
+                id="recoveryPin"
+                value={recoveryPin}
+                onChange={(e) => setRecoveryPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
+                disabled={showSuccess}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent disabled:bg-gray-100 font-mono text-lg tracking-widest text-center"
+                placeholder="000000"
+              />
+              {recoveryPin && recoveryPin.length > 0 && recoveryPin.length !== 6 && (
+                <p className="mt-1 text-xs text-amber-600">PIN must be exactly 6 digits</p>
+              )}
+            </div>
+
             <Button
               type="submit"
-              disabled={isLoading || !passwordsMatch || !hasMinLength || !hasUppercase || !hasNumber}
+              disabled={isLoading || showSuccess || !passwordsMatch || !hasMinLength || !hasUppercase || !hasNumber}
               className="w-full bg-black text-white hover:bg-gray-800 disabled:opacity-50"
             >
               {isLoading ? (
