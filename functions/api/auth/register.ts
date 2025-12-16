@@ -20,10 +20,10 @@ export async function onRequestOptions(): Promise<Response> {
 
 export async function onRequestPost(context: any): Promise<Response> {
   const { request, env } = context;
-  
+
   // Monitor request for security
   monitorRequest(request, context);
-  
+
   const corsHeaders = {
     ...getSecurityHeaders(),
     'Content-Type': 'application/json',
@@ -47,10 +47,10 @@ export async function onRequestPost(context: any): Promise<Response> {
 
     // Initialize auth service
     const authService = new CloudflareAuthService(env);
-    
+
     // Attempt registration
     const result = await authService.register(email, password, username);
-    
+
     if (!result.success) {
       return new Response(JSON.stringify({
         success: false,
@@ -100,6 +100,7 @@ export async function onRequestPost(context: any): Promise<Response> {
     }
 
     // Success response WITH session cookies (auto-login)
+    // Path=/ ensures cookies are sent to all paths including /api/extension/download
     return new Response(JSON.stringify({
       success: true,
       message: 'Account created successfully. You are now logged in.',
@@ -114,9 +115,9 @@ export async function onRequestPost(context: any): Promise<Response> {
       headers: {
         ...corsHeaders,
         'Set-Cookie': [
-          `access_token=${session.accessToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`,
-          `id_token=${session.idToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`,
-          `refresh_token=${session.refreshToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
+          `access_token=${session.accessToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
+          `id_token=${session.idToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
+          `refresh_token=${session.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`
         ].join(', ')
       }
     });
