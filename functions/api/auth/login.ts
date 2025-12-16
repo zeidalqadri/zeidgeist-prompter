@@ -148,9 +148,9 @@ export async function onRequestPost(context: any): Promise<Response> {
         ...corsHeaders,
         // Security headers for secure token handling
         'Set-Cookie': [
-          `access_token=${result.session!.accessToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`, // 1 hour
-          `id_token=${result.session!.idToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`, // 1 hour  
-          `refresh_token=${result.session!.refreshToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=604800` // 7 days
+          `access_token=${result.session!.accessToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`, // 1 hour
+          `id_token=${result.session!.idToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`, // 1 hour
+          `refresh_token=${result.session!.refreshToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800` // 7 days
         ].join(', ')
       }
     });

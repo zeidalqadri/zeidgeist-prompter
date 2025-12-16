@@ -48,8 +48,8 @@ interface AuthResult {
 const ITERATIONS = 100000;
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 32;
-const MAX_LOGIN_ATTEMPTS = 3;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Cloudflare Workers-compatible password hashing using Web Crypto API
