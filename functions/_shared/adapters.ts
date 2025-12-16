@@ -8,6 +8,14 @@
  */
 export class DateUtils {
   /**
+   * Returns the current Date
+   * @returns Current Date object
+   */
+  static now(): Date {
+    return new Date();
+  }
+
+  /**
    * Returns a Date object representing the time X hours ago
    * @param hours - Number of hours ago
    * @returns Date object
