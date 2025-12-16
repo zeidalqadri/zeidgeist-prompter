@@ -59,6 +59,10 @@ export interface D1User {
   metadata: string | null;
   created_at: string;
   updated_at: string;
+  // Recovery PIN fields (added in migration 0005)
+  recovery_pin_hash: string | null;
+  recovery_pin_attempts: number;
+  recovery_pin_locked_until: string | null;
 }
 
 export interface D1Session {
@@ -278,6 +282,27 @@ export class D1AuthDatabase {
     ).run();
 
     return result.meta.changes;
+  }
+
+  // ===== Recovery PIN Operations =====
+
+  async updateUserRecoveryPIN(userId: string, pinHash: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.prepare(
+      'UPDATE users SET recovery_pin_hash = ?, recovery_pin_attempts = 0, recovery_pin_locked_until = NULL, updated_at = ? WHERE id = ?'
+    ).bind(pinHash, now, userId).run();
+  }
+
+  async updatePINAttempts(userId: string, attempts: number, lockedUntil: string | null): Promise<void> {
+    await this.db.prepare(
+      'UPDATE users SET recovery_pin_attempts = ?, recovery_pin_locked_until = ? WHERE id = ?'
+    ).bind(attempts, lockedUntil, userId).run();
+  }
+
+  async resetPINAttempts(userId: string): Promise<void> {
+    await this.db.prepare(
+      'UPDATE users SET recovery_pin_attempts = 0, recovery_pin_locked_until = NULL WHERE id = ?'
+    ).bind(userId).run();
   }
 
   // ===== Utility Methods =====
