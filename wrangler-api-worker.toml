@@ -49,3 +49,4 @@ crons = ["0 2 * * *"]  # Daily at 2 AM UTC
 
 [observability]
 enabled = true
+head_sampling_rate = 0.1  # 10% sampling for cost-conscious production

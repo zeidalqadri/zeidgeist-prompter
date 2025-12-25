@@ -3,6 +3,8 @@
  */
 
 import { getDatabaseConfig } from '../config/environment';
+import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
+import { LLMProviderFactory } from '../llm/llm-provider.service';
 
 export interface HealthCheck {
   name: string;
@@ -117,7 +119,7 @@ async function checkMemory(): Promise<HealthCheck> {
 }
 
 /**
- * API dependencies check
+ * API dependencies check - uses real circuit breaker status
  */
 async function checkApiDependencies(): Promise<HealthCheck> {
   const start = Date.now();
@@ -128,41 +130,27 @@ async function checkApiDependencies(): Promise<HealthCheck> {
   };
 
   try {
-    // Check external API availability (simulated)
-    const apis = ['claude', 'openai', 'mistral'];
-    const results = await Promise.allSettled(
-      apis.map(async (api) => {
-        // Simulate API health check
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
-        if (Math.random() < 0.1) { // 10% chance of failure for testing
-          throw new Error(`${api} API unavailable`);
-        }
-        return { api, status: 'healthy' };
-      })
-    );
+    const providerHealth = await LLMProviderFactory.getHealthStatus();
+    const metrics = CircuitBreakerFactory.getAllMetrics();
 
-    const successful = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - successful;
+    const unhealthyProviders = Object.entries(providerHealth)
+      .filter(([_, healthy]) => !healthy);
+    const openBreakers = metrics.filter(m => m.state === 'open');
 
-    if (failed === results.length) {
+    if (unhealthyProviders.length === Object.keys(providerHealth).length) {
       check.status = 'unhealthy';
-      check.error = 'All external APIs unavailable';
-    } else if (failed > 0) {
+      check.error = 'All LLM providers unavailable';
+    } else if (openBreakers.length > 0) {
       check.status = 'degraded';
     }
 
     check.responseTime = Date.now() - start;
     check.details = {
-      total: results.length,
-      successful,
-      failed,
-      results: results.map((r, i) => ({
-        api: apis[i],
-        status: r.status === 'fulfilled' ? 'healthy' : 'unhealthy',
-        error: r.status === 'rejected' ? r.reason?.message : undefined,
-      })),
+      providers: providerHealth,
+      openCircuitBreakers: openBreakers.map(m => m.name),
+      total: metrics.length,
+      healthy: metrics.length - openBreakers.length
     };
-
   } catch (error) {
     check.status = 'unhealthy';
     check.error = error instanceof Error ? error.message : 'API dependency check failed';
@@ -223,6 +211,41 @@ async function checkEnvironment(env?: Record<string, string>): Promise<HealthChe
 }
 
 /**
+ * Circuit breaker health check
+ */
+export async function checkCircuitBreakers(): Promise<HealthCheck> {
+  const metrics = CircuitBreakerFactory.getAllMetrics();
+  const openBreakers = metrics.filter(m => m.state === 'open');
+  const halfOpenBreakers = metrics.filter(m => m.state === 'half-open');
+
+  let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+  if (metrics.length > 0 && openBreakers.length > metrics.length / 2) {
+    status = 'unhealthy';
+  } else if (openBreakers.length > 0 || halfOpenBreakers.length > 0) {
+    status = 'degraded';
+  }
+
+  return {
+    name: 'circuit-breakers',
+    status,
+    timestamp: new Date().toISOString(),
+    details: {
+      total: metrics.length,
+      closed: metrics.filter(m => m.state === 'closed').length,
+      open: openBreakers.length,
+      halfOpen: halfOpenBreakers.length,
+      breakers: metrics.map(m => ({
+        name: m.name,
+        state: m.state,
+        errorRate: Math.round(m.errorRate * 100) / 100,
+        failures: m.failureCount,
+        successes: m.successCount
+      }))
+    }
+  };
+}
+
+/**
  * Run all health checks
  */
 export async function runHealthChecks(env?: Record<string, string>): Promise<HealthStatus> {
@@ -234,6 +257,7 @@ export async function runHealthChecks(env?: Record<string, string>): Promise<Hea
     checkMemory(),
     checkApiDependencies(),
     checkEnvironment(env),
+    checkCircuitBreakers(),
   ]);
 
   // Calculate overall status

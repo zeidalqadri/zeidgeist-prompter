@@ -1,6 +1,6 @@
 import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
-import { enhancePrompt } from "../_shared/llm-enhancer-refactored"
+import { enhancePrompt } from "../../app/lib/llm-enhancer-refactored"
 import { validateRequestWithKV, createAuthErrorResponse } from "../_shared/auth"
 import { createRateLimitResponse } from "../_shared/rate-limiter"
 import { LLMCacheManager } from "../_shared/cache-manager"

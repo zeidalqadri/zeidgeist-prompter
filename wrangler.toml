@@ -50,6 +50,7 @@ database_id = "2ceef6e7-9ba6-48a4-a1ec-214d2c54f5d2"  # Update after running: wr
 # Observability
 [observability]
 enabled = true
+head_sampling_rate = 0.1  # 10% sampling for cost-conscious production
 
 # Routes configuration
 # This tells Pages to use Functions for API routes

@@ -1,43 +1,83 @@
 /**
- * LLM-based Prompt Enhancer (Refactored)
+ * LLM Enhancer - Refactored Version Wrapper
  *
- * Thin facade over the new service-oriented architecture.
- * Maintains backward compatibility with existing code.
+ * This wraps the refactored LLM system from /app/lib/llm/ for use in Cloudflare Functions
+ * Provides backward compatibility with the legacy enhancer interface
+ *
+ * IMPORTANT: ALL imports must be dynamic to ensure proper environment initialization
+ * No static imports allowed to avoid module loading before environment is available
  */
 
-import { LLMEnhancerService } from './llm/llm-enhancer.service';
+// Type imports are safe as they don't execute code
+import type { EnhancementRequest, EnhancementResponse } from './llm/types';
 import { db, enhancementLogs, feedback } from './db';
 import { eq, desc } from 'drizzle-orm';
 import { LearningService } from './learning/learning-service';
 
-// Singleton service instance
-let enhancerService: LLMEnhancerService | null = null;
-
-function getEnhancerService(): LLMEnhancerService {
-  if (!enhancerService) {
-    enhancerService = new LLMEnhancerService();
-  }
-  return enhancerService;
+export interface ProviderPreferences {
+  selectionMode?: 'random' | 'forced' | 'custom';
+  forcedProvider?: string;
+  excludedProviders: string[];
 }
 
 /**
- * Enhanced prompt generation using service architecture
- *
- * @param rawPrompt - The original prompt to enhance
- * @param context - Optional context information
- * @param isRefinement - Whether this is a refinement of a previous enhancement
- * @param env - Cloudflare environment (for database access)
- * @returns Enhanced prompt string
+ * Enhanced prompt with provider preferences and test mode support
  */
 export async function enhancePrompt(
-  rawPrompt: string,
-  context: string = "",
-  isRefinement: boolean = false,
-  env?: any
-): Promise<string> {
-  const service = getEnhancerService();
-  const result = await service.enhance(rawPrompt, context, isRefinement, env);
-  return result.enhancedPrompt;
+  prompt: string,
+  context?: string,
+  options: {
+    isRefinement?: boolean;
+    isExpansion?: boolean;
+    repeatCount?: number;
+    env?: Record<string, string>;
+    providerPreferences?: ProviderPreferences | null;
+    testProvider?: string | null;
+  } = {}
+): Promise<EnhancementResponse> {
+  const {
+    isRefinement = false,
+    env = {},
+    providerPreferences,
+    testProvider
+  } = options;
+
+  // Dynamically import ALL modules to avoid static initialization
+  const { setEnvironmentSource } = await import('./llm/llm-config');
+
+  // Set environment source for Cloudflare Workers
+  if (env && Object.keys(env).length > 0) {
+    setEnvironmentSource(env);
+  }
+
+  // Import provider factory
+  const { LLMProviderFactory } = await import('./llm/llm-provider.service');
+
+  // Clear any cached providers to force re-initialization
+  LLMProviderFactory.clearProviders();
+
+  // Build the enhancement request
+  const request: EnhancementRequest = {
+    prompt,
+    context: context || '',
+    isRefinement
+  };
+
+  try {
+    const response = await LLMProviderFactory.enhanceWithFallback(request);
+    return response;
+  } catch (error) {
+    // Fallback to local enhancement with detailed error info
+    return {
+      enhancedPrompt: prompt + '. (All LLM providers failed - using local enhancement)',
+      source: 'local',
+      metadata: {
+        processingTime: 0,
+        fallbackReason: 'all_providers_failed',
+        errorDetails: error instanceof Error ? error.message : String(error)
+      }
+    } as EnhancementResponse;
+  }
 }
 
 /**
@@ -100,7 +140,8 @@ export async function processEnhancementFeedback(
  * Get enhancement metrics
  */
 export async function getEnhancementMetrics(env: any): Promise<Record<string, unknown>> {
-  const service = getEnhancerService();
+  const { LLMEnhancerService } = await import('./llm/llm-enhancer.service');
+  const service = new LLMEnhancerService();
   return service.getMetrics(env);
 }
 

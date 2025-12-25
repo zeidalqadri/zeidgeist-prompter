@@ -1,3 +1,14 @@
+/**
+ * @deprecated Use llm-enhancer-refactored.ts which delegates to modern service architecture.
+ * This file will be removed in a future version.
+ *
+ * The modern implementation in app/lib/llm/ provides:
+ * - Factory pattern for provider management
+ * - Circuit breakers for resilience
+ * - Centralized configuration
+ * - 6 provider implementations (Claude, OpenAI, DeepSeek, Mistral, Moonshot, Gemini)
+ */
+
 // LLM-based prompt enhancer that uses external APIs (DeepSeek/Mistral)
 // This provides immediate high-quality enhancements while helping train our own engine
 
