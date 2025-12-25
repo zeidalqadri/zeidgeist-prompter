@@ -1,7 +1,8 @@
 import { createDb, promptHistory, enhancementLogs, NewPromptHistory, NewEnhancementLog } from "../_shared/db"
 import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../_shared/llm-enhancer-refactored"
-import { validateRequest, createAuthErrorResponse } from "../_shared/auth"
+import { validateRequestWithKV, createAuthErrorResponse } from "../_shared/auth"
+import { createRateLimitResponse } from "../_shared/rate-limiter"
 import { LLMCacheManager } from "../_shared/cache-manager"
 import { validateLambda, DEFAULT_COST_CONFIG } from "../../app/lib/enhanced-architecture/cost-config"
 
@@ -57,9 +58,13 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
     'X-Response-Time': `${Date.now() - startTime}ms` // Add response time header
   }
 
-  // Validate authentication and rate limiting
-  const authResult = validateRequest(request, env, '/api/engineer');
+  // Validate authentication and rate limiting (distributed KV-based)
+  const authResult = await validateRequestWithKV(request, env, '/api/engineer', env.CACHE_STORAGE);
   if (!authResult.success) {
+    // Check if this is a rate limit error vs auth error
+    if (authResult.rateLimitResult && !authResult.rateLimitResult.allowed) {
+      return createRateLimitResponse(authResult.rateLimitResult, corsHeaders);
+    }
     return createAuthErrorResponse(authResult.error!, corsHeaders);
   }
   
