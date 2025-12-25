@@ -4,31 +4,131 @@
  * Wrapper around opossum circuit breaker with enhanced monitoring
  */
 
-// import CircuitBreaker from 'opossum'; // TODO: Install opossum package
-// Temporary stub for CircuitBreaker
+// import CircuitBreaker from 'opossum'; // TODO: Enable when confirmed compatible with CF Workers
+// Functional stub for CircuitBreaker - implements proper state tracking for Cloudflare Workers compatibility
 const CircuitBreaker = class {
   stats = { failures: 0, successes: 0, rejects: 0, fires: 0 };
   action: any;
+  options: any;
+  opened = false;
+  halfOpen = false;
+  private failureCount = 0;
+  private lastFailure = 0;
+  private eventHandlers: Map<string, Function[]> = new Map();
 
   constructor(fn: any, options: any) {
     this.action = fn;
+    this.options = options || {};
   }
 
   async fire(input: any) {
+    // Check if circuit is open and should reject
+    if (this.opened && !this.halfOpen) {
+      const now = Date.now();
+      const resetTimeout = this.options.resetTimeout || 30000;
+      if (now - this.lastFailure > resetTimeout) {
+        // Transition to half-open state - allow one test request
+        this.halfOpen = true;
+        this.emit('halfOpen');
+      } else {
+        // Still in open state - reject immediately
+        this.stats.rejects++;
+        this.emit('reject');
+        throw new Error('Breaker is open');
+      }
+    }
+
     this.stats.fires++;
     try {
-      const result = await this.action(input);
+      // Apply timeout if configured
+      const timeout = this.options.timeout;
+      let result;
+      if (timeout && timeout > 0) {
+        result = await Promise.race([
+          this.action(input),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Timed out after ${timeout}ms`)), timeout)
+          )
+        ]);
+      } else {
+        result = await this.action(input);
+      }
       this.stats.successes++;
+      // Success resets the circuit
+      if (this.halfOpen || this.opened) {
+        this.opened = false;
+        this.halfOpen = false;
+        this.failureCount = 0;
+        this.emit('close');
+      }
+      this.emit('success');
       return result;
-    } catch (error) {
+    } catch (error: any) {
+      // Check if it's a timeout error
+      if (error.message && error.message.includes('Timed out')) {
+        this.stats.failures++;
+        this.emit('timeout', error);
+        throw error;
+      }
       this.stats.failures++;
+      this.failureCount++;
+      this.lastFailure = Date.now();
+      this.emit('failure', error);
+
+      // Check if we should open the circuit
+      const threshold = this.options.errorThresholdPercentage || 50;
+      const minRequests = 5; // Minimum requests before evaluating
+      if (this.stats.fires >= minRequests) {
+        const errorRate = (this.failureCount / this.stats.fires) * 100;
+        if (errorRate >= threshold && !this.opened) {
+          this.opened = true;
+          this.halfOpen = false;
+          this.emit('open');
+        }
+      }
       throw error;
     }
   }
 
-  on(event: string, handler: any) {}
-  open() {}
-  close() {}
+  on(event: string, handler: Function) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event)!.push(handler);
+  }
+
+  private emit(event: string, ...args: any[]) {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(...args);
+        } catch (e) {
+          // Ignore handler errors
+        }
+      });
+    }
+  }
+
+  open() {
+    this.opened = true;
+    this.halfOpen = false;
+    this.emit('open');
+  }
+
+  close() {
+    this.opened = false;
+    this.halfOpen = false;
+    this.failureCount = 0;
+    this.emit('close');
+  }
+
+  shutdown() {
+    // Clean up any resources
+    this.eventHandlers.clear();
+    this.opened = false;
+    this.halfOpen = false;
+  }
 };
 import { CircuitBreakerOptions, CircuitBreakerMetrics, CircuitBreakerEvent, CircuitBreakerState } from './types';
 import { logger } from '../observability/logger';

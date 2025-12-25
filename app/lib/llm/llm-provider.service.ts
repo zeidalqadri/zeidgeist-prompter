@@ -266,13 +266,17 @@ Build upon the previous enhancement with substantial improvements.` : '';
     this.initializeCircuitBreaker();
 
     try {
-      // Check if circuit is open
+      // Check if circuit is open - don't retry if circuit is open
       if (this.circuitBreaker?.isOpen()) {
         throw new Error(`Circuit breaker is OPEN for ${this.name} (too many recent failures)`);
       }
 
-      // Execute through circuit breaker (which includes timeout)
-      const response = await this.circuitBreaker!.execute(request);
+      // Execute through retry policy wrapping circuit breaker
+      // Retry policy handles transient errors (network, timeout)
+      // Circuit breaker handles persistent failures
+      const response = await this.retryPolicy.execute(
+        async () => this.circuitBreaker!.execute(request)
+      );
       return response;
     } catch (error) {
       console.error(`[${this.name}] Enhancement failed:`, error);
@@ -369,7 +373,7 @@ export class ClaudeProvider extends BaseLLMProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
+        'x-api-key': this.config.apiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
