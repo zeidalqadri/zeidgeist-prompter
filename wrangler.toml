@@ -47,9 +47,8 @@ database_id = "2ceef6e7-9ba6-48a4-a1ec-214d2c54f5d2"  # Update after running: wr
 # Cache warming can be triggered manually via /api/scheduled/cache-warmer endpoint
 # Or set up via Cloudflare Workers cron triggers separately
 
-# Observability
-[observability]
-enabled = true
+# Note: Observability configuration is not supported for Pages projects
+# Tracing is configured in wrangler-api-worker.toml for the API Worker instead
 
 # Routes configuration
 # This tells Pages to use Functions for API routes
