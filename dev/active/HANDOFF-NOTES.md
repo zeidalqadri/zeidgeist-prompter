@@ -1,104 +1,160 @@
 # Session Handoff Notes
 
-**Date**: 2025-12-15
-**Task**: Auth Flow Fix for Chrome Extension Download
-**Status**: IMPLEMENTATION COMPLETE
+**Date**: 2025-12-25
+**Task**: LLM API Critical Fixes
+**Status**: ✅ PHASE 1 & 2 COMPLETE
 
 ---
 
 ## What Was Done This Session
 
 ### Problem Solved
-The Chrome extension auth flow was broken - users could register but weren't logged in afterward, and there was no password recovery option.
+Multi-agent code review revealed LLM APIs weren't working due to:
+1. **Claude auth header wrong** - Using `Authorization: Bearer` instead of `x-api-key` (401 errors)
+2. **Circuit breaker non-functional** - Stub lacked state tracking, always returned undefined for `isOpen()`
+3. **Rate limiting disabled** - Using deprecated `validateRequest()` that doesn't actually rate limit
 
 ### Implementation Completed
 
-**Phase 1 (Critical)**:
-1. Made `createSession()` public in auth-service-workers.ts
-2. Modified register.ts to create session + set cookies after registration
-3. Added success feedback UI to register page (1.5s message before redirect)
+**Phase 1 (Critical Fixes)**:
+1. Fixed Claude auth header in both `llm-provider.service.ts` and `llm-enhancer.ts`
+2. Made circuit breaker stub functional with:
+   - State tracking (opened, halfOpen, failureCount)
+   - Timeout support via Promise.race
+   - Event handling (on, emit)
+   - shutdown() method
+3. Enabled rate limiting on `/api/engineer` with `validateRequestWithKV()`
 
-**Phase 2 (Enhancement)**:
-1. Created D1 migration for recovery PIN columns
-2. Added PIN methods to auth service (setRecoveryPIN, resetPasswordWithPIN)
-3. Added PIN methods to D1 adapter
-4. Created set-recovery-pin.ts endpoint (authenticated)
-5. Created forgot-password.ts endpoint (public)
-6. Created forgot-password page UI
-7. Added "Forgot password?" link to login page
-8. Added optional PIN field to registration form + backend
+**Phase 2 (Production Improvements)**:
+1. Wired retry policy around circuit breaker in `enhance()` method
+2. Updated vulnerable dependencies (`npm audit fix`)
+3. Secured debug endpoint (require token, no key previews)
+4. Documented OpenTelemetry limitation with CF Workers solutions
 
 ---
 
 ## Files Changed (Summary)
 
 ### Modified Files
-- `functions/_shared/auth-service-workers.ts` - createSession public + PIN methods
-- `functions/_shared/db-d1.ts` - D1User interface + PIN DB methods
-- `functions/api/auth/register.ts` - Session creation + cookies + PIN handling
-- `app/auth/register/page.tsx` - Success feedback + PIN field
-- `app/auth/login/page.tsx` - "Forgot password?" link
+| File | Change |
+|------|--------|
+| `app/lib/llm/llm-provider.service.ts` | Claude auth + retry policy wiring |
+| `app/lib/resilience/circuit-breaker.ts` | Functional stub with full state tracking |
+| `functions/_shared/llm-enhancer.ts` | Claude auth header fix |
+| `functions/api/engineer.ts` | Use `validateRequestWithKV` for rate limiting |
+| `functions/api/debug/api-keys.ts` | Security hardening |
+| `app/lib/observability/tracing.ts` | Documentation of CF Workers limitation |
 
 ### New Files
-- `migrations/d1/0005_add_recovery_pin.sql`
-- `functions/api/auth/set-recovery-pin.ts`
-- `functions/api/auth/forgot-password.ts`
-- `app/auth/forgot-password/page.tsx`
+| File | Purpose |
+|------|---------|
+| `dev/active/llm-api-fix-context.md` | Detailed context documentation |
+| `dev/active/llm-api-fix-tasks.md` | Task tracker |
+| `tests/unit/llm-provider.test.ts` | 43 comprehensive LLM provider unit tests |
 
 ---
 
-## What Needs To Be Done Next
+## What Was Done (Continuation)
 
-### 1. Run the D1 Migration (REQUIRED)
-```bash
-wrangler d1 execute zeidgeist-auth --file=./migrations/d1/0005_add_recovery_pin.sql
+### LLM Provider Unit Tests (COMPLETE)
+Created `tests/unit/llm-provider.test.ts` with 43 comprehensive tests:
+- Mock fetch for API responses (all 6 providers)
+- Test each provider (Claude, OpenAI, Mistral, Moonshot, Gemini, DeepSeek)
+- Test cases: success, auth failures (401, 429, 500), timeout, retry, fallback
+- Test circuit breaker integration (metrics, open state rejection)
+- Test request format verification (Claude x-api-key, OpenAI Bearer, Gemini query param)
+
+## Optional Future Work
+
+### 1. Enable Cloudflare Native Tracing (Optional)
+Add to `wrangler.toml`:
+```toml
+[observability.traces]
+enabled = true
 ```
 
-Without this, the PIN features will fail with database errors.
+### 2. Verify in Production
+- Test Claude API calls succeed with real API key
+- Verify rate limiting blocks after threshold
+- Verify circuit breaker opens after failures
 
-### 2. Test the Implementation
-- Register a new user → Verify cookies set → Verify logged in
-- Try password reset flow with PIN
-- Test edge cases (invalid PIN, lockout after 5 failures)
-
-### 3. Deploy
-Once tested, deploy to production.
+### 3. Consolidate LLM Implementations (Future)
+- Currently two parallel implementations exist
+- Consider deprecating legacy `llm-enhancer.ts`
 
 ---
 
 ## Technical Details for Reference
 
-### Cookie Configuration
+### Claude Auth Header (Correct Format)
 ```typescript
-'Set-Cookie': [
-  `access_token=${session.accessToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`,
-  `id_token=${session.idToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`,
-  `refresh_token=${session.refreshToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
-].join(', ')
+headers: {
+  'Content-Type': 'application/json',
+  'x-api-key': apiKey,  // NOT 'Authorization: Bearer'
+  'anthropic-version': '2023-06-01'
+}
 ```
 
-### PIN Security
-- Hashed with PBKDF2-SHA256 (100k iterations)
-- 5 failed attempts = 30 min lockout
-- All sessions revoked on password reset
-- Generic error messages prevent enumeration
+### Circuit Breaker Configuration
+- Opens after 50% error rate (minimum 5 requests)
+- Half-open after 30s (allows one test request)
+- Closes on success in half-open state
+- Error message: "Breaker is open"
 
-### New API Endpoints
-| Method | Endpoint | Auth | Purpose |
-|--------|----------|------|---------|
-| POST | `/api/auth/set-recovery-pin` | Required | Set 6-digit recovery PIN |
-| POST | `/api/auth/forgot-password` | None | Reset password with email + PIN |
+### Rate Limiting for /api/engineer
+```typescript
+// Uses CACHE_STORAGE KV namespace
+const authResult = await validateRequestWithKV(request, env, '/api/engineer', env.CACHE_STORAGE);
+```
+
+### Retry Policy Configuration
+```typescript
+retryableErrors: ['ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'ENETUNREACH', 'EAI_AGAIN']
+maxAttempts: 3
+initialDelay: 1000ms
+maxDelay: 10000ms
+```
 
 ---
 
-## No Uncommitted Changes Needed
+## Test Results
 
-All changes were auto-saved. TypeScript compiles without errors.
+```
+✓ tests/integration/circuit-breaker.test.ts (14 tests) 907ms
+✓ tests/unit/llm-provider.test.ts (43 tests) 3174ms
+Test Files  2 passed (2)
+Tests  57 passed (57)
+```
 
 ---
 
-## Key Insight for Future Sessions
+## Uncommitted Changes
 
-The original issue was that `register.ts` never called `createSession()` - it just created the user and returned. The login endpoint had the correct pattern with session creation + Set-Cookie headers. The fix was to replicate that pattern in register.ts.
+All changes saved. Run `git status` to see full diff.
 
-The PIN-based password reset was chosen over email-based because the user wanted everything on-site without external email dependencies.
+Key changes to commit:
+- Claude auth header fixes (2 files)
+- Circuit breaker functional stub
+- Rate limiting on /api/engineer
+- Retry policy wiring
+- Debug endpoint security
+- Documentation files
+
+---
+
+## Key Insights for Future Sessions
+
+1. **Anthropic API uses `x-api-key` header** - Different from OpenAI's `Authorization: Bearer`
+
+2. **Opossum doesn't work in CF Workers** - Use functional stub instead
+
+3. **Two parallel LLM implementations exist**:
+   - Modern: `app/lib/llm/llm-provider.service.ts`
+   - Legacy: `functions/_shared/llm-enhancer.ts`
+   - Refactored version imports from modern
+
+4. **`validateRequest()` is deprecated** - Use `validateRequestWithKV()` for actual rate limiting
+
+5. **OpenTelemetry requires CF-specific approach**:
+   - Native tracing (recommended): Enable in wrangler.toml
+   - Custom: Use `@microlabs/otel-cf-workers`

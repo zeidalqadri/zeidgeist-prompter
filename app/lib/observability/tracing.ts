@@ -2,7 +2,20 @@
  * OpenTelemetry Tracing Configuration
  *
  * Provides distributed tracing across LLM requests, database queries, and API calls
- * TEMPORARILY DISABLED: @opentelemetry/api dependency issue
+ *
+ * KNOWN LIMITATION: Standard @opentelemetry/api doesn't work in Cloudflare Workers.
+ *
+ * Options for enabling tracing:
+ * 1. Use Cloudflare's native tracing (recommended, zero-code):
+ *    - Enable in wrangler.toml: [observability.traces] enabled = true
+ *    - Export to any OTel-compatible backend
+ *    - See: https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/
+ *
+ * 2. Use @microlabs/otel-cf-workers for custom instrumentation:
+ *    - npm install @microlabs/otel-cf-workers
+ *    - See: https://github.com/evanderkoogh/otel-cf-workers
+ *
+ * Current status: Stub implementations that pass through without tracing
  */
 
 // Stub exports to maintain compatibility while tracing is disabled

@@ -1,6 +1,6 @@
 // API Keys Diagnostic Endpoint
 // This endpoint helps diagnose which API keys are available in the deployment environment
-// IMPORTANT: This should only be used for debugging and removed after fixing the issue
+// SECURITY: Only available in non-production environments with valid DEBUG_ACCESS_TOKEN
 
 interface Env {
   CLAUDE_API_KEY?: string;
@@ -17,92 +17,93 @@ interface Env {
 interface ApiKeyStatus {
   provider: string;
   configured: boolean;
-  keyPreview?: string; // First 8 and last 4 characters for verification
+  // NOTE: keyPreview removed for security - only show boolean configuration status
   enabled: boolean;
   notes?: string;
 }
 
 export async function onRequestGet(context: { env: Env; request: Request }) {
   const { env, request } = context;
-  
+
   // Security check - only allow in development/staging environments
   const appEnv = env.APP_ENV || env.NODE_ENV || 'production';
   const allowedEnvs = ['development', 'staging', 'preview'];
-  
+
   if (!allowedEnvs.includes(appEnv)) {
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'This diagnostic endpoint is only available in development/staging environments',
         environment: appEnv
-      }), 
-      { 
+      }),
+      {
         status: 403,
         headers: { 'Content-Type': 'application/json' }
       }
     );
   }
 
-  // Check for admin access token (optional security measure)
+  // SECURITY: Always require DEBUG_ACCESS_TOKEN - no bypass allowed
   const authHeader = request.headers.get('Authorization');
-  const debugToken = env.DEBUG_ACCESS_TOKEN || 'debug-token-not-set';
-  
-  if (authHeader !== `Bearer ${debugToken}` && debugToken !== 'debug-token-not-set') {
+  const debugToken = env.DEBUG_ACCESS_TOKEN;
+
+  if (!debugToken) {
     return new Response(
-      JSON.stringify({ error: 'Unauthorized - valid debug token required' }), 
-      { 
+      JSON.stringify({ error: 'DEBUG_ACCESS_TOKEN not configured - endpoint disabled' }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
+  if (authHeader !== `Bearer ${debugToken}`) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized - valid debug token required' }),
+      {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       }
     );
   }
 
-  // Function to create safe key preview
-  const createKeyPreview = (key?: string): string | undefined => {
-    if (!key || key.length < 12) return undefined;
-    return `${key.slice(0, 8)}...${key.slice(-4)}`;
-  };
+  // SECURITY: Only show if keys are configured, NOT their values or previews
+  const isConfigured = (key?: string): boolean => !!key && key.length > 0;
 
-  // Check all API key configurations
+  // Check all API key configurations (no key values exposed)
   const apiKeyStatuses: ApiKeyStatus[] = [
     {
       provider: 'Claude',
-      configured: !!env.CLAUDE_API_KEY,
-      keyPreview: createKeyPreview(env.CLAUDE_API_KEY),
+      configured: isConfigured(env.CLAUDE_API_KEY),
       enabled: true,
       notes: 'Primary AI provider - claude-3-haiku-20240307 (Anthropic)'
     },
     {
       provider: 'OpenAI',
-      configured: !!env.OPENAI_API_KEY,
-      keyPreview: createKeyPreview(env.OPENAI_API_KEY),
+      configured: isConfigured(env.OPENAI_API_KEY),
       enabled: true,
       notes: 'Secondary AI provider - gpt-4o-mini'
     },
     {
       provider: 'Mistral',
-      configured: !!env.MISTRAL_API_KEY,
-      keyPreview: createKeyPreview(env.MISTRAL_API_KEY),
+      configured: isConfigured(env.MISTRAL_API_KEY),
       enabled: true,
       notes: 'Tertiary AI provider - mistral-large-latest'
     },
     {
       provider: 'DeepSeek',
-      configured: !!env.DEEPSEEK_API_KEY,
-      keyPreview: createKeyPreview(env.DEEPSEEK_API_KEY),
+      configured: isConfigured(env.DEEPSEEK_API_KEY),
       enabled: false,
       notes: 'DISABLED - Issues with intro/outro text formatting'
     },
     {
       provider: 'Moonshot',
-      configured: !!env.MOONSHOT_API_KEY,
-      keyPreview: createKeyPreview(env.MOONSHOT_API_KEY),
+      configured: isConfigured(env.MOONSHOT_API_KEY),
       enabled: true,
       notes: 'Alternative AI provider - moonshot-v1-8k (Kimi)'
     },
     {
       provider: 'Gemini',
-      configured: !!env.GEMINI_API_KEY,
-      keyPreview: createKeyPreview(env.GEMINI_API_KEY),
+      configured: isConfigured(env.GEMINI_API_KEY),
       enabled: false,
       notes: 'Not implemented in Cloudflare Functions version'
     }
