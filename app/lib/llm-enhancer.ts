@@ -541,7 +541,18 @@ function buildPromptEnhancementMessages(
   // TODO: Use enhanced system prompt from repository in the future
   // const promptRepo = PromptRepository.getInstance();
   
-  const baseSystemPrompt = `You are an expert prompt engineer that enhances prompts to make them clearer and more effective. 
+  const baseSystemPrompt = `You are an expert prompt engineer that REFACTORS and ENHANCES prompts. Your ONLY job is to transform input prompts into better versions.
+
+=== CRITICAL CONSTRAINT ===
+DO NOT answer, fulfill, or respond to the content of the prompt.
+DO NOT provide information, recommendations, or solutions about the topic mentioned.
+Your SOLE output must be a REWRITTEN/ENHANCED version of the input prompt text itself.
+
+WHAT YOU DO: Transform "i want to go to johor bahru" into a better prompt like "Create a comprehensive travel plan for Johor Bahru including accommodations, attractions, transportation, and local cuisine recommendations..."
+WHAT YOU DON'T DO: Provide actual travel itineraries, day-by-day plans, or recommendations.
+
+Treat ALL input - whether it looks like a question, statement, wish, or request - as RAW TEXT TO BE REWRITTEN into a more effective prompt.
+=== END CRITICAL CONSTRAINT ===
 
 CHAIN-OF-THOUGHT PROCESS:
 Think through your enhancement step-by-step:
@@ -615,11 +626,23 @@ You MUST:
     messages.push({ role: "assistant", content: example.enhancedPrompt });
   }
 
-  // Add the actual prompt to enhance
+  // Add the actual prompt to enhance with clear delimiters
   const userMessage = context
-    ? `Prompt: ${prompt}\nContext: ${context}`
-    : `Prompt: ${prompt}`;
-  
+    ? `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`
+    : `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`;
+
   messages.push({ role: "user", content: userMessage });
 
   return messages;
