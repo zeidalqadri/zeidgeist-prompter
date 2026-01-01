@@ -117,8 +117,19 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   buildMessages(request: EnhancementRequest): ChatMessage[] {
     const { prompt, context, isRefinement = false } = request;
 
-    // System prompt with CoT reasoning
-    const baseSystemPrompt = `You are an expert prompt engineer that enhances prompts to make them clearer and more effective.
+    // System prompt with CoT reasoning and anti-answering constraints
+    const baseSystemPrompt = `You are an expert prompt engineer that REFACTORS and ENHANCES prompts. Your ONLY job is to transform input prompts into better versions.
+
+=== CRITICAL CONSTRAINT ===
+DO NOT answer, fulfill, or respond to the content of the prompt.
+DO NOT provide information, recommendations, or solutions about the topic mentioned.
+Your SOLE output must be a REWRITTEN/ENHANCED version of the input prompt text itself.
+
+WHAT YOU DO: Transform "i want to go to johor bahru" into a better prompt like "Create a comprehensive travel plan for Johor Bahru including accommodations, attractions, transportation, and local cuisine recommendations..."
+WHAT YOU DON'T DO: Provide actual travel itineraries, day-by-day plans, or recommendations.
+
+Treat ALL input - whether it looks like a question, statement, wish, or request - as RAW TEXT TO BE REWRITTEN into a more effective prompt.
+=== END CRITICAL CONSTRAINT ===
 
 CHAIN-OF-THOUGHT PROCESS:
 Think through your enhancement step-by-step:
@@ -180,10 +191,22 @@ You MUST:
       messages.push({ role: 'assistant', content: example.enhancedPrompt });
     }
 
-    // Add actual prompt to enhance
+    // Add actual prompt to enhance with clear delimiters
     const userMessage = context
-      ? `Prompt: ${prompt}\nContext: ${context}`
-      : `Prompt: ${prompt}`;
+      ? `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`
+      : `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`;
 
     messages.push({ role: 'user', content: userMessage });
 
@@ -229,10 +252,22 @@ Build upon the previous enhancement with substantial improvements.` : '';
       messages.push({ role: 'assistant', content: example.enhancedPrompt });
     }
 
-    // Add actual prompt to enhance
+    // Add actual prompt to enhance with clear delimiters
     const userMessage = context
-      ? `Prompt: ${prompt}\nContext: ${context}`
-      : `Prompt: ${prompt}`;
+      ? `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+<<<CONTEXT>>>
+${context}
+<<<END_CONTEXT>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`
+      : `<<<TEXT_TO_ENHANCE>>>
+${prompt}
+<<<END_TEXT_TO_ENHANCE>>>
+
+Remember: Your output must be ONLY the enhanced/rewritten version of the text above. Do NOT answer it or provide information about its topic.`;
 
     messages.push({ role: 'user', content: userMessage });
 
@@ -326,6 +361,76 @@ Build upon the previous enhancement with substantial improvements.` : '';
     if (enhancedPrompt === originalPrompt) {
       throw new Error(`${this.name}: Returned identical prompt`);
     }
+
+    // Check for answering behavior (response looks like it's answering the prompt instead of enhancing it)
+    const answeringCheck = this.detectAnsweringBehavior(enhancedPrompt, originalPrompt);
+    if (answeringCheck.isLikelyAnswering) {
+      console.warn(`${this.name}: Response appears to be answering rather than enhancing`, answeringCheck.indicators);
+      throw new Error(`${this.name}: Response appears to answer the prompt rather than enhance it`);
+    }
+  }
+
+  /**
+   * Detect if the response appears to be answering the prompt rather than enhancing it
+   */
+  protected detectAnsweringBehavior(response: string, original: string): { isLikelyAnswering: boolean; indicators: string[] } {
+    const indicators: string[] = [];
+
+    // Check 1: Response is excessively long compared to original (8x+ is suspicious)
+    if (response.length > original.length * 8 && response.length > 1000) {
+      indicators.push('excessive_length');
+    }
+
+    // Check 2: Contains day-by-day or step-by-step execution content (indicative of answering)
+    const executionPatterns = [
+      /^Day\s+\d+:/im,           // Day 1:, Day 2:, etc.
+      /^Step\s+\d+:/im,          // Step 1:, Step 2:, etc.
+      /^First,\s+you\s+/im,      // First, you should...
+      /^Here's\s+(?:a|the|your|my)\s+/im,  // Here's a/the plan...
+      /^Here\s+is\s+(?:a|the|your|my)\s+/im, // Here is the answer...
+      /I\s+recommend\s+(?:that\s+)?you/i, // I recommend you...
+      /You\s+should\s+(?:start|begin|first)/i, // You should start by...
+      /To\s+(?:do|achieve|accomplish)\s+this/i, // To do this...
+      /Let\s+me\s+(?:help|explain|provide)/i  // Let me help you...
+    ];
+
+    const executionMatches = executionPatterns.filter(p => p.test(response));
+    if (executionMatches.length >= 2) {
+      indicators.push('execution_language');
+    }
+
+    // Check 3: Missing prompt-like imperative language
+    const promptIndicators = [
+      /(?:include|including|encompass|cover):/i,
+      /(?:provide|create|write|develop|design|build|generate)\s+(?:a|an|the)/i,
+      /requirements?:|specifications?:|criteria:/i,
+      /format:|structure:|organize:/i
+    ];
+
+    const hasPromptLanguage = promptIndicators.some(p => p.test(response));
+    if (!hasPromptLanguage && response.length > 500) {
+      indicators.push('missing_prompt_language');
+    }
+
+    // Check 4: Contains specific recommendations or advice (answering behavior)
+    const advicePatterns = [
+      /I\s+(?:suggest|advise|recommend)\s+/i,
+      /You\s+(?:can|could|should|might)\s+(?:try|visit|go|eat|see|check)/i,
+      /(?:Don't|Do\s+not)\s+forget\s+to/i,
+      /Make\s+sure\s+(?:to|you)/i
+    ];
+
+    const adviceMatches = advicePatterns.filter(p => p.test(response));
+    if (adviceMatches.length >= 2) {
+      indicators.push('advice_language');
+    }
+
+    // Determine if this is likely an "answer" vs an "enhancement"
+    // Need at least 2 indicators to flag as answering
+    return {
+      isLikelyAnswering: indicators.length >= 2,
+      indicators
+    };
   }
 }
 
