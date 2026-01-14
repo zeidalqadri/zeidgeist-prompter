@@ -1,7 +1,9 @@
-import { expect, afterEach, beforeAll, afterAll } from 'vitest'
+// Note: localStorage/sessionStorage are set up in setup-globals.ts (runs first)
+import { expect, afterEach, beforeAll, afterAll, beforeEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { server } from './mocks/server'
+import { resetMockStores } from './mocks/handlers'
 
 // Mock environment variables for tests
 Object.assign(process.env, {
@@ -57,6 +59,11 @@ Object.defineProperty(global, 'crypto', {
 // MSW server setup
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'warn' })
+})
+
+beforeEach(() => {
+  // Reset mock stores between tests to ensure test isolation
+  resetMockStores()
 })
 
 afterEach(() => {
