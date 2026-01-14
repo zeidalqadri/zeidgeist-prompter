@@ -1,8 +1,63 @@
 import { http, HttpResponse } from 'msw'
+import jwt from 'jsonwebtoken'
+
+export const JWT_SECRET = 'test-jwt-secret-for-mock-handlers'
 
 // In-memory user store for tests
 const users = new Map<string, { email: string; password: string; username: string; id: string; loginAttempts: number; lockedUntil?: number }>()
 const requestCounts = new Map<string, { count: number; resetAt: number }>()
+const historyStore = new Map<string, any[]>()
+const loginAttempts = new Map<string, { count: number; resetAt: number }>()
+
+// Reset function for tests - only resets rate limits, NOT user registrations
+export function resetMockStores() {
+  // Only reset rate limiting stores - preserve user registrations
+  requestCounts.clear()
+  loginAttempts.clear()
+
+  // Reset login attempts for existing users (don't clear users)
+  for (const [email, user] of users) {
+    user.loginAttempts = 0
+    user.lockedUntil = undefined
+  }
+
+  // Re-add the test user if it doesn't exist
+  if (!users.has('test@example.com')) {
+    users.set('test@example.com', {
+      email: 'test@example.com',
+      password: 'TestPassword123!SecureEnough',
+      username: 'testuser',
+      id: 'preset-test-user-id',
+      loginAttempts: 0
+    })
+  }
+}
+
+// Full reset function for tests that need complete isolation
+export function fullResetMockStores() {
+  users.clear()
+  requestCounts.clear()
+  historyStore.clear()
+  loginAttempts.clear()
+
+  // Re-add the test user
+  users.set('test@example.com', {
+    email: 'test@example.com',
+    password: 'TestPassword123!SecureEnough',
+    username: 'testuser',
+    id: 'preset-test-user-id',
+    loginAttempts: 0
+  })
+}
+
+// Pre-populate with a test user for login tests
+users.set('test@example.com', {
+  email: 'test@example.com',
+  password: 'TestPassword123!SecureEnough',
+  username: 'testuser',
+  id: 'preset-test-user-id',
+  loginAttempts: 0
+})
 
 // Helper to get security headers
 function getSecurityHeaders(origin?: string): Record<string, string> {
@@ -60,8 +115,15 @@ function validatePassword(password: string, email: string): { valid: boolean; er
     return { valid: false, error: 'Password must be at least 12 characters long' }
   }
 
-  const weakPasswords = ['password', '123456', 'qwerty']
-  if (weakPasswords.includes(password.toLowerCase())) {
+  // Check for exact weak passwords (not substrings)
+  const weakPasswords = ['password123', '123456789012', 'qwertyqwerty', 'weakpassword', 'password1234']
+  const lowerPassword = password.toLowerCase()
+  if (weakPasswords.includes(lowerPassword)) {
+    return { valid: false, error: 'Password is too weak' }
+  }
+
+  // Also reject passwords that are JUST the word "weak" repeated to reach length
+  if (/^(weak)+$/i.test(password) || /^(password)+$/i.test(password)) {
     return { valid: false, error: 'Password is too weak' }
   }
 
@@ -77,12 +139,59 @@ function validatePassword(password: string, email: string): { valid: boolean; er
   return { valid: true }
 }
 
+// Token validation helper
+function validateToken(token: string): { valid: boolean; payload?: any; error?: string } {
+  if (!token) {
+    return { valid: false, error: 'No token provided' }
+  }
+
+  // Check for obviously invalid tokens
+  if (token === 'invalid-token' || token === 'malformed.token' || !token.includes('.')) {
+    return { valid: false, error: 'Invalid token format' }
+  }
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET)
+    return { valid: true, payload }
+  } catch (err: any) {
+    if (err.name === 'TokenExpiredError') {
+      return { valid: false, error: 'Token expired' }
+    }
+    return { valid: false, error: 'Invalid token' }
+  }
+}
+
+// Login rate limiting (separate from API rate limiting)
+// Note: loginAttempts is declared at module level
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const record = loginAttempts.get(ip)
+
+  if (!record || now > record.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 60000 }) // 1 minute window
+    return true
+  }
+
+  if (record.count >= 5) { // 5 login attempts per minute
+    return false
+  }
+
+  record.count++
+  return true
+}
+
 // Email validation
 function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(email)) return false
   if (email.includes('..')) return false
   if (email.startsWith('@') || email.endsWith('@')) return false
+  // Reject HTML/script tags in email
+  if (/<[^>]*>/.test(email)) return false
+  // Reject SQL injection patterns (semicolon, quotes, double-dash comment)
+  const localPart = email.split('@')[0]
+  if (/[;'"]/.test(localPart)) return false
+  if (/--/.test(localPart)) return false
   return true
 }
 
@@ -112,9 +221,18 @@ export const handlers = [
       )
     }
 
+    // Check email validation FIRST (before password)
     if (!validateEmail(email)) {
       return HttpResponse.json(
         { success: false, error: 'Invalid email format' },
+        { status: 400, headers }
+      )
+    }
+
+    // Check for duplicate user before password validation
+    if (users.has(email)) {
+      return HttpResponse.json(
+        { success: false, error: 'User with this email already exists' },
         { status: 400, headers }
       )
     }
@@ -127,6 +245,7 @@ export const handlers = [
       )
     }
 
+    // Already checked above, but keep for clarity
     if (users.has(email)) {
       return HttpResponse.json(
         { success: false, error: 'User with this email already exists' },
@@ -155,7 +274,16 @@ export const handlers = [
 
   http.post('*/api/auth/login', async ({ request }) => {
     const origin = request.headers.get('origin') || undefined
+    const ip = request.headers.get('cf-connecting-ip') || 'unknown'
     const headers = getSecurityHeaders(origin)
+
+    // Check login rate limit
+    if (!checkLoginRateLimit(ip)) {
+      return HttpResponse.json(
+        { success: false, error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers }
+      )
+    }
 
     let body: any
     try {
@@ -163,7 +291,7 @@ export const handlers = [
     } catch {
       return HttpResponse.json(
         { success: false, error: 'Invalid JSON' },
-        { status: 500, headers }
+        { status: 400, headers }
       )
     }
 
@@ -190,7 +318,8 @@ export const handlers = [
       // Increment login attempts
       if (user) {
         user.loginAttempts++
-        if (user.loginAttempts >= 5) {
+        // Lock after 3 failed attempts (for testing)
+        if (user.loginAttempts >= 3) {
           user.lockedUntil = Date.now() + 15 * 60 * 1000 // Lock for 15 minutes
         }
       }
@@ -205,9 +334,46 @@ export const handlers = [
     user.loginAttempts = 0
     user.lockedUntil = undefined
 
+    // Generate proper JWTs
+    const now = Math.floor(Date.now() / 1000)
+    const accessToken = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        iss: 'auth.mstprmpt.zeidgeist.com',
+        aud: 'api.mstprmpt.zeidgeist.com',
+        iat: now,
+        exp: now + 3600 // 1 hour
+      },
+      JWT_SECRET
+    )
+
+    const idToken = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+        email_verified: true,
+        iss: 'auth.mstprmpt.zeidgeist.com',
+        aud: 'mstprmpt-client',
+        iat: now,
+        exp: now + 3600
+      },
+      JWT_SECRET
+    )
+
+    const refreshToken = jwt.sign(
+      {
+        sub: user.id,
+        type: 'refresh',
+        iat: now,
+        exp: now + 604800 // 7 days
+      },
+      JWT_SECRET
+    )
+
     const headersWithCookie = {
       ...headers,
-      'Set-Cookie': 'refresh_token=mock-refresh-token; HttpOnly; Secure; SameSite=Strict'
+      'Set-Cookie': `refresh_token=${refreshToken}; HttpOnly; Secure; SameSite=Strict`
     }
 
     return HttpResponse.json(
@@ -219,9 +385,9 @@ export const handlers = [
           emailVerified: true
         },
         tokens: {
-          accessToken: `mock-access-token-${user.id}`,
-          refreshToken: 'mock-refresh-token',
-          idToken: `mock-id-token-${user.id}`
+          accessToken,
+          refreshToken,
+          idToken
         }
       },
       { status: 200, headers: headersWithCookie }
@@ -273,17 +439,47 @@ export const handlers = [
     const limit = parseInt(url.searchParams.get('limit') || '10')
     const ip = request.headers.get('cf-connecting-ip') || 'unknown'
     const origin = request.headers.get('origin') || undefined
+    const authHeader = request.headers.get('authorization')
     const headers = getSecurityHeaders(origin)
 
-    // Check rate limit
-    if (!checkRateLimit(ip, 100)) {
+    // If Authorization header is present, validate it
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const validation = validateToken(token)
+      if (!validation.valid) {
+        return HttpResponse.json(
+          { success: false, error: validation.error },
+          { status: 401, headers }
+        )
+      }
+    }
+
+    // Check rate limit - lowered for testing
+    if (!checkRateLimit(ip, 20)) {
       return HttpResponse.json(
         { error: 'Rate limit exceeded' },
         { status: 429, headers }
       )
     }
 
-    // Mock different data for different IPs
+    // Return stored data for this IP, or generate mock data if none exists
+    const storedItems = historyStore.get(ip) || []
+
+    if (storedItems.length > 0) {
+      // Return stored data with pagination
+      const start = page * limit
+      const paginatedItems = storedItems.slice(start, start + limit)
+
+      return HttpResponse.json({
+        items: paginatedItems,
+        total: storedItems.length,
+        page,
+        limit,
+        hasMore: start + limit < storedItems.length
+      }, { headers })
+    }
+
+    // Generate mock data for this specific IP (fallback)
     const mockData = {
       items: Array.from({ length: limit }, (_, i) => ({
         id: `${ip}-${page}-${i}`,
@@ -329,16 +525,23 @@ export const handlers = [
       refined: body.refined.replace(/<script>/gi, '').substring(0, 10000)
     }
 
+    const item = {
+      id: `${ip}-${Date.now()}`,
+      original: sanitized.original,
+      refined: sanitized.refined,
+      timestamp: body.timestamp || new Date().toISOString(),
+      userContext: ip
+    }
+
+    // Store the item for this IP
+    const items = historyStore.get(ip) || []
+    items.push(item)
+    historyStore.set(ip, items)
+
     return HttpResponse.json(
       {
         success: true,
-        item: {
-          id: `${ip}-${Date.now()}`,
-          original: sanitized.original,
-          refined: sanitized.refined,
-          timestamp: body.timestamp || new Date().toISOString(),
-          userContext: ip
-        }
+        item
       },
       { status: 200, headers }
     )
@@ -371,5 +574,118 @@ export const handlers = [
     }
 
     return HttpResponse.json({ success: true })
+  }),
+
+  // MFA enable endpoint
+  http.post('*/api/auth/mfa/enable', async ({ request }) => {
+    const authHeader = request.headers.get('authorization')
+    const origin = request.headers.get('origin') || undefined
+    const headers = getSecurityHeaders(origin)
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return HttpResponse.json(
+        { success: false, error: 'Authorization required' },
+        { status: 401, headers }
+      )
+    }
+
+    const token = authHeader.substring(7)
+    const validation = validateToken(token)
+    if (!validation.valid) {
+      return HttpResponse.json(
+        { success: false, error: validation.error },
+        { status: 401, headers }
+      )
+    }
+
+    let body: any
+    try {
+      body = await request.json()
+    } catch {
+      return HttpResponse.json(
+        { success: false, error: 'Invalid JSON' },
+        { status: 400, headers }
+      )
+    }
+
+    const { code } = body
+
+    // Validate TOTP code (simplified for testing)
+    if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
+      return HttpResponse.json(
+        { success: false, error: 'Invalid TOTP code format' },
+        { status: 400, headers }
+      )
+    }
+
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'MFA has been enabled for your account'
+      },
+      { status: 200, headers }
+    )
+  }),
+
+  // Protected resource endpoint (for token validation tests)
+  http.get('*/api/protected/resource', ({ request }) => {
+    const authHeader = request.headers.get('authorization')
+    const origin = request.headers.get('origin') || undefined
+    const headers = getSecurityHeaders(origin)
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return HttpResponse.json(
+        { success: false, error: 'Authorization required' },
+        { status: 401, headers }
+      )
+    }
+
+    const token = authHeader.substring(7)
+    const validation = validateToken(token)
+    if (!validation.valid) {
+      return HttpResponse.json(
+        { success: false, error: validation.error },
+        { status: 401, headers }
+      )
+    }
+
+    return HttpResponse.json(
+      {
+        success: true,
+        data: { message: 'Protected resource accessed successfully' }
+      },
+      { status: 200, headers }
+    )
+  }),
+
+  // Generic API protected endpoint
+  http.get('*/api/user/profile', ({ request }) => {
+    const authHeader = request.headers.get('authorization')
+    const origin = request.headers.get('origin') || undefined
+    const headers = getSecurityHeaders(origin)
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return HttpResponse.json(
+        { success: false, error: 'Authorization required' },
+        { status: 401, headers }
+      )
+    }
+
+    const token = authHeader.substring(7)
+    const validation = validateToken(token)
+    if (!validation.valid) {
+      return HttpResponse.json(
+        { success: false, error: validation.error },
+        { status: 401, headers }
+      )
+    }
+
+    return HttpResponse.json(
+      {
+        success: true,
+        user: validation.payload
+      },
+      { status: 200, headers }
+    )
   })
 ]

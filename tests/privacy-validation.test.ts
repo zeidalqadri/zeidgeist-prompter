@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { server } from './mocks/server'
+import { isSharedNetwork, sanitizeUserData, validatePrivacyAccess, PrivacyContext } from '../functions/_shared/privacy-guard'
 
 const API_BASE = process.env.API_URL || 'http://localhost:8788';
 
@@ -290,9 +291,7 @@ describe('Privacy and Data Isolation Tests', () => {
 describe('Privacy Guard Unit Tests', () => {
   
   it('should validate privacy access correctly', () => {
-    const { validatePrivacyAccess } = require('../functions/_shared/privacy-guard');
-    
-    const requestContext = {
+    const requestContext: PrivacyContext = {
       userId: 'user123',
       ipAddress: '11.11.11.11'
     };
@@ -311,8 +310,6 @@ describe('Privacy Guard Unit Tests', () => {
   });
   
   it('should detect shared networks', () => {
-    const { isSharedNetwork } = require('../functions/_shared/privacy-guard');
-    
     expect(isSharedNetwork('192.168.1.1')).toBe(true);
     expect(isSharedNetwork('10.0.0.1')).toBe(true);
     expect(isSharedNetwork('172.16.0.1')).toBe(true);
@@ -322,8 +319,6 @@ describe('Privacy Guard Unit Tests', () => {
   });
   
   it('should sanitize user data', () => {
-    const { sanitizeUserData } = require('../functions/_shared/privacy-guard');
-    
     const userData = {
       id: '123',
       email: 'user@example.com',

@@ -10,7 +10,7 @@
  * - Circuit breaker integration
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import {
   ClaudeProvider,
   OpenAIProvider,
@@ -25,19 +25,20 @@ import {
 import { setEnvironmentSource } from '../../app/lib/llm/llm-config';
 import { CircuitBreakerFactory } from '../../app/lib/resilience/circuit-breaker';
 import type { EnhancementRequest, EnhancementResponse } from '../../app/lib/llm/types';
+import { server } from '../mocks/server';
+
+// Stop MSW for this test file - we use our own mockFetch
+beforeAll(() => {
+  server.close();
+});
+
+afterAll(() => {
+  server.listen({ onUnhandledRequest: 'warn' });
+});
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
-
-// Mock AbortSignal.timeout
-vi.stubGlobal('AbortSignal', {
-  timeout: (ms: number) => {
-    const controller = new AbortController();
-    setTimeout(() => controller.abort(), ms);
-    return controller.signal;
-  }
-});
 
 /**
  * Create a proper mock Response object with all required methods
@@ -61,6 +62,17 @@ function createMockResponse(data: any, ok: boolean, status: number = 200): Respo
     type: 'basic' as ResponseType,
     url: ''
   } as Response;
+}
+
+/**
+ * Helper to extract URL and options from mockFetch call
+ * Handles both (url, options) and (Request) call patterns
+ */
+function getFetchCallDetails(call: any[]): { url: string; options: RequestInit; headers: Record<string, string> } {
+  const url = call[0] as string;
+  const options = call[1] as RequestInit;
+  const headers = options.headers as Record<string, string>;
+  return { url, options, headers };
 }
 
 describe('LLM Providers', () => {
@@ -105,20 +117,22 @@ describe('LLM Providers', () => {
       const provider = new ClaudeProvider();
       await provider.enhance(testRequest);
 
-      // Get the first call - fetch may be called with a Request object or (url, options)
+      // Get the first call - fetch is called with (url, options) pattern
       const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const url = call[0] as string;
+      const options = call[1] as RequestInit;
 
       // Check URL
-      expect(request.url).toBe('https://api.anthropic.com/v1/messages');
+      expect(url).toBe('https://api.anthropic.com/v1/messages');
 
-      // Check headers - Request object has headers as a Headers object
-      expect(request.headers.get('x-api-key')).toBe('test-claude-key');
-      expect(request.headers.get('anthropic-version')).toBe('2023-06-01');
-      expect(request.headers.get('Content-Type')).toBe('application/json');
+      // Check headers
+      const headers = options.headers as Record<string, string>;
+      expect(headers['x-api-key']).toBe('test-claude-key');
+      expect(headers['anthropic-version']).toBe('2023-06-01');
+      expect(headers['Content-Type']).toBe('application/json');
 
       // Ensure NOT using Bearer token
-      expect(request.headers.get('Authorization')).toBeNull();
+      expect(headers['Authorization']).toBeUndefined();
     });
 
     it('should call Anthropic API endpoint', async () => {
@@ -130,9 +144,8 @@ describe('LLM Providers', () => {
       const provider = new ClaudeProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
-      expect(request.url).toBe('https://api.anthropic.com/v1/messages');
+      const { url } = getFetchCallDetails(mockFetch.mock.calls[0]);
+      expect(url).toBe('https://api.anthropic.com/v1/messages');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -227,11 +240,10 @@ describe('LLM Providers', () => {
       const provider = new OpenAIProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const { headers } = getFetchCallDetails(mockFetch.mock.calls[0]);
 
-      expect(request.headers.get('Authorization')).toBe('Bearer test-openai-key');
-      expect(request.headers.get('Content-Type')).toBe('application/json');
+      expect(headers['Authorization']).toBe('Bearer test-openai-key');
+      expect(headers['Content-Type']).toBe('application/json');
     });
 
     it('should call OpenAI API endpoint', async () => {
@@ -243,9 +255,8 @@ describe('LLM Providers', () => {
       const provider = new OpenAIProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
-      expect(request.url).toBe('https://api.openai.com/v1/chat/completions');
+      const { url } = getFetchCallDetails(mockFetch.mock.calls[0]);
+      expect(url).toBe('https://api.openai.com/v1/chat/completions');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -289,11 +300,10 @@ describe('LLM Providers', () => {
       const provider = new MistralProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const { url, headers } = getFetchCallDetails(mockFetch.mock.calls[0]);
 
-      expect(request.url).toBe('https://api.mistral.ai/v1/chat/completions');
-      expect(request.headers.get('Authorization')).toBe('Bearer test-mistral-key');
+      expect(url).toBe('https://api.mistral.ai/v1/chat/completions');
+      expect(headers['Authorization']).toBe('Bearer test-mistral-key');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -325,11 +335,10 @@ describe('LLM Providers', () => {
       const provider = new MoonshotProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const { url, headers } = getFetchCallDetails(mockFetch.mock.calls[0]);
 
-      expect(request.url).toBe('https://api.moonshot.cn/v1/chat/completions');
-      expect(request.headers.get('Authorization')).toBe('Bearer test-moonshot-key');
+      expect(url).toBe('https://api.moonshot.cn/v1/chat/completions');
+      expect(headers['Authorization']).toBe('Bearer test-moonshot-key');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -360,11 +369,10 @@ describe('LLM Providers', () => {
       const provider = new GeminiProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const { url } = getFetchCallDetails(mockFetch.mock.calls[0]);
 
       // Gemini uses API key in URL, not header
-      expect(request.url).toContain('key=test-gemini-key');
+      expect(url).toContain('key=test-gemini-key');
     });
 
     it('should call Gemini API endpoint', async () => {
@@ -375,9 +383,8 @@ describe('LLM Providers', () => {
       const provider = new GeminiProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
-      expect(request.url).toContain('generativelanguage.googleapis.com');
+      const { url } = getFetchCallDetails(mockFetch.mock.calls[0]);
+      expect(url).toContain('generativelanguage.googleapis.com');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -408,11 +415,10 @@ describe('LLM Providers', () => {
       const provider = new DeepSeekProvider();
       await provider.enhance(testRequest);
 
-      const call = mockFetch.mock.calls[0];
-      const request = call[0] as Request;
+      const { url, headers } = getFetchCallDetails(mockFetch.mock.calls[0]);
 
-      expect(request.url).toBe('https://api.deepseek.com/v1/chat/completions');
-      expect(request.headers.get('Authorization')).toBe('Bearer test-deepseek-key');
+      expect(url).toBe('https://api.deepseek.com/v1/chat/completions');
+      expect(headers['Authorization']).toBe('Bearer test-deepseek-key');
     });
 
     it('should return enhanced prompt on success', async () => {
@@ -689,8 +695,8 @@ describe('LLM Providers', () => {
     it('should format Claude request with system instruction separately', async () => {
       // Capture the body before fetch is called
       let capturedBody: any;
-      mockFetch.mockImplementationOnce(async (input: Request) => {
-        capturedBody = JSON.parse(await input.text());
+      mockFetch.mockImplementationOnce(async (url: string, options: RequestInit) => {
+        capturedBody = JSON.parse(options.body as string);
         return createMockResponse({
           content: [{ text: 'Enhanced' }],
           usage: {}
@@ -708,8 +714,8 @@ describe('LLM Providers', () => {
 
     it('should format OpenAI request with messages array', async () => {
       let capturedBody: any;
-      mockFetch.mockImplementationOnce(async (input: Request) => {
-        capturedBody = JSON.parse(await input.text());
+      mockFetch.mockImplementationOnce(async (url: string, options: RequestInit) => {
+        capturedBody = JSON.parse(options.body as string);
         return createMockResponse({
           choices: [{ message: { content: 'Enhanced' } }],
           usage: {}
@@ -726,8 +732,8 @@ describe('LLM Providers', () => {
 
     it('should format Gemini request with contents and systemInstruction', async () => {
       let capturedBody: any;
-      mockFetch.mockImplementationOnce(async (input: Request) => {
-        capturedBody = JSON.parse(await input.text());
+      mockFetch.mockImplementationOnce(async (url: string, options: RequestInit) => {
+        capturedBody = JSON.parse(options.body as string);
         return createMockResponse({
           candidates: [{ content: { parts: [{ text: 'Enhanced' }] } }]
         }, true);
