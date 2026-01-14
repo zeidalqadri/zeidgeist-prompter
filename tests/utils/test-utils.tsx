@@ -1,6 +1,8 @@
 import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { vi } from 'vitest'
+import jwt from 'jsonwebtoken'
+import { JWT_SECRET } from '../mocks/handlers'
 
 // Mock Next.js router
 export const mockRouter = {
@@ -66,11 +68,42 @@ export const createMockPromptHistory = (count = 5, ipContext = '1.1.1.1') =>
     } : undefined
   }))
 
-export const createMockAuthTokens = () => ({
-  accessToken: 'mock-access-token',
-  refreshToken: 'mock-refresh-token',
-  idToken: 'mock-id-token'
-})
+export const createMockAuthTokens = (userId = 'test-user-id', email = 'test@example.com') => {
+  const now = Math.floor(Date.now() / 1000)
+
+  const accessToken = jwt.sign(
+    {
+      userId,
+      email,
+      iat: now,
+      exp: now + 3600 // 1 hour
+    },
+    JWT_SECRET
+  )
+
+  const refreshToken = jwt.sign(
+    {
+      userId,
+      type: 'refresh',
+      iat: now,
+      exp: now + 86400 * 7 // 7 days
+    },
+    JWT_SECRET
+  )
+
+  const idToken = jwt.sign(
+    {
+      userId,
+      email,
+      type: 'id',
+      iat: now,
+      exp: now + 3600
+    },
+    JWT_SECRET
+  )
+
+  return { accessToken, refreshToken, idToken }
+}
 
 // Mock fetch helper
 export const mockFetch = (mockResponse: any, status = 200) => {

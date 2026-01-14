@@ -114,19 +114,33 @@ describe('API Integration Tests', () => {
       let testUser: any
 
       beforeEach(async () => {
-        // Create a test user for login tests
-        testUser = await testDbUtils.createTestUser({
-          email: 'logintest@example.com',
-          password: 'TestPassword123!',
-          username: 'logintest',
-          emailVerified: true
+        // Register a test user via API for login tests
+        const userData = {
+          email: `logintest-${Date.now()}@example.com`,
+          password: 'TestPassword123!SecureEnough',
+          username: 'logintest'
+        }
+
+        const registerResponse = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
         })
+
+        if (registerResponse.status !== 201) {
+          console.error('Registration failed:', await registerResponse.json())
+        }
+
+        testUser = {
+          ...userData,
+          emailVerified: true // Mock assumes verified for login tests
+        }
       })
 
       it('should login with valid credentials', async () => {
         const loginData = {
           email: testUser.email,
-          password: 'TestPassword123!'
+          password: testUser.password
         }
 
         const response = await fetch('/api/auth/login', {
@@ -167,7 +181,7 @@ describe('API Integration Tests', () => {
       it('should set secure refresh token cookie', async () => {
         const loginData = {
           email: testUser.email,
-          password: 'TestPassword123!'
+          password: testUser.password
         }
 
         const response = await fetch('/api/auth/login', {
@@ -204,7 +218,7 @@ describe('API Integration Tests', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: testUser.email,
-            password: 'TestPassword123!' // Even correct password should be locked
+            password: testUser.password // Even correct password should be locked
           })
         })
 
