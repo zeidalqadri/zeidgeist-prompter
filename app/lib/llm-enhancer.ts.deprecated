@@ -721,20 +721,6 @@ export async function enhancePrompt(
       return adaptiveResult.enhanced;
     }
     
-    // Check if this is already a refined prompt (to prevent re-refinement issues)
-    // Skip this check if isRefinement is true - we always want to enhance on repeat
-    if (!isRefinement && isAlreadyRefined(promptString)) {
-      console.log('Prompt appears to be already refined, applying minimal enhancements');
-      // Apply only minimal formatting improvements for already refined prompts
-      // But still make SOME changes so it's not identical
-      const minimallyEnhanced = minimalEnhance(promptString, processedContext);
-      if (minimallyEnhanced === promptString) {
-        // If even minimal enhancement returned the same prompt, add something generic
-        return `${promptString}. Include comprehensive information and well-organized sections.`;
-      }
-      return minimallyEnhanced;
-    }
-    
     let result: EnhancementResponse;
     
     // Try DeepSeek API first if configured
@@ -971,111 +957,7 @@ function enhanceByDomain(prompt: string): string {
   return '';
 }
 
-// Function to check if a prompt is already refined
-function isAlreadyRefined(prompt: string): boolean {
-  // Enhanced refinement detection with multiple criteria
-  
-  // 1. Length check - refined prompts tend to be comprehensive
-  if (prompt.length < 100) {
-    return false; // Short prompts are likely not refined
-  }
-  
-  // 2. Structure indicators - refined prompts have clear organization
-  const hasNumberedList = /\d+\.\s/.test(prompt);
-  const hasBulletPoints = /[•\-\*]\s/.test(prompt);
-  const hasColonSeparation = prompt.includes(':') && prompt.includes(',');
-  const hasMultipleSentences = (prompt.match(/\.\s/g) || []).length >= 3;
-  
-  // 3. Specificity indicators - refined prompts contain detailed instructions
-  const specificityKeywords = [
-    'include', 'ensure', 'incorporate', 'consider', 'address', 'provide',
-    'comprehensive', 'detailed', 'specific', 'professional', 'clear',
-    'sections', 'requirements', 'guidelines', 'specifications', 'criteria'
-  ];
-  
-  const specificityScore = specificityKeywords.reduce((score, keyword) => {
-    return score + (prompt.toLowerCase().includes(keyword) ? 1 : 0);
-  }, 0);
-  
-  // 4. Domain-specific refinement indicators
-  const hasInstructionalLanguage = /\b(should|must|need to|required|essential)\b/i.test(prompt);
-  const hasActionableItems = /\b(create|design|develop|implement|establish|organize)\b/i.test(prompt);
-  
-  // 5. Quality indicators - refined prompts often have these characteristics
-  const hasContextSetup = prompt.toLowerCase().includes('context') || 
-                         prompt.toLowerCase().includes('background') ||
-                         prompt.toLowerCase().includes('considering');
-  
-  // Calculate refinement confidence score
-  let refinementScore = 0;
-  
-  // Structure scoring
-  if (hasNumberedList) refinementScore += 3;
-  if (hasBulletPoints) refinementScore += 2;
-  if (hasColonSeparation) refinementScore += 2;
-  if (hasMultipleSentences) refinementScore += 2;
-  
-  // Specificity scoring
-  refinementScore += Math.min(specificityScore, 4); // Cap at 4 points
-  
-  // Language quality scoring
-  if (hasInstructionalLanguage) refinementScore += 2;
-  if (hasActionableItems) refinementScore += 1;
-  if (hasContextSetup) refinementScore += 1;
-  
-  // Length bonus for very detailed prompts
-  if (prompt.length > 300) refinementScore += 2;
-  if (prompt.length > 500) refinementScore += 1;
-  
-  // Threshold for considering a prompt "already refined"
-  // Score of 8+ indicates a well-structured, detailed prompt
-  const isRefined = refinementScore >= 8;
-  
-  // Log for debugging/monitoring
-  if (isRefined) {
-    console.log(`Prompt appears refined (score: ${refinementScore}):`, {
-      length: prompt.length,
-      hasStructure: hasNumberedList || hasBulletPoints || hasColonSeparation,
-      specificityScore,
-      hasInstructionalLanguage,
-      hasActionableItems
-    });
-  }
-  
-  return isRefined;
-}
 
-// Minimal enhancement for already-refined prompts
-function minimalEnhance(prompt: string, context: string): string {
-  let enhanced = prompt;
-  
-  // Fix punctuation and formatting issues
-  enhanced = enhanced.replace(/\s+/g, ' ').trim();
-  enhanced = enhanced.replace(/\.\s*,/g, '.');
-  enhanced = enhanced.replace(/,,/g, ',');
-  enhanced = enhanced.replace(/\.\./g, '.');
-  
-  // Ensure it ends with proper punctuation
-  if (!enhanced.endsWith('.') && !enhanced.endsWith('!') && !enhanced.endsWith('?')) {
-    enhanced += '.';
-  }
-  
-  // Add context if relevant and not already included
-  if (context && !prompt.toLowerCase().includes(context.toLowerCase())) {
-    // Check if the context should be added
-    if (context.length < prompt.length / 2) {
-      // Find a natural place to insert the context
-      const insertPoint = enhanced.indexOf(', ') + 2;
-      if (insertPoint > 2) {
-        enhanced = enhanced.slice(0, insertPoint) + 
-                  'considering ' + context + ', ' + 
-                  enhanced.slice(insertPoint);
-      }
-    }
-  }
-  
-  return enhanced;
-}
 
 // Cache for storing enhancement examples from external APIs
 const enhancementExamples: Array<{
