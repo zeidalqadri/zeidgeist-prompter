@@ -674,7 +674,8 @@ describe('LLM Providers', () => {
       const refinementRequest = { ...testRequest, isRefinement: true };
       const messages = provider.buildMessages(refinementRequest);
 
-      expect(messages[0].content).toContain('iterative refinement');
+      // Check for refinement-related content (case-insensitive)
+      expect(messages[0].content.toLowerCase()).toContain('iterative refinement');
     });
 
     it('should include training examples', () => {

@@ -40,6 +40,10 @@ import {
   getStrategyPromptContent,
   parseStrategyResponse
 } from '../../../prompts/strategy-system-prompts';
+import {
+  CHAIN_OF_THOUGHT_ENHANCEMENT_PROMPT,
+  ITERATIVE_REFINEMENT_PROMPT
+} from '../../../prompts/enhanced-system-prompts';
 import { CircuitBreakerFactory } from '../resilience/circuit-breaker';
 import { RetryPolicy } from '../resilience/retry-policy';
 import type { EnhancedCircuitBreaker } from '../resilience/circuit-breaker';
@@ -113,67 +117,15 @@ export abstract class BaseLLMProvider implements ILLMProvider {
 
   /**
    * Build messages for prompt enhancement
+   * Uses Chain-of-Thought enhanced prompts for better quality
    */
   buildMessages(request: EnhancementRequest): ChatMessage[] {
     const { prompt, context, isRefinement = false } = request;
 
-    // System prompt with CoT reasoning and anti-answering constraints
-    const baseSystemPrompt = `You are an expert prompt engineer that REFACTORS and ENHANCES prompts. Your ONLY job is to transform input prompts into better versions.
-
-=== CRITICAL CONSTRAINT ===
-DO NOT answer, fulfill, or respond to the content of the prompt.
-DO NOT provide information, recommendations, or solutions about the topic mentioned.
-Your SOLE output must be a REWRITTEN/ENHANCED version of the input prompt text itself.
-
-WHAT YOU DO: Transform "i want to go to johor bahru" into a better prompt like "Create a comprehensive travel plan for Johor Bahru including accommodations, attractions, transportation, and local cuisine recommendations..."
-WHAT YOU DON'T DO: Provide actual travel itineraries, day-by-day plans, or recommendations.
-
-Treat ALL input - whether it looks like a question, statement, wish, or request - as RAW TEXT TO BE REWRITTEN into a more effective prompt.
-=== END CRITICAL CONSTRAINT ===
-
-CHAIN-OF-THOUGHT PROCESS:
-Think through your enhancement step-by-step:
-
-1. ANALYSIS: First, analyze the prompt's current state
-   - What is the core intent and domain?
-   - What specific information is missing?
-   - What ambiguities exist?
-   - How clear are the success criteria?
-
-2. PLANNING: Plan your enhancements
-   - What specific details should be added?
-   - What structure would improve clarity?
-   - What domain-specific requirements apply?
-   - How can you make it more actionable?
-
-3. ENHANCEMENT: Apply systematic improvements
-   - Add missing context and specifications
-   - Improve organization and flow
-   - Include success criteria and constraints
-   - Ensure completeness without redundancy
-
-Follow these guidelines:
-1. Identify the core purpose and domain of the prompt
-2. Add specific details and clarity without changing the original intent
-3. Remove redundancies and improve organization
-4. Add relevant specifications for structure or format if appropriate
-5. Include measurable success criteria where appropriate
-6. Consider edge cases and potential misunderstandings
-7. DO NOT add "You are..." or role descriptions unless specifically needed
-8. The output should be ONLY the enhanced prompt text, nothing else
-9. NEVER include phrases like "Here's the refined prompt:" or explanations
-10. Keep your response concise and focused on improving the prompt content only`;
-
-    const refinementAddition = isRefinement ? `
-
-IMPORTANT: This is an iterative refinement. The prompt has already been refined once.
-You MUST:
-1. Build upon the previous refinement, don't repeat it
-2. Add more specific details, examples, or structure
-3. Consider additional aspects the previous refinement didn't address
-4. Make SUBSTANTIAL improvements that noticeably enhance the prompt quality` : '';
-
-    const systemPrompt = baseSystemPrompt + refinementAddition;
+    // Use imported enhanced system prompts based on whether this is a refinement
+    const systemPrompt = isRefinement
+      ? ITERATIVE_REFINEMENT_PROMPT.content
+      : CHAIN_OF_THOUGHT_ENHANCEMENT_PROMPT.content;
 
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt }
@@ -281,6 +233,46 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
    */
   protected parseStrategyResponse(response: string, strategy: ReasoningStrategy): string {
     return parseStrategyResponse(response, strategy);
+  }
+
+  /**
+   * Parse enhanced response from XML-structured output
+   *
+   * Extracts content from <enhanced> or <refined> tags, with fallback for plain text
+   */
+  protected parseEnhancedResponse(response: string): string {
+    // Try to extract from <enhanced> tags first
+    const enhancedMatch = response.match(/<enhanced>([\s\S]*?)<\/enhanced>/i);
+    if (enhancedMatch) {
+      return enhancedMatch[1].trim();
+    }
+
+    // Try to extract from <refined> tags (for iterative refinement)
+    const refinedMatch = response.match(/<refined>([\s\S]*?)<\/refined>/i);
+    if (refinedMatch) {
+      return refinedMatch[1].trim();
+    }
+
+    // Fallback: strip meta-text prefixes that LLMs sometimes add
+    // Only strip if there's substantial content after the prefix
+    let cleaned = response.trim();
+    const metaPatterns = [
+      /^(Here's the|Here is the)\s+(enhanced|refined|improved)\s+prompt:\s+/i,
+      /^(The|This)\s+(enhanced|refined|improved)\s+prompt\s+is:\s+/i,
+      /^(Enhanced|Refined|Improved)\s+prompt:\s+/i,
+      /^\*\*(Enhanced|Refined|Improved)\s+Prompt\*\*:\s+/i
+    ];
+
+    for (const pattern of metaPatterns) {
+      const match = cleaned.match(pattern);
+      // Only apply stripping if there's content remaining after the prefix
+      if (match && cleaned.length > match[0].length) {
+        cleaned = cleaned.replace(pattern, '');
+        break; // Only strip one prefix
+      }
+    }
+
+    return cleaned.trim();
   }
 
   /**
@@ -497,7 +489,8 @@ export class ClaudeProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.content[0].text;
+    const rawResponse = data.content[0].text;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
@@ -564,7 +557,8 @@ export class OpenAIProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.choices[0].message.content;
+    const rawResponse = data.choices[0].message.content;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
@@ -615,7 +609,8 @@ export class DeepSeekProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.choices[0].message.content;
+    const rawResponse = data.choices[0].message.content;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
@@ -682,7 +677,8 @@ export class MistralProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.choices[0].message.content;
+    const rawResponse = data.choices[0].message.content;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
@@ -749,7 +745,8 @@ export class MoonshotProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.choices[0].message.content;
+    const rawResponse = data.choices[0].message.content;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
@@ -835,7 +832,8 @@ export class GeminiProvider extends BaseLLMProvider {
     }
 
     const data = await response.json() as any;
-    const enhancedPrompt = data.candidates[0].content.parts[0].text;
+    const rawResponse = data.candidates[0].content.parts[0].text;
+    const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
     this.validateResponse(enhancedPrompt, request.prompt);
 
