@@ -872,7 +872,21 @@ export class LocalProvider extends BaseLLMProvider {
 
     // Import local enhancer
     const { enhancePrompt: localEnhance } = await import('../prompt-enhancer-v2');
-    const enhancedPrompt = await localEnhance(prompt, context || '');
+    let enhancedPrompt = await localEnhance(prompt, context || '');
+
+    // Defense in depth: If enhanced prompt equals input, force minimal enhancement
+    if (enhancedPrompt.trim() === prompt.trim()) {
+      console.warn('[LocalProvider] Enhancement returned unchanged prompt, applying fallback');
+      enhancedPrompt = `${prompt}. Ensure comprehensive coverage including:
+1. Clear scope and objectives with well-defined deliverables
+2. Thorough research and evidence-based approach
+3. Professional quality and attention to detail
+4. Logical organization and intuitive structure
+5. Audience-appropriate tone and presentation
+6. Practical implementation considerations
+7. Quality assurance and validation methods
+8. Future sustainability and maintenance planning${context ? `\n\nAdditional context: ${context}` : ''}`;
+    }
 
     return {
       enhancedPrompt,
