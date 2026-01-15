@@ -46,7 +46,8 @@ export async function enhancePrompt(
   const { setEnvironmentSource } = await import('./llm/llm-config');
 
   // Set environment source for Cloudflare Workers
-  if (env && Object.keys(env).length > 0) {
+  // Note: Cloudflare env bindings have non-enumerable secrets, so we can't use Object.keys()
+  if (env) {
     setEnvironmentSource(env);
   }
 
