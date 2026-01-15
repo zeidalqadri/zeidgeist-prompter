@@ -259,11 +259,6 @@ export async function enhancePrompt(prompt: string, context?: string): Promise<s
       return 'Please provide a non-empty prompt to enhance.'
     }
     
-    // If the prompt is already quite detailed, apply minimal enhancement
-    if (trimmedPrompt.length > 200 && trimmedPrompt.includes('.') && trimmedPrompt.includes(',')) {
-      return `${trimmedPrompt}${trimmedContext ? `\n\nAdditional context: ${trimmedContext}` : ''}`
-    }
-    
     // First, try to find a similar training example
     const similarExample = findSimilarTrainingExample(trimmedPrompt)
     if (similarExample) {
