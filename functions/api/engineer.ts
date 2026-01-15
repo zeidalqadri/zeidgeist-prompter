@@ -5,6 +5,8 @@ import { validateRequestWithKV, createAuthErrorResponse } from "../_shared/auth"
 import { createRateLimitResponse } from "../_shared/rate-limiter"
 import { LLMCacheManager } from "../_shared/cache-manager"
 import { validateLambda, DEFAULT_COST_CONFIG } from "../../app/lib/enhanced-architecture/cost-config"
+import { LLMProviderFactory } from "../../app/lib/llm/llm-provider.service"
+import { setEnvironmentSource, getEnabledProviders, logProviderDiagnostics } from "../../app/lib/llm/llm-config"
 
 // Define proper Cloudflare context types
 interface CloudflareContext {
@@ -20,7 +22,7 @@ function getCorsHeaders(request: Request, env: any) {
   const allowOrigin = isDev ? origin : 'https://mstprmpt.zeidgeist.com'
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, x-api-key, Authorization, X-Test-Provider',
     'Access-Control-Allow-Credentials': 'true',
     'Vary': 'Origin'
@@ -34,6 +36,64 @@ export async function onRequestOptions(context: CloudflareContext): Promise<Resp
     status: 200,
     headers: getCorsHeaders(context.request, context.env),
   })
+}
+
+/**
+ * GET /api/engineer - Health check and provider status endpoint
+ * Returns provider configuration, health status, and circuit breaker states
+ */
+export async function onRequestGet(context: CloudflareContext): Promise<Response> {
+  const { request, env } = context
+  const startTime = Date.now()
+
+  const corsHeaders = {
+    ...getCorsHeaders(request, env),
+    'Content-Type': 'application/json'
+  }
+
+  try {
+    // Set environment source for provider configuration
+    setEnvironmentSource(env)
+
+    // Log provider diagnostics to console
+    logProviderDiagnostics()
+
+    // Get enabled providers
+    const enabledProviders = getEnabledProviders()
+
+    // Get health status from factory (includes circuit breaker states)
+    const healthStatus = await LLMProviderFactory.getHealthStatus()
+
+    // Get circuit breaker metrics
+    const circuitBreakerMetrics = LLMProviderFactory.getAllMetrics()
+
+    const processingTime = Date.now() - startTime
+
+    return new Response(JSON.stringify({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      processingTime: `${processingTime}ms`,
+      providers: {
+        enabled: enabledProviders,
+        health: healthStatus,
+        circuitBreakers: circuitBreakerMetrics
+      }
+    }, null, 2), {
+      status: 200,
+      headers: corsHeaders
+    })
+  } catch (error) {
+    console.error('Health check error:', error)
+
+    return new Response(JSON.stringify({
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: corsHeaders
+    })
+  }
 }
 
 export async function onRequestPost(context: CloudflareContext): Promise<Response> {

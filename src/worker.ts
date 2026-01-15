@@ -1,6 +1,6 @@
 // Cloudflare Worker entrypoint that reuses existing API handlers under functions/
 // Routes:
-//  - /api/engineer (POST/OPTIONS)
+//  - /api/engineer (GET/POST/OPTIONS) - GET returns health check/provider status
 //  - /api/tweak/provider-status (GET/OPTIONS)
 //  - /api/tweak/provider-preference (GET/POST/OPTIONS)
 //  - /api/health/* (GET)
@@ -41,6 +41,7 @@ export default {
       // API routing
       if (pathname === '/api/engineer') {
         if (request.method === 'OPTIONS') return handleOptions(Engineer)
+        if (request.method === 'GET') return Engineer.onRequestGet({ request, env })
         if (request.method === 'POST') return Engineer.onRequestPost({ request, env })
         return new Response('Method Not Allowed', { status: 405 })
       }

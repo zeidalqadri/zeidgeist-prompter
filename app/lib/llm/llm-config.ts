@@ -250,6 +250,39 @@ export function getEnabledProviders(): ProviderSource[] {
   return enabled;
 }
 
+/**
+ * Log provider diagnostics for debugging
+ * Shows which providers are configured, their endpoints, and models
+ */
+export function logProviderDiagnostics(): void {
+  const providers = [
+    { name: 'Claude', getConfig: getClaudeConfig, keyName: 'CLAUDE_API_KEY' },
+    { name: 'OpenAI', getConfig: getOpenAIConfig, keyName: 'OPENAI_API_KEY' },
+    { name: 'DeepSeek', getConfig: getDeepseekConfig, keyName: 'DEEPSEEK_API_KEY' },
+    { name: 'Mistral', getConfig: getMistralConfig, keyName: 'MISTRAL_API_KEY' },
+    { name: 'Moonshot', getConfig: getMoonshotConfig, keyName: 'MOONSHOT_API_KEY' },
+    { name: 'Gemini', getConfig: getGeminiConfig, keyName: 'GEMINI_API_KEY' }
+  ];
+
+  console.log('=== LLM Provider Diagnostics ===');
+
+  for (const provider of providers) {
+    const config = provider.getConfig();
+    const keyPrefix = config.apiKey ? config.apiKey.substring(0, 8) + '...' : 'NOT SET';
+
+    console.log(`[${provider.name}]`);
+    console.log(`  Enabled: ${config.enabled}`);
+    console.log(`  API Key: ${keyPrefix}`);
+    console.log(`  Endpoint: ${config.endpoint}`);
+    console.log(`  Model: ${config.model}`);
+    console.log(`  Timeout: ${config.timeout || 10000}ms`);
+  }
+
+  console.log('================================');
+  console.log(`Provider Priority: ${providerPriority.join(' → ')}`);
+  console.log('================================');
+}
+
 // Validate configuration on module load (only for Node.js)
 if (typeof process !== 'undefined') {
   validateEnvironment();
