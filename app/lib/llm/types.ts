@@ -16,6 +16,8 @@ export interface EnhancementRequest {
   isRefinement?: boolean;
   /** Cost optimization configuration */
   costConfig?: Partial<CostOptimizationConfig>;
+  /** Skip response validation (for health checks) */
+  skipValidation?: boolean;
 }
 
 // Cost metrics for response
