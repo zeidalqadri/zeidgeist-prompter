@@ -313,6 +313,9 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
 
   /**
    * Health check
+   *
+   * Uses skipValidation flag to avoid false negatives from anti-answering detection.
+   * The goal is to verify the API connection works, not validate the response quality.
    */
   async isHealthy(): Promise<boolean> {
     if (!this.enabled) return false;
@@ -323,14 +326,18 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
         return false;
       }
 
-      // Simple ping with minimal prompt (bypass circuit breaker for health check)
+      // Use skipValidation to avoid anti-answering detection failing health checks
+      // The validation is important for real prompts but causes false negatives here
       const response = await this.enhanceInternal({
-        prompt: 'test',
+        prompt: 'Create a website homepage',
         context: undefined,
-        isRefinement: false
+        isRefinement: false,
+        skipValidation: true
       });
       return !!response.enhancedPrompt;
-    } catch {
+    } catch (error) {
+      // Log the actual error for debugging
+      console.error(`[${this.name}] Health check failed:`, error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -344,14 +351,21 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
 
   /**
    * Validate response
+   *
+   * @param skipValidation - If true, skips anti-answering detection (used for health checks)
    */
-  protected validateResponse(enhancedPrompt: string, originalPrompt: string): void {
+  protected validateResponse(enhancedPrompt: string, originalPrompt: string, skipValidation = false): void {
     if (!enhancedPrompt || enhancedPrompt.trim() === '') {
       throw new Error(`${this.name}: Empty response received`);
     }
 
     if (enhancedPrompt === originalPrompt) {
       throw new Error(`${this.name}: Returned identical prompt`);
+    }
+
+    // Skip anti-answering detection for health checks
+    if (skipValidation) {
+      return;
     }
 
     // Check for answering behavior (response looks like it's answering the prompt instead of enhancing it)
@@ -492,7 +506,7 @@ export class ClaudeProvider extends BaseLLMProvider {
     const rawResponse = data.content[0].text;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
@@ -560,7 +574,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     const rawResponse = data.choices[0].message.content;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
@@ -612,7 +626,7 @@ export class DeepSeekProvider extends BaseLLMProvider {
     const rawResponse = data.choices[0].message.content;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
@@ -680,7 +694,7 @@ export class MistralProvider extends BaseLLMProvider {
     const rawResponse = data.choices[0].message.content;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
@@ -748,7 +762,7 @@ export class MoonshotProvider extends BaseLLMProvider {
     const rawResponse = data.choices[0].message.content;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
@@ -835,7 +849,7 @@ export class GeminiProvider extends BaseLLMProvider {
     const rawResponse = data.candidates[0].content.parts[0].text;
     const enhancedPrompt = this.parseEnhancedResponse(rawResponse);
 
-    this.validateResponse(enhancedPrompt, request.prompt);
+    this.validateResponse(enhancedPrompt, request.prompt, request.skipValidation);
 
     return {
       enhancedPrompt,
