@@ -40,6 +40,14 @@ export interface EnhancementResponse {
     processingTime?: number;
     /** Cost optimization metrics */
     costMetrics?: CostMetrics;
+    /** Indicates enhancement failed (e.g., no pattern match in local provider) */
+    enhancementFailed?: boolean;
+    /** Reason for failure when enhancementFailed is true */
+    reason?: string;
+    /** Additional error details */
+    errorDetails?: string;
+    /** Fallback reason when using local provider due to external provider failures */
+    fallbackReason?: string;
   };
 }
 

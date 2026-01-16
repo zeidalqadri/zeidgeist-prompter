@@ -16,6 +16,14 @@ let environmentSource: Record<string, string | undefined> =
  */
 export function setEnvironmentSource(env: Record<string, string | undefined>): void {
   environmentSource = env;
+
+  // Debug: Log what API keys we can detect
+  const apiKeyNames = [
+    'CLAUDE_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY',
+    'MISTRAL_API_KEY', 'MOONSHOT_API_KEY', 'GEMINI_API_KEY'
+  ];
+  const detectedKeys = apiKeyNames.filter(key => !!env[key]);
+  console.log(`[LLM Config] setEnvironmentSource called. Detected API keys: ${detectedKeys.length > 0 ? detectedKeys.join(', ') : 'NONE'}`);
 }
 
 /**
