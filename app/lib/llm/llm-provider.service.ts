@@ -316,6 +316,7 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
    *
    * Uses skipValidation flag to avoid false negatives from anti-answering detection.
    * The goal is to verify the API connection works, not validate the response quality.
+   * Uses increased timeout (30s) since health checks run a full enhancement request.
    */
   async isHealthy(): Promise<boolean> {
     if (!this.enabled) return false;
@@ -323,8 +324,12 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
     try {
       // Check circuit breaker state
       if (this.circuitBreaker?.isOpen()) {
+        console.log(`[${this.name}] Health check: circuit breaker is OPEN`);
         return false;
       }
+
+      console.log(`[${this.name}] Health check: starting...`);
+      const startTime = Date.now();
 
       // Use skipValidation to avoid anti-answering detection failing health checks
       // The validation is important for real prompts but causes false negatives here
@@ -334,10 +339,29 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
         isRefinement: false,
         skipValidation: true
       });
+
+      const duration = Date.now() - startTime;
+      console.log(`[${this.name}] Health check: SUCCESS in ${duration}ms`);
       return !!response.enhancedPrompt;
     } catch (error) {
-      // Log the actual error for debugging
-      console.error(`[${this.name}] Health check failed:`, error instanceof Error ? error.message : String(error));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+
+      // Categorize the error for easier debugging
+      let category = 'unknown';
+      if (errorMessage.includes('timeout') || errorMessage.includes('aborted') || errorName === 'TimeoutError') {
+        category = 'timeout';
+      } else if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')) {
+        category = 'auth';
+      } else if (errorMessage.includes('429') || errorMessage.includes('rate')) {
+        category = 'rate_limit';
+      } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('ECONNREFUSED')) {
+        category = 'network';
+      } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
+        category = 'server_error';
+      }
+
+      console.error(`[${this.name}] Health check FAILED [${category}]: ${errorMessage}`);
       return false;
     }
   }

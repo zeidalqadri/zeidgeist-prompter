@@ -83,7 +83,7 @@ export function getClaudeConfig(): ProviderConfig {
     endpoint: getEnv('CLAUDE_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
     model: getEnv('CLAUDE_MODEL', claudeModels.small),
     enabled: hasEnv('CLAUDE_API_KEY'),
-    timeout: parseInt(getEnv('CLAUDE_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('CLAUDE_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('CLAUDE_MAX_RETRIES', '2'), 10)
   };
 }
@@ -106,7 +106,7 @@ export function getOpenAIConfig(): ProviderConfig {
     endpoint: getEnv('OPENAI_ENDPOINT', 'https://api.openai.com/v1/chat/completions'),
     model: getEnv('OPENAI_MODEL', openaiModels.small),
     enabled: hasEnv('OPENAI_API_KEY'),
-    timeout: parseInt(getEnv('OPENAI_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('OPENAI_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('OPENAI_MAX_RETRIES', '2'), 10)
   };
 }
@@ -120,7 +120,7 @@ export function getDeepseekConfig(): ProviderConfig {
     endpoint: getEnv('DEEPSEEK_ENDPOINT', 'https://api.deepseek.com/v1/chat/completions'),
     model: getEnv('DEEPSEEK_MODEL', 'deepseek-chat'),
     enabled: hasEnv('DEEPSEEK_API_KEY'),
-    timeout: parseInt(getEnv('DEEPSEEK_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('DEEPSEEK_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('DEEPSEEK_MAX_RETRIES', '2'), 10)
   };
 }
@@ -143,7 +143,7 @@ export function getMistralConfig(): ProviderConfig {
     endpoint: getEnv('MISTRAL_ENDPOINT', 'https://api.mistral.ai/v1/chat/completions'),
     model: getEnv('MISTRAL_MODEL', mistralModels.small),
     enabled: hasEnv('MISTRAL_API_KEY'),
-    timeout: parseInt(getEnv('MISTRAL_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('MISTRAL_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('MISTRAL_MAX_RETRIES', '2'), 10)
   };
 }
@@ -166,7 +166,7 @@ export function getMoonshotConfig(): ProviderConfig {
     endpoint: getEnv('MOONSHOT_ENDPOINT', 'https://api.moonshot.cn/v1/chat/completions'),
     model: getEnv('MOONSHOT_MODEL', moonshotModels.small),
     enabled: hasEnv('MOONSHOT_API_KEY'),
-    timeout: parseInt(getEnv('MOONSHOT_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('MOONSHOT_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('MOONSHOT_MAX_RETRIES', '2'), 10)
   };
 }
@@ -189,7 +189,7 @@ export function getGeminiConfig(): ProviderConfig {
     endpoint: getEnv('GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent'),
     model: getEnv('GEMINI_MODEL', geminiModels.small),
     enabled: hasEnv('GEMINI_API_KEY'),
-    timeout: parseInt(getEnv('GEMINI_TIMEOUT', '10000'), 10),
+    timeout: parseInt(getEnv('GEMINI_TIMEOUT', '30000'), 10),  // 30s for LLM requests
     maxRetries: parseInt(getEnv('GEMINI_MAX_RETRIES', '2'), 10)
   };
 }
