@@ -990,16 +990,26 @@ export class LLMProviderFactory {
 
   /**
    * Enhance with automatic fallback
+   * Tracks attempted providers for observability
    */
   static async enhanceWithFallback(request: EnhancementRequest): Promise<EnhancementResponse> {
     const providers = this.getProviderChain();
     const errors: Error[] = [];
+    const attemptedProviders: string[] = [];
+
+    console.log(`[LLM Factory] Provider chain: ${providers.map(p => p.name).join(' → ')}`);
 
     for (const provider of providers) {
+      attemptedProviders.push(provider.name);
       try {
         console.log(`[LLM Factory] Trying ${provider.name}...`);
         const response = await provider.enhance(request);
         console.log(`[LLM Factory] ✓ Success with ${provider.name}`);
+
+        // Add attempted providers to metadata for observability
+        if (response.metadata) {
+          response.metadata.attemptedProviders = attemptedProviders;
+        }
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1016,8 +1026,8 @@ export class LLMProviderFactory {
       }
     }
 
-    // All providers failed
-    throw new Error(`All providers failed: ${errors.map(e => e.message).join('; ')}`);
+    // All providers failed - include which providers were attempted
+    throw new Error(`All providers failed (tried: ${attemptedProviders.join(', ')}): ${errors.map(e => e.message).join('; ')}`);
   }
 
   /**

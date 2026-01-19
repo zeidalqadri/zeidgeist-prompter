@@ -50,6 +50,8 @@ export interface EnhancementResponse {
     errorDetails?: string;
     /** Fallback reason when using local provider due to external provider failures */
     fallbackReason?: string;
+    /** List of providers attempted before success (for observability) */
+    attemptedProviders?: string[];
   };
 }
 
