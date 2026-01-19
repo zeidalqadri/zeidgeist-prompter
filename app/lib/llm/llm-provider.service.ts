@@ -859,7 +859,7 @@ export class GeminiProvider extends BaseLLMProvider {
             parts: [{ text: userMessage }]
           }
         ],
-        systemInstruction: { text: systemPrompt },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
         safetySettings: [
           {
             category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
