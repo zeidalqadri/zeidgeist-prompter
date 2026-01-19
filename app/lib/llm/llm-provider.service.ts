@@ -312,27 +312,29 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
   }
 
   /**
-   * Health check
-   *
-   * Uses skipValidation flag to avoid false negatives from anti-answering detection.
-   * The goal is to verify the API connection works, not validate the response quality.
-   * Uses increased timeout (30s) since health checks run a full enhancement request.
+   * Health check result with detailed error info
    */
-  async isHealthy(): Promise<boolean> {
-    if (!this.enabled) return false;
+  async getHealthCheckResult(): Promise<{
+    healthy: boolean;
+    errorCategory?: string;
+    errorMessage?: string;
+    responseTimeMs?: number;
+  }> {
+    if (!this.enabled) {
+      return { healthy: false, errorCategory: 'disabled', errorMessage: 'Provider not configured' };
+    }
 
     try {
       // Check circuit breaker state
       if (this.circuitBreaker?.isOpen()) {
         console.log(`[${this.name}] Health check: circuit breaker is OPEN`);
-        return false;
+        return { healthy: false, errorCategory: 'circuit_open', errorMessage: 'Circuit breaker is open due to recent failures' };
       }
 
       console.log(`[${this.name}] Health check: starting...`);
       const startTime = Date.now();
 
       // Use skipValidation to avoid anti-answering detection failing health checks
-      // The validation is important for real prompts but causes false negatives here
       const response = await this.enhanceInternal({
         prompt: 'Create a website homepage',
         context: undefined,
@@ -342,7 +344,7 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
 
       const duration = Date.now() - startTime;
       console.log(`[${this.name}] Health check: SUCCESS in ${duration}ms`);
-      return !!response.enhancedPrompt;
+      return { healthy: !!response.enhancedPrompt, responseTimeMs: duration };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorName = error instanceof Error ? error.name : 'Unknown';
@@ -362,8 +364,16 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
       }
 
       console.error(`[${this.name}] Health check FAILED [${category}]: ${errorMessage}`);
-      return false;
+      return { healthy: false, errorCategory: category, errorMessage };
     }
+  }
+
+  /**
+   * Simple health check (backwards compatible)
+   */
+  async isHealthy(): Promise<boolean> {
+    const result = await this.getHealthCheckResult();
+    return result.healthy;
   }
 
   /**
@@ -1073,14 +1083,33 @@ export class LLMProviderFactory {
   }
 
   /**
-   * Get health status of all providers
+   * Get health status of all providers with detailed error info
    */
   static async getHealthStatus() {
-    const statuses: Record<string, { healthy: boolean; enabled: boolean; circuitState?: string }> = {};
+    const statuses: Record<string, {
+      healthy: boolean;
+      enabled: boolean;
+      circuitState?: string;
+      errorCategory?: string;
+      errorMessage?: string;
+      responseTimeMs?: number;
+    }> = {};
 
     for (const name of providerPriority) {
       const provider = this.getProvider(name);
-      const healthy = await provider.isHealthy();
+
+      let healthResult: {
+        healthy: boolean;
+        errorCategory?: string;
+        errorMessage?: string;
+        responseTimeMs?: number;
+      };
+
+      if (provider instanceof BaseLLMProvider) {
+        healthResult = await provider.getHealthCheckResult();
+      } else {
+        healthResult = { healthy: await provider.isHealthy() };
+      }
 
       let circuitState = undefined;
       if (provider instanceof BaseLLMProvider) {
@@ -1089,9 +1118,12 @@ export class LLMProviderFactory {
       }
 
       statuses[name] = {
-        healthy,
+        healthy: healthResult.healthy,
         enabled: provider.enabled,
-        circuitState
+        circuitState,
+        ...(healthResult.errorCategory && { errorCategory: healthResult.errorCategory }),
+        ...(healthResult.errorMessage && { errorMessage: healthResult.errorMessage }),
+        ...(healthResult.responseTimeMs && { responseTimeMs: healthResult.responseTimeMs })
       };
     }
 
