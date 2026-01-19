@@ -175,9 +175,9 @@ export function getMoonshotConfig(): ProviderConfig {
  * Gemini model tiers for intelligent selection
  */
 export const geminiModels = {
-  small: 'gemini-1.5-flash',  // Fast, cost-effective
-  medium: 'gemini-1.5-pro',   // Balanced
-  large: 'gemini-1.5-pro'     // Best available (same as medium currently)
+  small: 'gemini-2.0-flash',        // Fast, cost-effective (latest)
+  medium: 'gemini-1.5-pro-latest',  // Balanced
+  large: 'gemini-1.5-pro-latest'    // Best available
 } as const;
 
 /**
