@@ -195,14 +195,15 @@ export function getGeminiConfig(): ProviderConfig {
 }
 
 // Provider priority order (optimized based on speed and reliability)
+// Mistral prioritized first as it's fastest and most reliable currently
 export const providerPriority: ProviderSource[] = [
-  'claude',
-  'openai',
-  'deepseek',
-  'mistral',
-  'moonshot',
-  'gemini',
-  'local'
+  'mistral',   // Fast, reliable, working
+  'deepseek',  // Working but slower
+  'claude',    // Needs billing credits
+  'openai',    // Needs billing credits
+  'gemini',    // Needs API key
+  'moonshot',  // Invalid API key
+  'local'      // Ultimate fallback
 ];
 
 /**
