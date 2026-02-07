@@ -32,8 +32,10 @@ import {
   analyzePrompt,
   selectModelTier,
   analyzePromptWithStrategy,
-  selectModelTierWithStrategy
+  selectModelTierWithStrategy,
+  calculateDynamicMaxTokens
 } from './prompt-analyzer';
+import { selectProviderOrder } from './provider-selector';
 import { ReasoningStrategy } from './reasoning-strategy';
 import {
   getStrategySystemPrompt,
@@ -113,6 +115,23 @@ export abstract class BaseLLMProvider implements ILLMProvider {
 
     // Default: return config model (subclasses should override)
     return this.config.model;
+  }
+
+  /**
+   * Calculate dynamic max_tokens based on prompt analysis
+   * Scales with complexity: simple=1.5x, moderate=2x, complex=2.5x input
+   */
+  protected calculateMaxTokens(request: EnhancementRequest): number {
+    const analysis = analyzePrompt(request.prompt, request.context);
+    const config = calculateDynamicMaxTokens(analysis);
+
+    console.log(`[${this.name}] Dynamic max_tokens:`, {
+      input: config.inputTokens,
+      output: config.maxTokens,
+      ratio: config.outputRatio.toFixed(2)
+    });
+
+    return config.maxTokens;
   }
 
   /**
@@ -514,6 +533,8 @@ export class ClaudeProvider extends BaseLLMProvider {
       content: msg.content
     }));
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {
@@ -523,7 +544,7 @@ export class ClaudeProvider extends BaseLLMProvider {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         temperature: 0.2,
         system: systemPrompt,
         messages: anthropicMessages
@@ -584,6 +605,8 @@ export class OpenAIProvider extends BaseLLMProvider {
     const messages = this.buildMessages(request);
     const model = this.selectModel(request);
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {
@@ -594,7 +617,7 @@ export class OpenAIProvider extends BaseLLMProvider {
         model,
         messages,
         temperature: 0.2,
-        max_tokens: 1024
+        max_tokens: maxTokens
       }),
       signal: AbortSignal.timeout(this.config.timeout || 10000)
     });
@@ -636,6 +659,8 @@ export class DeepSeekProvider extends BaseLLMProvider {
     const startTime = Date.now();
     const messages = this.buildMessages(request);
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {
@@ -646,7 +671,7 @@ export class DeepSeekProvider extends BaseLLMProvider {
         model: this.config.model,
         messages,
         temperature: 0.2,
-        max_tokens: 1024
+        max_tokens: maxTokens
       }),
       signal: AbortSignal.timeout(this.config.timeout || 10000)
     });
@@ -704,6 +729,8 @@ export class MistralProvider extends BaseLLMProvider {
     const messages = this.buildMessages(request);
     const model = this.selectModel(request);
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {
@@ -714,7 +741,7 @@ export class MistralProvider extends BaseLLMProvider {
         model,
         messages,
         temperature: 0.2,
-        max_tokens: 1024
+        max_tokens: maxTokens
       }),
       signal: AbortSignal.timeout(this.config.timeout || 10000)
     });
@@ -772,6 +799,8 @@ export class MoonshotProvider extends BaseLLMProvider {
     const messages = this.buildMessages(request);
     const model = this.selectModel(request);
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(this.config.endpoint, {
       method: 'POST',
       headers: {
@@ -782,7 +811,7 @@ export class MoonshotProvider extends BaseLLMProvider {
         model,
         messages,
         temperature: 0.2,
-        max_tokens: 1024
+        max_tokens: maxTokens
       }),
       signal: AbortSignal.timeout(this.config.timeout || 10000)
     });
@@ -847,6 +876,8 @@ export class GeminiProvider extends BaseLLMProvider {
     // Update endpoint to use selected model
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
+    const maxTokens = this.calculateMaxTokens(request);
+
     const response = await fetch(`${endpoint}?key=${this.config.apiKey}`, {
       method: 'POST',
       headers: {
@@ -868,7 +899,7 @@ export class GeminiProvider extends BaseLLMProvider {
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024
+          maxOutputTokens: maxTokens
         }
       }),
       signal: AbortSignal.timeout(this.config.timeout || 10000)
@@ -1004,30 +1035,56 @@ export class LLMProviderFactory {
   }
 
   /**
-   * Get fallback chain of providers
+   * Get fallback chain of providers (static ordering for health checks)
    */
-  static getProviderChain(): ILLMProvider[] {
-    console.log('[LLM Factory] Building provider chain...');
-    console.log('[LLM Factory] Provider priority:', providerPriority);
+  static getStaticProviderChain(): ILLMProvider[] {
+    console.log('[LLM Factory] Building static provider chain...');
 
     const allProviders = providerPriority.map(name => {
       const provider = this.getProvider(name);
-      console.log(`[LLM Factory] Provider ${name}: enabled=${provider.enabled}`);
       return provider;
     });
 
-    const enabledProviders = allProviders.filter(provider => provider.enabled);
-    console.log(`[LLM Factory] Enabled providers: ${enabledProviders.map(p => p.name).join(', ')}`);
+    return allProviders.filter(provider => provider.enabled);
+  }
 
-    return enabledProviders;
+  /**
+   * Get fallback chain of providers with optional dynamic ordering
+   *
+   * @param request - If provided, uses dynamic ordering based on prompt analysis
+   */
+  static getProviderChain(request?: EnhancementRequest): ILLMProvider[] {
+    // If no request provided, use static priority (for health checks etc.)
+    if (!request) {
+      return this.getStaticProviderChain();
+    }
+
+    // Use dynamic ordering based on prompt analysis
+    const selection = selectProviderOrder(request);
+
+    console.log('[LLM Factory] Dynamic provider order:', {
+      complexity: selection.analysis.complexity,
+      taskType: selection.analysis.taskType,
+      strategy: selection.analysis.strategy,
+      order: selection.orderedProviders.join(' → ')
+    });
+
+    // Map to provider instances, filtering by enabled
+    const providers = selection.orderedProviders
+      .map(name => this.getProvider(name))
+      .filter(provider => provider.enabled);
+
+    return providers;
   }
 
   /**
    * Enhance with automatic fallback
+   * Uses dynamic provider ordering based on prompt complexity
    * Tracks attempted providers for observability
    */
   static async enhanceWithFallback(request: EnhancementRequest): Promise<EnhancementResponse> {
-    const providers = this.getProviderChain();
+    // Pass request for dynamic ordering based on prompt analysis
+    const providers = this.getProviderChain(request);
     const errors: Error[] = [];
     const attemptedProviders: string[] = [];
 

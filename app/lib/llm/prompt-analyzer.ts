@@ -275,3 +275,80 @@ export function shouldShowReasoningSteps(
   // Other strategies show steps if confidence is high enough
   return confidence >= 0.5;
 }
+
+// ============================================
+// DYNAMIC MAX TOKENS CALCULATION
+// ============================================
+
+/**
+ * Configuration for dynamic max tokens calculation
+ */
+export interface MaxTokensConfig {
+  /** Calculated max tokens for API request */
+  maxTokens: number;
+  /** Ratio used for calculation */
+  outputRatio: number;
+  /** Estimated input tokens */
+  inputTokens: number;
+}
+
+/**
+ * Calculate dynamic max_tokens based on prompt analysis
+ *
+ * Formula: maxTokens = clamp(inputTokens * outputRatio, minTokens, maxTokens)
+ * - Simple prompts: 1.5x ratio
+ * - Moderate prompts: 2.0x ratio
+ * - Complex prompts: 2.5x ratio
+ *
+ * @param analysis - Prompt analysis result
+ * @param options - Optional overrides for min/max/base ratio
+ */
+export function calculateDynamicMaxTokens(
+  analysis: PromptAnalysis,
+  options?: {
+    minTokens?: number;
+    maxTokens?: number;
+    baseRatio?: number;
+  }
+): MaxTokensConfig {
+  const {
+    minTokens = 512,
+    maxTokens = 4096,
+    baseRatio = 1.5
+  } = options || {};
+
+  // Calculate output ratio based on complexity
+  let outputRatio = baseRatio;
+
+  if (analysis.complexity === 'complex') {
+    outputRatio = 2.5;
+  } else if (analysis.complexity === 'moderate') {
+    outputRatio = 2.0;
+  }
+
+  // Task type adjustments - technical/analysis tasks need more output
+  if (analysis.taskType === 'technical' || analysis.taskType === 'analysis') {
+    outputRatio = Math.max(outputRatio, 2.2);
+  } else if (analysis.taskType === 'creative') {
+    outputRatio = Math.max(outputRatio, 2.0);
+  }
+
+  // Complex patterns need more output
+  if (analysis.hasComplexPatterns) {
+    outputRatio *= 1.2;
+  }
+
+  // Calculate target tokens
+  const inputTokens = analysis.estimatedTokens;
+  let targetTokens = Math.ceil(inputTokens * outputRatio);
+
+  // Apply bounds
+  targetTokens = Math.max(minTokens, targetTokens);
+  targetTokens = Math.min(maxTokens, targetTokens);
+
+  return {
+    maxTokens: targetTokens,
+    outputRatio,
+    inputTokens
+  };
+}

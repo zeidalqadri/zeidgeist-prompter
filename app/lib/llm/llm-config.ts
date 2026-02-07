@@ -7,6 +7,112 @@
 
 import { ProviderConfig, ProviderSource } from './types';
 
+// ============================================================================
+// PROVIDER CAPABILITIES - Used for context-aware provider selection
+// ============================================================================
+
+/**
+ * Provider capability ratings for intelligent routing
+ * Scores are 0.0-1.0 where higher is better
+ */
+export interface ProviderCapabilities {
+  /** Ability to handle complex reasoning, multi-step analysis */
+  complexReasoning: number;
+  /** Response speed (inverse of latency) */
+  speed: number;
+  /** Cost efficiency (inverse of cost per token) */
+  costEfficiency: number;
+  /** Task-specific scores for different task types */
+  taskScores: Record<string, number>;
+}
+
+/**
+ * Capability ratings for each provider
+ * Used by provider-selector.ts to dynamically order providers
+ */
+export const PROVIDER_CAPABILITIES: Record<ProviderSource, ProviderCapabilities> = {
+  claude: {
+    complexReasoning: 1.0,
+    speed: 0.6,
+    costEfficiency: 0.3,
+    taskScores: {
+      analysis: 30, evaluation: 30, creative: 28,
+      technical: 28, general: 25, summarization: 25,
+      classification: 22
+    }
+  },
+  openai: {
+    complexReasoning: 0.95,
+    speed: 0.65,
+    costEfficiency: 0.35,
+    taskScores: {
+      analysis: 28, evaluation: 28, creative: 27,
+      technical: 29, general: 25, summarization: 26,
+      classification: 24
+    }
+  },
+  gemini: {
+    complexReasoning: 0.8,
+    speed: 0.85,
+    costEfficiency: 0.6,
+    taskScores: {
+      analysis: 24, evaluation: 24, creative: 22,
+      technical: 25, general: 22, summarization: 24,
+      classification: 22
+    }
+  },
+  mistral: {
+    complexReasoning: 0.6,
+    speed: 0.9,
+    costEfficiency: 0.8,
+    taskScores: {
+      analysis: 18, evaluation: 18, creative: 18,
+      technical: 20, general: 20, summarization: 20,
+      classification: 20
+    }
+  },
+  deepseek: {
+    complexReasoning: 0.75,
+    speed: 0.5,
+    costEfficiency: 0.85,
+    taskScores: {
+      analysis: 22, evaluation: 20, creative: 18,
+      technical: 26, general: 20, summarization: 20,
+      classification: 18
+    }
+  },
+  moonshot: {
+    complexReasoning: 0.55,
+    speed: 0.7,
+    costEfficiency: 0.75,
+    taskScores: {
+      analysis: 16, evaluation: 16, creative: 16,
+      technical: 16, general: 18, summarization: 18,
+      classification: 16
+    }
+  },
+  local: {
+    complexReasoning: 0.3,
+    speed: 1.0,
+    costEfficiency: 1.0,
+    taskScores: {
+      analysis: 8, evaluation: 8, creative: 8,
+      technical: 8, general: 10, summarization: 10,
+      classification: 10
+    }
+  },
+  fallback: {
+    complexReasoning: 0.2,
+    speed: 1.0,
+    costEfficiency: 1.0,
+    taskScores: {
+      analysis: 5, evaluation: 5, creative: 5,
+      technical: 5, general: 8, summarization: 8,
+      classification: 8
+    }
+  }
+};
+
 // Environment source - can be process.env or Cloudflare env
 let environmentSource: Record<string, string | undefined> =
   typeof process !== 'undefined' ? process.env : {};
