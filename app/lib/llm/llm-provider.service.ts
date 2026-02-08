@@ -10,6 +10,7 @@ import {
   ILLMProvider,
   EnhancementRequest,
   EnhancementResponse,
+  ReasoningMetadata,
   ChatMessage,
   ProviderSource,
   ProviderConfig
@@ -32,8 +33,7 @@ import {
   analyzePrompt,
   selectModelTier,
   analyzePromptWithStrategy,
-  selectModelTierWithStrategy,
-  calculateDynamicMaxTokens
+  selectModelTierWithStrategy
 } from './prompt-analyzer';
 import { selectProviderOrder } from './provider-selector';
 import { ReasoningStrategy } from './reasoning-strategy';
@@ -59,6 +59,7 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   protected abstract config: ProviderConfig;
   protected circuitBreaker?: EnhancedCircuitBreaker<EnhancementRequest, EnhancementResponse>;
   protected retryPolicy: RetryPolicy;
+  protected lastExtractedReasoning?: ReasoningMetadata;
 
   constructor() {
     // Initialize retry policy with exponential backoff
@@ -118,20 +119,12 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   }
 
   /**
-   * Calculate dynamic max_tokens based on prompt analysis
-   * Scales with complexity: simple=1.5x, moderate=2x, complex=2.5x input
+   * Max tokens for output generation.
+   * Fixed at 4096 to prevent truncation, especially when CoT reasoning
+   * sections (analysis, planning) precede the enhanced prompt.
    */
-  protected calculateMaxTokens(request: EnhancementRequest): number {
-    const analysis = analyzePrompt(request.prompt, request.context);
-    const config = calculateDynamicMaxTokens(analysis);
-
-    console.log(`[${this.name}] Dynamic max_tokens:`, {
-      input: config.inputTokens,
-      output: config.maxTokens,
-      ratio: config.outputRatio.toFixed(2)
-    });
-
-    return config.maxTokens;
+  protected calculateMaxTokens(_request: EnhancementRequest): number {
+    return 4096;
   }
 
   /**
@@ -255,26 +248,66 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
   }
 
   /**
-   * Parse enhanced response from XML-structured output
+   * Parse enhanced response from XML-structured output.
    *
-   * Extracts content from <enhanced> or <refined> tags, with fallback for plain text
+   * Extracts the enhanced prompt from <enhanced> or <refined> tags,
+   * handles truncated tags (when max_tokens cuts off the closing tag),
+   * and extracts reasoning metadata (analysis, planning) for storage.
    */
   protected parseEnhancedResponse(response: string): string {
-    // Try to extract from <enhanced> tags first
+    // Extract reasoning sections before cleaning
+    const analysisMatch = response.match(/<analysis>([\s\S]*?)<\/analysis>/i);
+    const planningMatch = response.match(/<planning>([\s\S]*?)<\/planning>/i);
+    const thinkingMatch = response.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+
+    const reasoning: ReasoningMetadata = {};
+    if (analysisMatch) reasoning.analysis = analysisMatch[1].trim();
+    if (thinkingMatch && !reasoning.analysis) reasoning.analysis = thinkingMatch[1].trim();
+    if (planningMatch) reasoning.planning = planningMatch[1].trim();
+
+    this.lastExtractedReasoning = (reasoning.analysis || reasoning.planning) ? reasoning : undefined;
+
+    // Try complete <enhanced> tag
     const enhancedMatch = response.match(/<enhanced>([\s\S]*?)<\/enhanced>/i);
     if (enhancedMatch) {
       return enhancedMatch[1].trim();
     }
 
-    // Try to extract from <refined> tags (for iterative refinement)
+    // Try complete <refined> tag (iterative refinement)
     const refinedMatch = response.match(/<refined>([\s\S]*?)<\/refined>/i);
     if (refinedMatch) {
       return refinedMatch[1].trim();
     }
 
-    // Fallback: strip meta-text prefixes that LLMs sometimes add
-    // Only strip if there's substantial content after the prefix
+    // Handle truncated <enhanced> tag (output cut off before closing tag)
+    const truncatedEnhancedMatch = response.match(/<enhanced>([\s\S]+)$/i);
+    if (truncatedEnhancedMatch) {
+      return truncatedEnhancedMatch[1].trim();
+    }
+
+    // Handle truncated <refined> tag
+    const truncatedRefinedMatch = response.match(/<refined>([\s\S]+)$/i);
+    if (truncatedRefinedMatch) {
+      return truncatedRefinedMatch[1].trim();
+    }
+
+    // Fallback: strip reasoning XML tags and their content, then clean
     let cleaned = response.trim();
+
+    // Remove complete reasoning sections
+    cleaned = cleaned
+      .replace(/<analysis>[\s\S]*?<\/analysis>/gi, '')
+      .replace(/<planning>[\s\S]*?<\/planning>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/<improvements>[\s\S]*?<\/improvements>/gi, '')
+      .trim();
+
+    // Remove any remaining orphaned XML tags
+    cleaned = cleaned
+      .replace(/<\/?(?:analysis|planning|thinking|enhanced|refined|improvements)>/gi, '')
+      .trim();
+
+    // Strip meta-text prefixes that LLMs sometimes add
     const metaPatterns = [
       /^(Here's the|Here is the)\s+(enhanced|refined|improved)\s+prompt:\s+/i,
       /^(The|This)\s+(enhanced|refined|improved)\s+prompt\s+is:\s+/i,
@@ -284,10 +317,9 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
 
     for (const pattern of metaPatterns) {
       const match = cleaned.match(pattern);
-      // Only apply stripping if there's content remaining after the prefix
       if (match && cleaned.length > match[0].length) {
         cleaned = cleaned.replace(pattern, '');
-        break; // Only strip one prefix
+        break;
       }
     }
 
@@ -323,6 +355,16 @@ Remember: Your output must be ONLY the enhanced/rewritten version of the text ab
       const response = await this.retryPolicy.execute(
         async () => this.circuitBreaker!.execute(request)
       );
+
+      // Attach extracted reasoning to response metadata (from parseEnhancedResponse)
+      if (this.lastExtractedReasoning) {
+        response.metadata = {
+          ...response.metadata,
+          reasoning: this.lastExtractedReasoning
+        };
+        this.lastExtractedReasoning = undefined;
+      }
+
       return response;
     } catch (error) {
       console.error(`[${this.name}] Enhancement failed:`, error);
