@@ -32,6 +32,12 @@ export interface CostMetrics {
   lambdaUsed: number;
 }
 
+// Chain-of-thought reasoning extracted from LLM response
+export interface ReasoningMetadata {
+  analysis?: string;
+  planning?: string;
+}
+
 // Enhancement response
 export interface EnhancementResponse {
   enhancedPrompt: string;
@@ -42,6 +48,8 @@ export interface EnhancementResponse {
     processingTime?: number;
     /** Cost optimization metrics */
     costMetrics?: CostMetrics;
+    /** Extracted reasoning from LLM chain-of-thought */
+    reasoning?: ReasoningMetadata;
     /** Indicates enhancement failed (e.g., no pattern match in local provider) */
     enhancementFailed?: boolean;
     /** Reason for failure when enhancementFailed is true */

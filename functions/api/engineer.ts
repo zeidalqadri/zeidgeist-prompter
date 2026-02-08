@@ -337,7 +337,11 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
             source: enhancementResponse.source,
             processingTime: processingTime,
             wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
-            hadError: false
+            hadError: false,
+            context: JSON.stringify({
+              context: promptContext || '',
+              reasoning: (enhancementResponse.metadata as any)?.reasoning
+            })
           }
 
           // Execute database insert with retry logic
@@ -399,7 +403,9 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
           costMetrics: costMetrics || {
             lambdaUsed: effectiveLambda,
             compressionApplied: false
-          }
+          },
+          // Chain-of-thought reasoning (for learning and optional frontend display)
+          reasoning: responseMetadata?.reasoning
         }
       }), {
         headers: corsHeaders
