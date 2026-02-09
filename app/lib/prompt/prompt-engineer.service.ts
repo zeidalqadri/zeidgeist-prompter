@@ -5,6 +5,8 @@
  * Separates data operations from UI components
  */
 
+import { safeJsonParse } from '../utils/safe-json-parse';
+
 export interface EnhancedPrompt {
   enhanced: string;
   metadata?: {
@@ -72,7 +74,7 @@ export class PromptEngineerService {
         throw new Error(error.error || `Enhancement failed with status ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await safeJsonParse<any>(response);
       const processingTime = Date.now() - startTime;
 
       return {
@@ -109,7 +111,7 @@ export class PromptEngineerService {
         throw new Error(`Failed to fetch history: ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await safeJsonParse<any>(response);
 
       // Transform API response to HistoryItem format
       return (data.items || []).map((item: any) => ({

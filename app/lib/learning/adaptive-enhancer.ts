@@ -340,7 +340,7 @@ export class AdaptiveEnhancer {
     const enhancements = await db
       .select()
       .from(enhancementLogs)
-      .where(gte(enhancementLogs.createdAt, oneWeekAgo));
+      .where(gte(enhancementLogs.createdAt, oneWeekAgo.toISOString()));
 
     const localEnhancements = enhancements.filter((e: any) => e.source === 'local');
 

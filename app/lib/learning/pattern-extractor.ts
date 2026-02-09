@@ -55,7 +55,7 @@ export class PatternExtractor {
       )
       .where(
         and(
-          gte(enhancementLogs.createdAt, startDate),
+          gte(enhancementLogs.createdAt, startDate.toISOString()),
           gte(feedback.score, 4) // Fixed: Use Drizzle's gte() instead of sql template literal
         )
       );

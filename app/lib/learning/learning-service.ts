@@ -346,7 +346,7 @@ export class LearningService {
       })
       .from(feedback)
       .where(
-        gte(feedback.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+        gte(feedback.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
       );
 
     for (const fb of recentFeedback) {
@@ -466,7 +466,7 @@ export class LearningService {
         source: enhancementLogs.source,
       })
       .from(enhancementLogs)
-      .where(gte(enhancementLogs.createdAt, oneWeekAgo));
+      .where(gte(enhancementLogs.createdAt, oneWeekAgo.toISOString()));
 
     if (recentEnhancements.length === 0) return 1; // Fully dependent
 
@@ -494,7 +494,7 @@ export class LearningService {
       .where(
         and(
           eq(enhancementLogs.source, 'local'),
-          gte(enhancementLogs.createdAt, oneWeekAgo)
+          gte(enhancementLogs.createdAt, oneWeekAgo.toISOString())
         )
       );
 
