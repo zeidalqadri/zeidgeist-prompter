@@ -1,5 +1,6 @@
 import type { RefactorRequest, RefactorResponse, HistoryItem } from './types';
 import { API_BASE_URL, API_ENDPOINTS, PROMPT_LIMITS } from './constants';
+import { safeJsonParse } from './safe-json-parse';
 
 export class ApiError extends Error {
   constructor(
@@ -61,7 +62,7 @@ export const apiClient = {
       );
     }
 
-    const data = await response.json();
+    const data = await safeJsonParse<{ result: string; metadata: RefactorResponse['metadata'] }>(response);
     return {
       result: data.result,
       metadata: data.metadata,
@@ -88,7 +89,13 @@ export const apiClient = {
       );
     }
 
-    const data = await response.json();
+    const data = await safeJsonParse<{ items?: Array<{
+      original: string;
+      refined: string;
+      context?: string;
+      timestamp: string | number;
+      metadata?: { source?: string; model?: string; processingTime?: number };
+    }> }>(response);
     return (data.items || []).map((item: {
       original: string;
       refined: string;
