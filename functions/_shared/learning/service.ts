@@ -684,7 +684,7 @@ export class LearningService {
         newPatternsLearned: newPatterns,
         llmDependencyScore: llmDependency,
         accuracyScore: accuracy,
-        lastLearningCycle: DateUtils.now().toISOString()
+        lastLearningCycle: DateUtils.now()
       }
     } catch (error) {
       console.error('Failed to calculate metrics:', error)
@@ -769,7 +769,7 @@ export class LearningService {
       newPatternsLearned: newPatterns,
       llmDependencyScore: 1,
       accuracyScore: 0,
-      lastLearningCycle: DateUtils.now().toISOString()
+      lastLearningCycle: DateUtils.now()
     }
   }
 

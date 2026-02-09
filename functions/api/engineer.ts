@@ -112,8 +112,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
   const corsHeaders = {
     ...getCorsHeaders(request, env),
     'Content-Type': 'application/json',
-    'Content-Encoding': 'gzip', // Enable compression
-    'Cache-Control': 'no-cache, no-store, must-revalidate', // Prevent caching of sensitive data
+'Cache-Control': 'no-cache, no-store, must-revalidate', // Prevent caching of sensitive data
     'X-Content-Type-Options': 'nosniff',
     'X-Response-Time': `${Date.now() - startTime}ms` // Add response time header
   }

@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:cloudflare": "next build",
+    "build": "next build && cp _routes.json out/_routes.json",
+    "build:cloudflare": "next build && cp _routes.json out/_routes.json",
     "start": "next start",
     "preview": "wrangler pages dev out --compatibility-flag nodejs_compat",
     "deploy:cloudflare": "wrangler pages deploy out",

@@ -7,6 +7,7 @@ import { Button } from "./ui/button"
 import { VisibleTextarea } from "./ui/visible-textarea"
 import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
 import { LLMUsageTracker } from '../app/lib/llm-usage-tracker'
+import { safeJsonParse } from '../app/lib/utils/safe-json-parse'
 import { ExtensionDownloadButton } from './extension-download-button'
 
 // Lazy load FeedbackForm since it's not immediately needed
@@ -375,7 +376,7 @@ export default function PromptEngineer() {
     try {
       const response = await fetch('/api/engineer/historyDualMode');
       if (response.ok) {
-        const data: HistoryApiResponse = await response.json();
+        const data: HistoryApiResponse = await safeJsonParse<HistoryApiResponse>(response);
         if (data.items && Array.isArray(data.items) && data.items.length > 0) {
           // Convert timestamp strings to Date objects with error handling
           const itemsWithDates = data.items.map((item) => {
@@ -635,7 +636,7 @@ export default function PromptEngineer() {
         }),
       })
 
-      const data: EngineerResponse = await response.json()
+      const data: EngineerResponse = await safeJsonParse<EngineerResponse>(response)
       
       if (response.ok && data.result) {
         dispatch({ type: 'SET_RESULT', payload: data.result });
@@ -727,7 +728,7 @@ export default function PromptEngineer() {
         body: JSON.stringify({ prompt: state.result, context: state.context }),
       })
 
-      const data = await response.json() as any
+      const data = await safeJsonParse<any>(response)
 
       if (!response.ok) {
         // Don't throw an error, just log it and handle gracefully
