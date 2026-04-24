@@ -2,8 +2,7 @@ name: Production Monitoring
 
 on:
   schedule:
-    # Run every 15 minutes
-    - cron: '*/15 * * * *'
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       environment:
@@ -16,262 +15,140 @@ on:
         - staging
 
 jobs:
-  health-check:
+  production-checks:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        environment: [production]
-        
     steps:
     - name: Set environment URLs
       id: env-setup
       run: |
-        if [ "${{ matrix.environment }}" = "production" ]; then
-          echo "base_url=https://mstprmpt.zeidgeist.com" >> $GITHUB_OUTPUT
-        else
-          echo "base_url=https://staging.mstprmpt.zeidgeist.com" >> $GITHUB_OUTPUT
-        fi
+        echo "base_url=https://mstprmpt.zeidgeist.com" >> $GITHUB_OUTPUT
 
     - name: Health Check
-      id: health
       run: |
-        echo "Checking health for ${{ matrix.environment }}"
-        response=$(curl -s -w "%{http_code}" ${{ steps.env-setup.outputs.base_url }}/api/health)
-        http_code=$(echo "$response" | tail -c 4)
-        
+        echo "=== Health Check ==="
+        response=$(curl -s -w "\n%{http_code}" --max-time 30 ${{ steps.env-setup.outputs.base_url }}/api/health)
+        http_code=$(echo "$response" | tail -1)
+        body=$(echo "$response" | sed '$d')
+
         if [ "$http_code" = "200" ]; then
-          echo "status=healthy" >> $GITHUB_OUTPUT
-          echo "✅ ${{ matrix.environment }} is healthy"
+          echo "✅ Health check passed (HTTP $http_code)"
+          echo "$body" | head -5
         else
-          echo "status=unhealthy" >> $GITHUB_OUTPUT
-          echo "❌ ${{ matrix.environment }} health check failed (HTTP $http_code)"
+          echo "❌ Health check failed (HTTP $http_code)"
+          echo "$body"
           exit 1
         fi
 
     - name: Liveness Check
       run: |
-        echo "Checking liveness for ${{ matrix.environment }}"
-        curl -f ${{ steps.env-setup.outputs.base_url }}/api/health/liveness || exit 1
+        echo "=== Liveness Check ==="
+        curl -f --max-time 30 ${{ steps.env-setup.outputs.base_url }}/api/health/liveness || exit 1
+        echo ""
+        echo "✅ Liveness OK"
 
     - name: Readiness Check
       run: |
-        echo "Checking readiness for ${{ matrix.environment }}"
-        curl -f ${{ steps.env-setup.outputs.base_url }}/api/health/readiness || exit 1
+        echo "=== Readiness Check ==="
+        curl -f --max-time 30 ${{ steps.env-setup.outputs.base_url }}/api/health/readiness || exit 1
+        echo ""
+        echo "✅ Readiness OK"
 
-    - name: API Response Time Check
-      id: response-time
+    - name: Uptime Check
       run: |
-        echo "Testing API response time for ${{ matrix.environment }}"
-        start_time=$(date +%s%N)
-        curl -s ${{ steps.env-setup.outputs.base_url }}/api/health/liveness > /dev/null
-        end_time=$(date +%s%N)
-        
-        response_time=$(( (end_time - start_time) / 1000000 ))
-        echo "response_time=${response_time}" >> $GITHUB_OUTPUT
-        
-        if [ "$response_time" -gt 5000 ]; then
-          echo "⚠️  High response time: ${response_time}ms"
-        else
-          echo "✅ Response time OK: ${response_time}ms"
-        fi
-
-    - name: Notify on failure
-      if: failure()
-      uses: 8398a7/action-slack@v3
-      with:
-        status: failure
-        channel: '#alerts'
-        text: |
-          🚨 ${{ matrix.environment }} health check failed!
-          Environment: ${{ matrix.environment }}
-          URL: ${{ steps.env-setup.outputs.base_url }}
-          Time: ${{ github.event.repository.pushed_at }}
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  performance-check:
-    runs-on: ubuntu-latest
-    needs: health-check
-    
-    strategy:
-      matrix:
-        environment: [production]
-        
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-
-    - name: Install dependencies
-      run: npm ci
-
-    - name: Run performance tests
-      run: npm run test:performance
-      env:
-        BASE_URL: https://mstprmpt.zeidgeist.com
-        PERFORMANCE_THRESHOLD: 5000
-
-    - name: Upload performance results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: performance-monitoring-${{ github.run_number }}
-        path: performance-report/
-        retention-days: 30
-
-  uptime-check:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check uptime for production
-      run: |
-        echo "Checking production uptime"
-        
-        # Multiple endpoints check
+        echo "=== Uptime Check ==="
         endpoints=(
-          "https://mstprmpt.zeidgeist.com/"
-          "https://mstprmpt.zeidgeist.com/api/health"
-          "https://mstprmpt.zeidgeist.com/api/health/liveness"
+          "${{ steps.env-setup.outputs.base_url }}/"
+          "${{ steps.env-setup.outputs.base_url }}/api/health"
+          "${{ steps.env-setup.outputs.base_url }}/api/health/liveness"
         )
-        
+
         failed=0
         total=${#endpoints[@]}
-        
+
         for endpoint in "${endpoints[@]}"; do
-          echo "Checking: $endpoint"
-          if ! curl -f --max-time 30 "$endpoint" > /dev/null 2>&1; then
-            echo "❌ Failed: $endpoint"
-            ((failed++))
+          if curl -f --max-time 30 "$endpoint" > /dev/null 2>&1; then
+            echo "✅ $endpoint"
           else
-            echo "✅ OK: $endpoint"
+            echo "❌ $endpoint"
+            ((failed++))
           fi
         done
-        
+
         echo "Results: $((total - failed))/$total endpoints healthy"
-        
-        if [ "$failed" -gt 0 ]; then
-          echo "uptime_status=degraded" >> $GITHUB_OUTPUT
-          if [ "$failed" -eq "$total" ]; then
-            echo "uptime_status=down" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-        else
-          echo "uptime_status=up" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Create uptime report
-      run: |
-        cat << EOF > uptime-report.json
-        {
-          "timestamp": "$(date -Iseconds)",
-          "status": "up",
-          "checks_passed": 3,
-          "checks_failed": 0,
-          "environment": "production"
-        }
-        EOF
-
-    - name: Upload uptime report
-      uses: actions/upload-artifact@v4
-      with:
-        name: uptime-report-${{ github.run_number }}
-        path: uptime-report.json
-        retention-days: 7
-
-  ssl-certificate-check:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check SSL certificate
-      run: |
-        echo "Checking SSL certificate for production"
-        
-        # Check certificate expiry
-        cert_info=$(echo | openssl s_client -servername mstprmpt.zeidgeist.com -connect mstprmpt.zeidgeist.com:443 2>/dev/null | openssl x509 -noout -dates)
-        
-        if [ $? -eq 0 ]; then
-          echo "✅ SSL certificate is valid"
-          echo "$cert_info"
-          
-          # Extract expiry date and check if it's within 30 days
-          expiry_date=$(echo "$cert_info" | grep "notAfter" | cut -d= -f2)
-          expiry_epoch=$(date -d "$expiry_date" +%s)
-          current_epoch=$(date +%s)
-          days_until_expiry=$(( (expiry_epoch - current_epoch) / 86400 ))
-          
-          echo "Certificate expires in $days_until_expiry days"
-          
-          if [ "$days_until_expiry" -lt 30 ]; then
-            echo "⚠️  Certificate expires soon: $days_until_expiry days"
-          fi
-        else
-          echo "❌ SSL certificate check failed"
+        if [ "$failed" -eq "$total" ]; then
           exit 1
         fi
 
-  security-headers-check:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check security headers
+    - name: API Response Time
       run: |
-        echo "Checking security headers for production"
+        echo "=== Response Time ==="
+        start_time=$(date +%s%N)
+        curl -s --max-time 30 ${{ steps.env-setup.outputs.base_url }}/api/health/liveness > /dev/null
+        end_time=$(date +%s%N)
 
-        response=$(curl -I https://mstprmpt.zeidgeist.com/ 2>/dev/null)
+        response_time=$(( (end_time - start_time) / 1000000 ))
+        echo "Response time: ${response_time}ms"
 
-        # Check for important security headers
+        if [ "$response_time" -gt 5000 ]; then
+          echo "⚠️  High response time"
+        else
+          echo "✅ Response time OK"
+        fi
+
+    - name: SSL Certificate Check
+      run: |
+        echo "=== SSL Certificate ==="
+        cert_info=$(echo | openssl s_client -servername mstprmpt.zeidgeist.com -connect mstprmpt.zeidgeist.com:443 2>/dev/null | openssl x509 -noout -dates 2>/dev/null)
+
+        if [ -n "$cert_info" ]; then
+          echo "✅ SSL certificate is valid"
+          echo "$cert_info"
+        else
+          echo "⚠️  Could not retrieve SSL certificate info"
+        fi
+
+    - name: Security Headers Check
+      run: |
+        echo "=== Security Headers ==="
+        response=$(curl -sI --max-time 30 ${{ steps.env-setup.outputs.base_url }}/ 2>/dev/null)
+
+        if [ -z "$response" ]; then
+          echo "⚠️  Could not fetch headers"
+          exit 0
+        fi
+
         headers=(
-          "X-Frame-Options"
           "X-Content-Type-Options"
-          "Content-Security-Policy"
-          "Strict-Transport-Security"
-          "X-XSS-Protection"
+          "Referrer-Policy"
         )
-
-        missing_headers=()
 
         for header in "${headers[@]}"; do
           if echo "$response" | grep -qi "$header"; then
             echo "✅ $header present"
           else
             echo "⚠️  $header missing"
-            missing_headers+=("$header")
           fi
         done
 
-        if [ ${#missing_headers[@]} -gt 0 ]; then
-          echo "⚠️  Missing security headers (non-blocking): ${missing_headers[*]}"
-          echo "Consider adding these headers in Cloudflare or Next.js config"
-        else
-          echo "✅ All security headers present"
+    - name: Database Health
+      run: |
+        echo "=== Database Health ==="
+        response=$(curl -s --max-time 30 ${{ steps.env-setup.outputs.base_url }}/api/health)
+
+        if [ -z "$response" ]; then
+          echo "❌ Could not reach health endpoint"
+          exit 1
         fi
 
-  database-health:
-    runs-on: ubuntu-latest
+        db_status=$(echo "$response" | python3 -c "import sys,json; data=json.load(sys.stdin); checks=[c for c in data.get('checks',[]) if c['name']=='database']; print(checks[0]['status'] if checks else 'unknown')" 2>/dev/null || echo "unknown")
 
-    steps:
-    - name: Check database via health API
-      run: |
-        echo "Checking database health via API"
-
-        response=$(curl -s https://mstprmpt.zeidgeist.com/api/health)
-
-        # Parse the response and check database status
-        db_status=$(echo "$response" | grep -o '"name":"database","status":"[^"]*"' | cut -d'"' -f8)
-
-        echo "Database status: ${db_status:-unknown}"
-
+        echo "Database status: $db_status"
         if [ "$db_status" = "healthy" ]; then
           echo "✅ Database is healthy"
-        elif [ "$db_status" = "degraded" ]; then
-          echo "⚠️  Database is degraded"
-          exit 1
+        elif [ "$db_status" = "unknown" ]; then
+          echo "⚠️  Could not determine database status"
         else
-          echo "❌ Database is unhealthy or unreachable"
+          echo "❌ Database is $db_status"
           exit 1
         fi

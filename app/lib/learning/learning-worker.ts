@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck - File is deprecated, type errors are expected
 /**
  * @deprecated This file is deprecated and will be removed in a future release.

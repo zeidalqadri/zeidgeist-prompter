@@ -14,7 +14,7 @@ const CircuitBreaker = class {
   halfOpen = false;
   private failureCount = 0;
   private lastFailure = 0;
-  private eventHandlers: Map<string, Function[]> = new Map();
+  private eventHandlers: Map<string, ((...args: unknown[]) => void)[]> = new Map();
 
   constructor(fn: any, options: any) {
     this.action = fn;
@@ -90,7 +90,7 @@ const CircuitBreaker = class {
     }
   }
 
-  on(event: string, handler: Function) {
+  on(event: string, handler: (...args: unknown[]) => void) {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, []);
     }
