@@ -11,16 +11,15 @@ export function injectText(text: string): boolean {
 
   try {
     if (activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement) {
-      // For standard inputs, set the value directly
-      activeElement.value = text;
+      const proto = activeElement instanceof HTMLTextAreaElement
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (nativeSetter) {
+        nativeSetter.call(activeElement, text);
+      }
 
-      // Trigger events for React/Vue reactivity
-      const inputEvent = new InputEvent('input', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-      });
-      activeElement.dispatchEvent(inputEvent);
+      activeElement.dispatchEvent(new Event('input', { bubbles: true }));
 
       const changeEvent = new Event('change', { bubbles: true });
       activeElement.dispatchEvent(changeEvent);
@@ -29,8 +28,13 @@ export function injectText(text: string): boolean {
     }
 
     if (activeElement.getAttribute('contenteditable') === 'true') {
-      // For contenteditable elements
-      activeElement.textContent = text;
+      activeElement.innerHTML = '';
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const p = document.createElement('p');
+        p.textContent = line || '​';
+        activeElement.appendChild(p);
+      }
 
       const inputEvent = new InputEvent('input', {
         bubbles: true,
