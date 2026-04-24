@@ -68,8 +68,15 @@ export abstract class BaseAdapter implements PlatformAdapter {
       await this.delay(50);
 
       if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
-        element.value = value;
-        this.triggerInputEvent(element);
+        const proto = element instanceof HTMLTextAreaElement
+          ? window.HTMLTextAreaElement.prototype
+          : window.HTMLInputElement.prototype;
+        const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (nativeSetter) {
+          nativeSetter.call(element, value);
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        this.triggerInputEvent(element, { skipInput: true });
       } else if (element.getAttribute('contenteditable') === 'true') {
         // Clear and set content
         element.innerHTML = '';
@@ -114,20 +121,19 @@ export abstract class BaseAdapter implements PlatformAdapter {
     return false;
   }
 
-  protected triggerInputEvent(element: Element): void {
-    // Trigger input event for React/Vue reactivity
-    const inputEvent = new InputEvent('input', {
-      bubbles: true,
-      cancelable: true,
-      inputType: 'insertText',
-    });
-    element.dispatchEvent(inputEvent);
+  protected triggerInputEvent(element: Element, { skipInput = false } = {}): void {
+    if (!skipInput) {
+      const inputEvent = new InputEvent('input', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+      });
+      element.dispatchEvent(inputEvent);
+    }
 
-    // Trigger change event
     const changeEvent = new Event('change', { bubbles: true });
     element.dispatchEvent(changeEvent);
 
-    // Trigger keyup to ensure frameworks detect the change
     const keyupEvent = new KeyboardEvent('keyup', {
       bubbles: true,
       key: 'a',

@@ -10,11 +10,13 @@ export class PerplexityAdapter extends BaseAdapter {
       primary: [
         'textarea[placeholder*="Ask"]',
         'div[data-testid="search-input"] textarea',
+        'div.ProseMirror[contenteditable="true"]',
         'main textarea',
       ],
       secondary: [
         'form textarea',
         'textarea[rows]',
+        'div[contenteditable="true"][role="textbox"]',
         'div[contenteditable="true"]',
       ],
       fallback: [
@@ -55,10 +57,6 @@ export class PerplexityAdapter extends BaseAdapter {
       await this.delay(50);
 
       if (element instanceof HTMLTextAreaElement) {
-        element.value = value;
-        this.triggerInputEvent(element);
-
-        // Perplexity uses React
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
           window.HTMLTextAreaElement.prototype,
           'value'
@@ -67,8 +65,12 @@ export class PerplexityAdapter extends BaseAdapter {
           nativeInputValueSetter.call(element, value);
         }
         element.dispatchEvent(new Event('input', { bubbles: true }));
+        this.triggerInputEvent(element, { skipInput: true });
       } else if (element.getAttribute('contenteditable') === 'true') {
-        element.textContent = value;
+        element.innerHTML = '';
+        const p = document.createElement('p');
+        p.textContent = value;
+        element.appendChild(p);
         this.triggerInputEvent(element);
       }
 
