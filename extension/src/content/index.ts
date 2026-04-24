@@ -2,6 +2,7 @@ import { detectPlatform, getAdapter } from './platform-detector';
 import { createFloatingButton } from './floating-button';
 import type { Message } from '@/shared/types';
 import { storage } from '@/shared/storage';
+import { UI_CONSTANTS } from '@/shared/constants';
 
 let currentAdapter: ReturnType<typeof getAdapter> | null = null;
 let floatingButtonEnabled = true;
@@ -149,30 +150,30 @@ function showToast(message: string): void {
 }
 
 function setupMutationObserver(): void {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   const observer = new MutationObserver(() => {
-    // Check if our button was removed
-    if (!document.querySelector('.mstprmpt-floating-btn') && floatingButtonEnabled) {
-      // Try to re-add the button
-      const anchorPoint = currentAdapter?.getButtonAnchorPoint();
-      if (anchorPoint) {
-        storage.getSettings().then(settings => {
-          if (settings.floatingButton !== 'disabled') {
-            createFloatingButton(
-              anchorPoint,
-              currentAdapter!.getButtonPosition(),
-              settings.floatingButton === 'always',
-              handleRefactorClick
-            );
-          }
-        });
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      if (!document.querySelector('.mstprmpt-floating-btn') && floatingButtonEnabled) {
+        const anchorPoint = currentAdapter?.getButtonAnchorPoint();
+        if (anchorPoint) {
+          storage.getSettings().then(settings => {
+            if (settings.floatingButton !== 'disabled') {
+              createFloatingButton(
+                anchorPoint,
+                currentAdapter!.getButtonPosition(),
+                settings.floatingButton === 'always',
+                handleRefactorClick
+              );
+            }
+          });
+        }
       }
-    }
+    }, UI_CONSTANTS.DEBOUNCE_DELAY);
   });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 function setupMessageListener(): void {

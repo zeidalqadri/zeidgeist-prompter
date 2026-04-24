@@ -8,18 +8,18 @@ export class GeminiAdapter extends BaseAdapter {
   protected getSelectorConfig(): SelectorConfig {
     return {
       primary: [
-        'rich-textarea .ql-editor',
-        'div[aria-label*="prompt"]',
-        '.text-input-field-wrapper textarea',
+        'rich-textarea div[contenteditable="true"]',
+        'div[contenteditable="true"][aria-label*="prompt"]',
+        'div[contenteditable="true"][role="textbox"]',
       ],
       secondary: [
-        'div[contenteditable="true"][role="textbox"]',
+        '.text-input-field-wrapper textarea',
         'div[data-placeholder*="Enter"]',
         'mat-form-field textarea',
       ],
       fallback: [
+        'rich-textarea .ql-editor',
         '[role="textbox"]',
-        '.ql-editor',
         '[contenteditable="true"]',
       ],
     };
@@ -56,19 +56,21 @@ export class GeminiAdapter extends BaseAdapter {
       (element as HTMLElement).focus();
       await this.delay(50);
 
-      if (element.classList.contains('ql-editor')) {
-        // Quill editor
+      if (element.getAttribute('contenteditable') === 'true') {
         element.innerHTML = '';
         const p = document.createElement('p');
         p.textContent = value;
         element.appendChild(p);
         this.triggerInputEvent(element);
       } else if (element instanceof HTMLTextAreaElement) {
-        element.value = value;
-        this.triggerInputEvent(element);
-      } else if (element.getAttribute('contenteditable') === 'true') {
-        element.textContent = value;
-        this.triggerInputEvent(element);
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, 'value'
+        )?.set;
+        if (nativeSetter) {
+          nativeSetter.call(element, value);
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        this.triggerInputEvent(element, { skipInput: true });
       }
 
       return true;

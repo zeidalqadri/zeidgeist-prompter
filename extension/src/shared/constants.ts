@@ -29,6 +29,8 @@ export const SUPPORTED_PROVIDERS = [
 
 export type SupportedProvider = typeof SUPPORTED_PROVIDERS[number];
 
+export const FETCH_TIMEOUT = 30_000;
+
 export const PROMPT_LIMITS = {
   MIN_LENGTH: 1,
   MAX_LENGTH: 10000,

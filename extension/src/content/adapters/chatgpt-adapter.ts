@@ -8,9 +8,9 @@ export class ChatGPTAdapter extends BaseAdapter {
   protected getSelectorConfig(): SelectorConfig {
     return {
       primary: [
+        'div[contenteditable="true"].ProseMirror',
         '#prompt-textarea',
-        'textarea[data-id="root"]',
-        'div[data-placeholder="Message ChatGPT"]',
+        'div[contenteditable="true"][data-placeholder]',
       ],
       secondary: [
         'form textarea',
@@ -18,8 +18,7 @@ export class ChatGPTAdapter extends BaseAdapter {
         'main div[contenteditable="true"]',
       ],
       fallback: [
-        'div[contenteditable="true"].ProseMirror',
-        'div[contenteditable="true"][data-gramm]',
+        'textarea[data-id="root"]',
         '[contenteditable="true"]',
       ],
     };
@@ -52,10 +51,15 @@ export class ChatGPTAdapter extends BaseAdapter {
       (element as HTMLElement).focus();
       await this.delay(50);
 
-      // ChatGPT uses a contenteditable div or textarea
       if (element instanceof HTMLTextAreaElement) {
-        element.value = value;
-        this.triggerInputEvent(element);
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, 'value'
+        )?.set;
+        if (nativeInputValueSetter) {
+          nativeInputValueSetter.call(element, value);
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        this.triggerInputEvent(element, { skipInput: true });
       } else if (element.getAttribute('contenteditable') === 'true') {
         // For contenteditable, we need to properly set the content
         element.innerHTML = '';

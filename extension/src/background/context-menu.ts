@@ -21,6 +21,13 @@ export function setupContextMenu(): void {
       id: 'refactor-replace',
       title: 'Refactor and Replace',
       contexts: ['editable'],
+      documentUrlPatterns: [
+        'https://chat.openai.com/*',
+        'https://chatgpt.com/*',
+        'https://claude.ai/*',
+        'https://gemini.google.com/*',
+        'https://www.perplexity.ai/*',
+      ],
     });
 
     console.log('[mstprmpt] Context menu created');
@@ -57,13 +64,14 @@ export async function handleContextMenuClick(
       settings.apiBaseUrl
     );
 
-    // Save to history
-    await storage.addToHistory({
-      original: selectedText,
-      refactored: response.result,
-      timestamp: Date.now(),
-      metadata: response.metadata,
-    });
+    if (settings.syncHistory !== false) {
+      await storage.addToHistory({
+        original: selectedText,
+        refactored: response.result,
+        timestamp: Date.now(),
+        metadata: response.metadata,
+      });
+    }
 
     // Store result for popup access
     await chrome.storage.local.set({
@@ -91,12 +99,15 @@ export async function handleContextMenuClick(
         break;
 
       case 'refactor-replace':
-        // Replace selected text in editable field
         if (tab?.id) {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'INJECT_TEXT',
-            payload: { text: response.result },
-          });
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'INJECT_TEXT',
+              payload: { text: response.result },
+            });
+          } catch {
+            await copyToClipboard(response.result);
+          }
         }
         await chrome.action.setBadgeText({ text: '✓' });
         await chrome.action.setBadgeBackgroundColor({ color: '#10b981' });
@@ -120,22 +131,32 @@ export async function handleContextMenuClick(
 }
 
 async function copyToClipboard(text: string): Promise<void> {
-  // In MV3, we need to use offscreen document or inject into active tab
-  // For now, we'll try the simplest approach
-  try {
-    // Try to use the Clipboard API via injected script
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (textToCopy: string) => {
-          navigator.clipboard.writeText(textToCopy);
-        },
-        args: [text],
-      });
-    }
-  } catch (error) {
-    console.error('[mstprmpt] Failed to copy to clipboard:', error);
-    throw error;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error('No active tab');
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: async (textToCopy: string): Promise<boolean> => {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        return true;
+      } catch {
+        if (!document.hasFocus()) return false;
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        ta.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      }
+    },
+    args: [text],
+  });
+
+  const success = results?.[0]?.result;
+  if (!success) {
+    throw new Error('Clipboard write failed — page may not have focus');
   }
 }

@@ -1,5 +1,5 @@
 import type { RefactorRequest, RefactorResponse, HistoryItem } from './types';
-import { API_BASE_URL, API_ENDPOINTS, PROMPT_LIMITS } from './constants';
+import { API_BASE_URL, API_ENDPOINTS, PROMPT_LIMITS, FETCH_TIMEOUT } from './constants';
 import { safeJsonParse } from './safe-json-parse';
 
 export class ApiError extends Error {
@@ -10,6 +10,28 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = FETCH_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = options.signal
+    ? AbortSignal.any([controller.signal, options.signal])
+    : controller.signal;
+  try {
+    return await fetch(url, { ...options, signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError('Request timed out. Please try again.', 408, 'TIMEOUT');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -45,7 +67,7 @@ export const apiClient = {
       );
     }
 
-    const response = await fetch(`${baseUrl}${API_ENDPOINTS.ENGINEER}`, {
+    const response = await fetchWithTimeout(`${baseUrl}${API_ENDPOINTS.ENGINEER}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,7 +95,7 @@ export const apiClient = {
    * Get history from the API (for sync)
    */
   async getHistory(baseUrl: string = API_BASE_URL): Promise<HistoryItem[]> {
-    const response = await fetch(`${baseUrl}${API_ENDPOINTS.HISTORY}`, {
+    const response = await fetchWithTimeout(`${baseUrl}${API_ENDPOINTS.HISTORY}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -125,7 +147,7 @@ export const apiClient = {
     item: Omit<HistoryItem, 'id'>,
     baseUrl: string = API_BASE_URL
   ): Promise<void> {
-    const response = await fetch(`${baseUrl}${API_ENDPOINTS.HISTORY}`, {
+    const response = await fetchWithTimeout(`${baseUrl}${API_ENDPOINTS.HISTORY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

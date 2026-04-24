@@ -27,14 +27,15 @@ export async function handleMessage(
           settings.apiBaseUrl
         );
 
-        // Save to history
-        await storage.addToHistory({
-          original: prompt,
-          refactored: response.result,
-          context,
-          timestamp: Date.now(),
-          metadata: response.metadata,
-        });
+        if (settings.syncHistory !== false) {
+          await storage.addToHistory({
+            original: prompt,
+            refactored: response.result,
+            context,
+            timestamp: Date.now(),
+            metadata: response.metadata,
+          });
+        }
 
         return {
           success: true,
@@ -53,6 +54,15 @@ export async function handleMessage(
       }
 
       case 'ADD_TO_HISTORY': {
+        const historySettings = await storage.getSettings();
+        if (historySettings.syncHistory === false) {
+          return {
+            success: true,
+            data: null,
+            requestId: message.requestId,
+          };
+        }
+
         const item = message.payload as {
           original: string;
           refactored: string;

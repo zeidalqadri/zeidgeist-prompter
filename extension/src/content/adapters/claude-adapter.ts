@@ -8,14 +8,15 @@ export class ClaudeAdapter extends BaseAdapter {
   protected getSelectorConfig(): SelectorConfig {
     return {
       primary: [
-        'div[data-testid="composer-inner"] textarea',
-        'div.composer textarea',
-        'fieldset textarea[placeholder]',
         'div.ProseMirror[contenteditable="true"]',
+        'fieldset div[contenteditable="true"]',
+        'fieldset textarea[placeholder]',
+        'div[role="textbox"]',
       ],
       secondary: [
+        'div[data-testid="composer-inner"] textarea',
+        'div.composer textarea',
         'main textarea',
-        'div[role="textbox"]',
         'textarea[data-placeholder]',
       ],
       fallback: [
@@ -58,10 +59,6 @@ export class ClaudeAdapter extends BaseAdapter {
       await this.delay(50);
 
       if (element instanceof HTMLTextAreaElement) {
-        element.value = value;
-        this.triggerInputEvent(element);
-
-        // Claude uses React, so also dispatch a native input event
         const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
           window.HTMLTextAreaElement.prototype,
           'value'
@@ -70,6 +67,7 @@ export class ClaudeAdapter extends BaseAdapter {
           nativeInputValueSetter.call(element, value);
         }
         element.dispatchEvent(new Event('input', { bubbles: true }));
+        this.triggerInputEvent(element, { skipInput: true });
       } else if (element.getAttribute('contenteditable') === 'true') {
         // For ProseMirror
         element.innerHTML = '';
