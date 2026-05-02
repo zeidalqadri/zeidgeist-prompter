@@ -435,6 +435,24 @@ export class CircuitBreakerFactory {
     });
   }
 
+  static createBreaker<TInput = any, TOutput = any>(
+    name: string,
+    fn: (input: TInput) => Promise<TOutput>,
+    options?: CircuitBreakerOptions
+  ): EnhancedCircuitBreaker<TInput, TOutput> {
+    const existing = this.breakers.get(name);
+    if (existing) {
+      existing.shutdown();
+    }
+
+    const breaker = new EnhancedCircuitBreaker(fn, {
+      ...options,
+      name
+    });
+    this.breakers.set(name, breaker);
+    return breaker;
+  }
+
   /**
    * Shutdown all circuit breakers
    */

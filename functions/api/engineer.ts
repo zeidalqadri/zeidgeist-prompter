@@ -286,6 +286,14 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
 
       console.log('🎉 Enhancement returned:', enhancementResponse?.source);
 
+      if (enhancementResponse.source === 'local') {
+        const meta = enhancementResponse.metadata as any;
+        console.warn('[Engineer API] Fell back to local provider', {
+          attemptedProviders: meta?.attemptedProviders,
+          fallbackReason: meta?.fallbackReason
+        });
+      }
+
       const processingTime = Date.now() - startTime
       console.log('Enhancement completed successfully')
 
