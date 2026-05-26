@@ -78,11 +78,13 @@ export abstract class BaseLLMProvider implements ILLMProvider {
   }
 
   /**
-   * Initialize circuit breaker for provider
+   * Initialize circuit breaker for provider.
+   * Uses createBreaker (not getBreaker) to replace any stale breaker from
+   * a previous provider instance that was destroyed by clearProviders().
    */
   protected initializeCircuitBreaker(): void {
     if (!this.circuitBreaker) {
-      this.circuitBreaker = CircuitBreakerFactory.getBreaker(
+      this.circuitBreaker = CircuitBreakerFactory.createBreaker(
         this.name,
         (request: EnhancementRequest) => this.enhanceInternal(request),
         {

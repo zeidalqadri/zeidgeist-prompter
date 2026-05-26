@@ -51,11 +51,15 @@ export async function enhancePrompt(
     setEnvironmentSource(env);
   }
 
-  // Import provider factory
+  // Import provider factory and circuit breaker cleanup
   const { LLMProviderFactory } = await import('./llm/llm-provider.service');
+  const { CircuitBreakerFactory } = await import('./resilience/circuit-breaker');
 
-  // Clear any cached providers to force re-initialization
+  // Clear cached providers AND circuit breakers to force re-initialization.
+  // Without shutdownAll(), stale breakers accumulate failure stats across
+  // requests and eventually trip OPEN, blocking all external providers.
   LLMProviderFactory.clearProviders();
+  CircuitBreakerFactory.shutdownAll();
 
   // Build the enhancement request
   const request: EnhancementRequest = {
