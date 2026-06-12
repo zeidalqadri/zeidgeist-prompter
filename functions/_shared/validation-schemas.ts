@@ -217,7 +217,9 @@ export const enhancePromptRequestSchema = z.object({
   domain: z.enum([
     'general', 'coding', 'writing', 'analysis', 'creative',
     'business', 'technical', 'research'
-  ]).optional()
+  ]).optional(),
+  imageData: z.string().max(7_000_000, 'Image must not exceed ~5MB').optional(),
+  imageMimeType: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']).optional(),
 }).strict();
 
 /**

@@ -5,7 +5,7 @@ import React from "react"
 import { useEffect, useCallback, useReducer, useMemo, memo, lazy, Suspense } from "react"
 import { Button } from "./ui/button"
 import { VisibleTextarea } from "./ui/visible-textarea"
-import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock } from "lucide-react"
+import { Loader2, Send, Copy, Check, Info, X, ChevronDown, ChevronUp, RotateCw, Zap, Clock, ImageIcon } from "lucide-react"
 import { LLMUsageTracker } from '../app/lib/llm-usage-tracker'
 import { safeJsonParse } from '../app/lib/utils/safe-json-parse'
 import { ExtensionDownloadButton } from './extension-download-button'
@@ -203,6 +203,10 @@ interface EngineerResponse {
     source?: string;
     model?: string;
     processingTime?: number;
+    hasImageInput?: boolean;
+    visionProvider?: string;
+    visionProcessingTime?: number;
+    visionFailed?: boolean;
     costMetrics?: {
       originalTokens: number;
       optimizedTokens: number;
@@ -220,6 +224,14 @@ interface EngineerResponse {
 type TimestampValue = Date | string | number | null | undefined;
 
 // State management with useReducer for better performance
+interface ImageAttachment {
+  dataBase64: string;
+  mimeType: string;
+  previewUrl: string;
+  fileName: string;
+  sizeBytes: number;
+}
+
 interface PromptState {
   prompt: string;
   context: string;
@@ -237,6 +249,9 @@ interface PromptState {
   hasRefinedPrompt: boolean;
   enhancementSource: string | null;
   enhancementTime: number | null;
+  imageAttachment: ImageAttachment | null;
+  visionStatus: 'none' | 'success' | 'failed';
+  visionProvider: string | null;
   costMetrics: {
     originalTokens: number;
     optimizedTokens: number;
@@ -266,6 +281,8 @@ type PromptAction =
   | { type: 'SET_HAS_REFINED_PROMPT'; payload: boolean }
   | { type: 'SET_ENHANCEMENT_METADATA'; payload: { source: string | null; time: number | null } }
   | { type: 'SET_COST_METRICS'; payload: PromptState['costMetrics'] }
+  | { type: 'SET_IMAGE_ATTACHMENT'; payload: ImageAttachment | null }
+  | { type: 'SET_VISION_STATUS'; payload: { status: 'none' | 'success' | 'failed'; provider: string | null } }
   | { type: 'CLEAR_ALL' }
   | { type: 'RESET_FORM' };
 
@@ -286,6 +303,9 @@ const initialState: PromptState = {
   hasRefinedPrompt: false,
   enhancementSource: null,
   enhancementTime: null,
+  imageAttachment: null,
+  visionStatus: 'none',
+  visionProvider: null,
   costMetrics: null,
 };
 
@@ -340,6 +360,10 @@ function promptReducer(state: PromptState, action: PromptAction): PromptState {
       };
     case 'SET_COST_METRICS':
       return { ...state, costMetrics: action.payload };
+    case 'SET_IMAGE_ATTACHMENT':
+      return { ...state, imageAttachment: action.payload };
+    case 'SET_VISION_STATUS':
+      return { ...state, visionStatus: action.payload.status, visionProvider: action.payload.provider };
     case 'CLEAR_ALL':
       return {
         ...state,
@@ -350,7 +374,10 @@ function promptReducer(state: PromptState, action: PromptAction): PromptState {
         error: null,
         showFeedback: false,
         showContext: false,
-        showHistory: false
+        showHistory: false,
+        imageAttachment: null,
+        visionStatus: 'none',
+        visionProvider: null,
       };
     case 'RESET_FORM':
       return {
@@ -584,6 +611,46 @@ export default function PromptEngineer() {
     return isLong && hasStructure && (hasSpecifics || hasInstructions);
   }, []);
 
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      dispatch({ type: 'SET_ERROR', payload: 'Unsupported image type. Use PNG, JPEG, GIF, or WebP.' });
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      dispatch({ type: 'SET_ERROR', payload: 'Image too large. Maximum size is 5MB.' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(',')[1];
+      dispatch({
+        type: 'SET_IMAGE_ATTACHMENT',
+        payload: {
+          dataBase64: base64,
+          mimeType: file.type,
+          previewUrl: result,
+          fileName: file.name,
+          sizeBytes: file.size,
+        },
+      });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, []);
+
+  const handleRemoveImage = useCallback(() => {
+    dispatch({ type: 'SET_IMAGE_ATTACHMENT', payload: null });
+  }, []);
+
   // Define handleSubmit with useCallback to avoid dependency issues - optimized
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -627,12 +694,16 @@ export default function PromptEngineer() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           prompt: state.prompt,
           context: state.context || "",
           isRefinement,
           isExpansion,
-          repeatCount
+          repeatCount,
+          ...(state.imageAttachment && {
+            imageData: state.imageAttachment.dataBase64,
+            imageMimeType: state.imageAttachment.mimeType,
+          }),
         }),
       })
 
@@ -671,6 +742,16 @@ export default function PromptEngineer() {
             });
           }
 
+          // Set vision status if image was submitted
+          if (data.metadata.hasImageInput) {
+            dispatch({
+              type: 'SET_VISION_STATUS',
+              payload: data.metadata.visionFailed
+                ? { status: 'failed', provider: null }
+                : { status: 'success', provider: data.metadata.visionProvider || null }
+            });
+          }
+
           // Track LLM usage for /tweak page analytics
           if (source) {
             LLMUsageTracker.trackUsage(source, processingTime || undefined);
@@ -685,7 +766,7 @@ export default function PromptEngineer() {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [state.prompt, state.context, state.promptHistory, addToHistory, isLikelyRefined]);
+  }, [state.prompt, state.context, state.promptHistory, state.imageAttachment, addToHistory, isLikelyRefined]);
 
   // Add keyboard shortcut for refine action
   useEffect(() => {
@@ -936,6 +1017,7 @@ export default function PromptEngineer() {
                   dispatch({ type: 'CLEAR_ALL' });
                 }}
                 className="h-8 w-8"
+                aria-label="Clear all"
               >
                 <X size={16} />
               </Button>
@@ -956,11 +1038,44 @@ export default function PromptEngineer() {
               />
             </div>
 
-            <div className="flex justify-end items-center mt-2">
+            {state.imageAttachment && (
+              <div className="mt-2 flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded">
+                <img
+                  src={state.imageAttachment.previewUrl}
+                  alt="Attached"
+                  className="h-10 w-10 object-cover rounded"
+                />
+                <span className="text-xs text-black truncate flex-1">
+                  {state.imageAttachment.fileName} ({Math.round(state.imageAttachment.sizeBytes / 1024)}KB)
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={handleRemoveImage}
+                  aria-label="Remove image"
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center mt-2">
+              <label className="cursor-pointer inline-flex items-center gap-1 text-xs text-gray-600 hover:text-black transition-colors">
+                <ImageIcon size={14} />
+                <span>{state.imageAttachment ? 'Replace' : 'Add image'}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  className="hidden"
+                  onChange={handleImageSelect}
+                />
+              </label>
               <Button
                 type="submit"
                 size="sm"
-                className="bg-black-primary hover:bg-black-rich text-white-pure flex items-center gap-2 w-full sm:w-auto"
+                className="bg-black-primary hover:bg-black-rich text-white-pure flex items-center gap-2 w-full sm:w-auto ml-2"
                 disabled={state.isLoading || !state.prompt.trim()}
                 title={`Refactor prompt (${typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘+Return' : 'Ctrl+Enter'})`}
               >
@@ -1004,6 +1119,18 @@ export default function PromptEngineer() {
                     <div className="flex items-center gap-1">
                       <Clock size={12} />
                       <span>{state.enhancementTime}ms</span>
+                    </div>
+                  )}
+                  {state.visionStatus === 'success' && (
+                    <div className="flex items-center gap-1 text-green-700">
+                      <ImageIcon size={12} />
+                      <span>Image analyzed{state.visionProvider ? ` (${state.visionProvider})` : ''}</span>
+                    </div>
+                  )}
+                  {state.visionStatus === 'failed' && (
+                    <div className="flex items-center gap-1 text-amber-600">
+                      <ImageIcon size={12} />
+                      <span>Image analysis unavailable — text only</span>
                     </div>
                   )}
                   {/* Cost optimization metrics */}

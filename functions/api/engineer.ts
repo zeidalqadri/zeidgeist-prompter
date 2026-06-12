@@ -3,6 +3,7 @@ import { getOptimizedDb, executeWithRetry } from "../_shared/db-pool"
 import { enhancePrompt } from "../../app/lib/llm-enhancer-refactored"
 import { validateRequestWithKV, createAuthErrorResponse } from "../_shared/auth"
 import { createRateLimitResponse } from "../_shared/rate-limiter"
+import { analyzeImage } from "../_shared/vision-provider"
 import { LLMCacheManager } from "../_shared/cache-manager"
 import { validateLambda, DEFAULT_COST_CONFIG } from "../../app/lib/enhanced-architecture/cost-config"
 import { LLMProviderFactory } from "../../app/lib/llm/llm-provider.service"
@@ -132,8 +133,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
     const body = await request.json() as any
     console.log('JSON parsed successfully')
     
-    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount, lambda } = body
-    console.log('Request data extracted:', { hasPrompt: !!prompt, lambda })
+    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount, lambda, imageData, imageMimeType } = body
+    console.log('Request data extracted:', { hasPrompt: !!prompt, hasImage: !!imageData, lambda })
 
     // Build cost optimization config from request
     const effectiveLambda = typeof lambda === 'number' ? validateLambda(lambda) : DEFAULT_COST_CONFIG.lambda
@@ -165,6 +166,26 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         headers: corsHeaders
       })
     }
+
+    // PHASE: Vision analysis — extract context from image if provided
+    let imageContext: string | null = null
+    let visionMetadata: { provider: string; processingTime: number } | null = null
+    let visionFailed = false
+    if (imageData && imageMimeType) {
+      try {
+        console.log('🖼️ Analyzing image with vision provider...')
+        const visionResult = await analyzeImage(imageData, imageMimeType, env)
+        imageContext = visionResult.context
+        visionMetadata = { provider: visionResult.provider, processingTime: visionResult.processingTime }
+        console.log(`🖼️ Vision analysis complete (${visionResult.provider}, ${visionResult.processingTime}ms)`)
+      } catch (visionError) {
+        console.error('🖼️ Vision analysis failed:', visionError instanceof Error ? visionError.message : String(visionError))
+        visionFailed = true
+      }
+    }
+
+    // Merge image context with user-provided context
+    const effectiveContext = [promptContext, imageContext].filter(Boolean).join('\n\n[Image Context]\n')
 
     console.log('About to enhance prompt...')
 
@@ -242,7 +263,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
           // Use local enhancement as a starting point, then refine with LLM
           const llmResponse = await enhancePrompt(
             localAttempt.enhancedPrompt, // Start with local enhancement
-            promptContext || "",
+            effectiveContext || "",
             {
               isRefinement: true, // Mark as refinement since we're building on local
               isExpansion: !!isExpansion,
@@ -272,7 +293,7 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         console.log('🔧 Using full LLM enhancement (low confidence or test mode)...');
         enhancementResponse = await enhancePrompt(
           trimmedPrompt,
-          promptContext || "",
+          effectiveContext || "",
           {
             isRefinement: !!isRefinement,
             isExpansion: !!isExpansion,
@@ -337,7 +358,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
           const enhancementLog: NewEnhancementLog = {
             id: crypto.randomUUID(),
             promptLength: trimmedPrompt.length,
-            hasContext: !!(promptContext && promptContext.trim()),
+            hasContext: !!(effectiveContext && effectiveContext.trim()),
+            hasImageInput: !!imageContext,
             isRefinement: !!isRefinement,
             isExpansion: !!isExpansion,
             repeatCount: repeatCount || 0,
@@ -346,8 +368,9 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
             wasIdentical: trimmedPrompt === enhancementResponse.enhancedPrompt,
             hadError: false,
             context: JSON.stringify({
-              context: promptContext || '',
-              reasoning: (enhancementResponse.metadata as any)?.reasoning
+              context: effectiveContext || '',
+              reasoning: (enhancementResponse.metadata as any)?.reasoning,
+              ...(visionMetadata && { visionProvider: visionMetadata.provider, visionProcessingTime: visionMetadata.processingTime })
             })
           }
 
@@ -412,7 +435,16 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
             compressionApplied: false
           },
           // Chain-of-thought reasoning (for learning and optional frontend display)
-          reasoning: responseMetadata?.reasoning
+          reasoning: responseMetadata?.reasoning,
+          // Vision metadata (when image was provided)
+          ...(imageData && {
+            hasImageInput: true,
+            ...(visionMetadata && {
+              visionProvider: visionMetadata.provider,
+              visionProcessingTime: visionMetadata.processingTime,
+            }),
+            ...(visionFailed && { visionFailed: true }),
+          })
         }
       }), {
         headers: corsHeaders
@@ -430,8 +462,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
       if (!fallbackEnhanced.endsWith('.') && !fallbackEnhanced.endsWith('?') && !fallbackEnhanced.endsWith('!')) {
         fallbackEnhanced += '.'
       }
-      if (promptContext && promptContext.trim()) {
-        fallbackEnhanced = `Context: ${promptContext}\n\nPrompt: ${fallbackEnhanced}`
+      if (effectiveContext && effectiveContext.trim()) {
+        fallbackEnhanced = `Context: ${effectiveContext}\n\nPrompt: ${fallbackEnhanced}`
       }
 
       return new Response(JSON.stringify({
