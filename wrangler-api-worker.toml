@@ -11,10 +11,13 @@ compatibility_flags = ["nodejs_compat"]
 # ]
 workers_dev = true
 
-# Production route
-routes = [
-  { pattern = "api.mstprmpt.zeidgeist.com/*", zone_name = "zeidgeist.com" }
-]
+# NOTE: The API is served by VPS (107.174.228.85) via Caddy, not this Worker.
+# DNS for api.mstprmpt.zeidgeist.com points to the VPS, not Cloudflare.
+# This Worker config is kept as a dormant fallback only.
+#
+# routes = [
+#   { pattern = "api.mstprmpt.zeidgeist.com/*", zone_name = "zeidgeist.com" }
+# ]
 
 [vars]
 NODE_ENV = "production"
