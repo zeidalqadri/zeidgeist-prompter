@@ -32,6 +32,7 @@
     "playwright-tests",
     "open-next.config.ts",
     "extension",
-    "functions"
+    "functions",
+    "mstprmpt-saas"
   ]
 }
