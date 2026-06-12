@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mstprmpt_saas
+      POSTGRES_USER: mstprmpt
+      POSTGRES_PASSWORD: localdev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "3100:3100"
+    environment:
+      DATABASE_URL: postgresql://mstprmpt:localdev@postgres:5432/mstprmpt_saas
+      PORT: "3100"
+      NODE_ENV: development
+      LOG_LEVEL: info
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

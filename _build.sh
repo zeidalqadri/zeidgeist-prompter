@@ -3,6 +3,10 @@
 # Cloudflare Pages build script
 echo "🚀 Starting Zeidgeist Prompter build..."
 
+# Remove SaaS monorepo before build — it has its own deps/lockfile
+# that conflict with the main app's Cloudflare Pages build
+rm -rf mstprmpt-saas/
+
 # Install dependencies
 echo "📦 Installing dependencies..."
 npm ci
