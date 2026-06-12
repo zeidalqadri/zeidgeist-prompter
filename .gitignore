@@ -47,3 +47,6 @@ PR_BODY.md
 .dev.vars*
 mstprmpt-X-v*.zip
 firebase-debug.log
+
+# dogfood / QA test artifacts
+dogfood-output/

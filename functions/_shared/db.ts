@@ -84,6 +84,7 @@ export const enhancementLogs = sqliteTable('enhancement_logs', {
   enhancedPrompt: text('enhanced_prompt'),
   promptLength: integer('prompt_length').notNull(),
   hasContext: integer('has_context', { mode: 'boolean' }).notNull(),
+  hasImageInput: integer('has_image_input', { mode: 'boolean' }).default(false),
   isRefinement: integer('is_refinement', { mode: 'boolean' }).notNull(),
   isExpansion: integer('is_expansion', { mode: 'boolean' }).notNull(),
   repeatCount: integer('repeat_count').default(0),
