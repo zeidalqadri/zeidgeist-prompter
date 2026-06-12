@@ -1,0 +1,19 @@
+{
+  "extends": "../../tooling/typescript/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noUncheckedIndexedAccess": false,
+    "baseUrl": ".",
+    "paths": {
+      "@mstprmpt/engine": ["../../packages/engine/src/index.ts"],
+      "@mstprmpt/db": ["../../packages/db/src/index.ts"],
+      "@mstprmpt/db/types": ["../../packages/db/src/types.ts"]
+    },
+    "rootDir": "../..",
+    "composite": false
+  },
+  "include": ["src/**/*.ts", "../../packages/*/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

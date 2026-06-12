@@ -1,0 +1,29 @@
+{
+  "name": "mstprmpt-saas",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "db:generate": "npm run db:generate --workspace=@mstprmpt/db",
+    "db:migrate": "npm run db:migrate --workspace=@mstprmpt/db",
+    "db:seed": "tsx packages/db/src/seed.ts",
+    "db:push": "npx drizzle-kit push --config=packages/db/drizzle.config.ts",
+    "api:dev": "npm run dev --workspace=@mstprmpt/api",
+    "api:start": "npm run start --workspace=@mstprmpt/api"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.8.0"
+}
