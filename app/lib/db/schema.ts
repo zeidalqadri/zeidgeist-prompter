@@ -67,6 +67,7 @@ export const enhancementLogs = pgTable('enhancement_logs', {
   enhancedPrompt: text('enhanced_prompt'),
   promptLength: integer('prompt_length').notNull(),
   hasContext: boolean('has_context').notNull(),
+  hasImageInput: boolean('has_image_input').default(false),
   isRefinement: boolean('is_refinement').notNull(),
   isExpansion: boolean('is_expansion').notNull(),
   repeatCount: integer('repeat_count').default(0),

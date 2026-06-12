@@ -51,6 +51,7 @@ export interface D1EnhancementLog {
   enhanced_prompt: string | null;
   prompt_length: number;
   has_context: number;
+  has_image_input: number;
   is_refinement: number;
   is_expansion: number;
   repeat_count: number;
@@ -354,16 +355,17 @@ export class D1UnifiedDatabase extends D1AuthDatabase {
 
     await this.database.prepare(`
       INSERT INTO enhancement_logs (
-        id, original_prompt, enhanced_prompt, prompt_length, has_context, is_refinement, is_expansion,
+        id, original_prompt, enhanced_prompt, prompt_length, has_context, has_image_input, is_refinement, is_expansion,
         repeat_count, source, enhancement_model, response_time, processing_time, was_identical, had_error,
         context, user_id, timestamp, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       entry.originalPrompt || null,
       entry.enhancedPrompt || null,
       entry.promptLength,
       entry.hasContext ? 1 : 0,
+      (entry as any).hasImageInput ? 1 : 0,
       entry.isRefinement ? 1 : 0,
       entry.isExpansion ? 1 : 0,
       entry.repeatCount || 0,
