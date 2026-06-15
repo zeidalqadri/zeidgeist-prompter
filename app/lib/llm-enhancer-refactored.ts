@@ -33,13 +33,15 @@ export async function enhancePrompt(
     env?: Record<string, string>;
     providerPreferences?: ProviderPreferences | null;
     testProvider?: string | null;
+    forcedProvider?: string;
   } = {}
 ): Promise<EnhancementResponse> {
   const {
     isRefinement = false,
     env = {},
     providerPreferences,
-    testProvider
+    testProvider,
+    forcedProvider
   } = options;
 
   // Dynamically import ALL modules to avoid static initialization
@@ -61,11 +63,23 @@ export async function enhancePrompt(
   LLMProviderFactory.clearProviders();
   CircuitBreakerFactory.shutdownAll();
 
+  // Validate forced provider against known provider names
+  const VALID_PROVIDERS = ['claude', 'openai', 'deepseek', 'mistral', 'moonshot', 'gemini'] as const;
+  type ValidProvider = typeof VALID_PROVIDERS[number];
+  const validatedForcedProvider = forcedProvider && VALID_PROVIDERS.includes(forcedProvider as ValidProvider)
+    ? (forcedProvider as import('./llm/types').ProviderSource)
+    : undefined;
+
+  if (forcedProvider && !validatedForcedProvider) {
+    console.warn(`[LLM Enhancer] Invalid forced provider '${forcedProvider}', ignoring`);
+  }
+
   // Build the enhancement request
   const request: EnhancementRequest = {
     prompt,
     context: context || '',
-    isRefinement
+    isRefinement,
+    forcedProvider: validatedForcedProvider
   };
 
   try {

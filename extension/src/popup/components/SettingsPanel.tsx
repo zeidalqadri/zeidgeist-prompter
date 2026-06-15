@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { Button } from './ui/Button';
 import type { Settings } from '@/shared/types';
 import { SUPPORTED_PROVIDERS } from '@/shared/constants';
+
+interface ProviderHealthInfo {
+  provider: string;
+  configured: boolean;
+  enabled: boolean;
+}
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -14,6 +20,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onUpdate,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [providerHealth, setProviderHealth] = useState<Record<string, ProviderHealthInfo>>({});
+
+  useEffect(() => {
+    if (!isExpanded || settings.providerMode !== 'manual') return;
+
+    fetch(`${settings.apiBaseUrl}/api/tweak/provider-status`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data?.providers) return;
+        const healthMap: Record<string, ProviderHealthInfo> = {};
+        for (const p of data.providers) {
+          healthMap[p.provider.toLowerCase()] = p;
+        }
+        setProviderHealth(healthMap);
+      })
+      .catch(() => {});
+  }, [isExpanded, settings.providerMode, settings.apiBaseUrl]);
 
   return (
     <div className="border-t border-gray-200 pt-3">
@@ -58,11 +81,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="w-full p-1.5 border border-gray-300 rounded text-black bg-white"
               >
                 <option value="">Select provider</option>
-                {SUPPORTED_PROVIDERS.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {provider.charAt(0).toUpperCase() + provider.slice(1)}
-                  </option>
-                ))}
+                {SUPPORTED_PROVIDERS.map((provider) => {
+                  const health = providerHealth[provider];
+                  const isAvailable = !health || health.configured;
+                  const label = provider.charAt(0).toUpperCase() + provider.slice(1);
+                  return (
+                    <option
+                      key={provider}
+                      value={provider}
+                      disabled={!isAvailable}
+                      className={isAvailable ? '' : 'text-gray-400'}
+                    >
+                      {label}{health && !isAvailable ? ' — n/a' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}

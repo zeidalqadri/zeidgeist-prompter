@@ -9,6 +9,8 @@ interface RefactorState {
   isLoading: boolean;
   error: string | null;
   source: string | null;
+  model: string | null;
+  requestedProvider: string | null;
   processingTime: number | null;
   copied: boolean;
 }
@@ -27,6 +29,8 @@ const initialState: RefactorState = {
   isLoading: false,
   error: null,
   source: null,
+  model: null,
+  requestedProvider: null,
   processingTime: null,
   copied: false,
 };
@@ -40,6 +44,8 @@ function refactorReducer(state: RefactorState, action: RefactorAction): Refactor
         ...state,
         refactoredPrompt: action.payload.result,
         source: action.payload.metadata?.source || null,
+        model: action.payload.metadata?.model || null,
+        requestedProvider: action.payload.metadata?.requestedProvider || null,
         processingTime: action.payload.metadata?.processingTime || null,
         isLoading: false,
         error: null,

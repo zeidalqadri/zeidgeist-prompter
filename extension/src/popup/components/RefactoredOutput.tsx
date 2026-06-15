@@ -5,6 +5,8 @@ import { Button } from './ui/Button';
 interface RefactoredOutputProps {
   result: string;
   source: string | null;
+  model: string | null;
+  requestedProvider: string | null;
   processingTime: number | null;
   copied: boolean;
   onCopy: () => void;
@@ -14,6 +16,8 @@ interface RefactoredOutputProps {
 export const RefactoredOutput: React.FC<RefactoredOutputProps> = ({
   result,
   source,
+  model,
+  requestedProvider,
   processingTime,
   copied,
   onCopy,
@@ -48,7 +52,13 @@ export const RefactoredOutput: React.FC<RefactoredOutputProps> = ({
           {source && (
             <div className="flex items-center gap-1">
               <Zap size={12} />
-              <span>{source === 'external-api' ? 'AI' : source}</span>
+              <span>
+                {source === 'external-api' ? 'AI' : source}
+                {model ? ` · ${model}` : ''}
+                {requestedProvider && requestedProvider !== source
+                  ? ` (req: ${requestedProvider})`
+                  : ''}
+              </span>
             </div>
           )}
           {processingTime !== null && (

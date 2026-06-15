@@ -1095,7 +1095,9 @@ export class LLMProviderFactory {
   /**
    * Get fallback chain of providers with optional dynamic ordering
    *
-   * @param request - If provided, uses dynamic ordering based on prompt analysis
+   * @param request - If provided, uses dynamic ordering based on prompt analysis.
+   *   When request.forcedProvider is set, that provider is placed first in the chain
+   *   with the remaining providers following in their normal dynamic order.
    */
   static getProviderChain(request?: EnhancementRequest): ILLMProvider[] {
     // If no request provided, use static priority (for health checks etc.)
@@ -1106,15 +1108,28 @@ export class LLMProviderFactory {
     // Use dynamic ordering based on prompt analysis
     const selection = selectProviderOrder(request);
 
+    let orderedProviders = selection.orderedProviders;
+
+    // If a forced provider is specified, move it to the front of the chain
+    if (request.forcedProvider && request.forcedProvider !== 'local' && request.forcedProvider !== 'fallback') {
+      const forced = request.forcedProvider;
+      orderedProviders = [
+        forced,
+        ...orderedProviders.filter(p => p !== forced)
+      ];
+      console.log(`[LLM Factory] Forced provider '${forced}' moved to front of chain`);
+    }
+
     console.log('[LLM Factory] Dynamic provider order:', {
       complexity: selection.analysis.complexity,
       taskType: selection.analysis.taskType,
       strategy: selection.analysis.strategy,
-      order: selection.orderedProviders.join(' → ')
+      forced: request.forcedProvider || 'none',
+      order: orderedProviders.join(' → ')
     });
 
     // Map to provider instances, filtering by enabled
-    const providers = selection.orderedProviders
+    const providers = orderedProviders
       .map(name => this.getProvider(name))
       .filter(provider => provider.enabled);
 
@@ -1141,9 +1156,12 @@ export class LLMProviderFactory {
         const response = await provider.enhance(request);
         console.log(`[LLM Factory] ✓ Success with ${provider.name}`);
 
-        // Add attempted providers to metadata for observability
+        // Add observability metadata
         if (response.metadata) {
           response.metadata.attemptedProviders = attemptedProviders;
+          if (request.forcedProvider) {
+            response.metadata.requestedProvider = request.forcedProvider;
+          }
         }
         return response;
       } catch (error) {
