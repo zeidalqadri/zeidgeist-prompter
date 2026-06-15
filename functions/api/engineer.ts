@@ -133,8 +133,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
     const body = await request.json() as any
     console.log('JSON parsed successfully')
     
-    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount, lambda, imageData, imageMimeType } = body
-    console.log('Request data extracted:', { hasPrompt: !!prompt, hasImage: !!imageData, lambda })
+    const { prompt, context: promptContext, isRefinement, isExpansion, repeatCount, lambda, imageData, imageMimeType, provider } = body
+    console.log('Request data extracted:', { hasPrompt: !!prompt, hasImage: !!imageData, lambda, provider: provider || 'auto' })
 
     // Build cost optimization config from request
     const effectiveLambda = typeof lambda === 'number' ? validateLambda(lambda) : DEFAULT_COST_CONFIG.lambda
@@ -300,7 +300,8 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
             repeatCount,
             env,
             providerPreferences,
-            testProvider
+            testProvider,
+            forcedProvider: typeof provider === 'string' ? provider : undefined
           }
         )
       }
@@ -426,9 +427,12 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
         result: enhancementResponse.enhancedPrompt,
         metadata: {
           source: enhancementResponse.source,
+          model: responseMetadata?.model,
           processingTime,
           originalLength: trimmedPrompt.length,
           enhancedLength: enhancementResponse.enhancedPrompt.length,
+          // Echo back the user's requested provider (if any)
+          ...(provider && { requestedProvider: provider }),
           // Cost optimization metrics
           costMetrics: costMetrics || {
             lambdaUsed: effectiveLambda,

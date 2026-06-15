@@ -18,6 +18,8 @@ export interface EnhancementRequest {
   costConfig?: Partial<CostOptimizationConfig>;
   /** Skip response validation (for health checks) */
   skipValidation?: boolean;
+  /** User-selected provider to try first (falls back to dynamic ordering if unavailable) */
+  forcedProvider?: ProviderSource;
 }
 
 // Cost metrics for response
@@ -60,6 +62,8 @@ export interface EnhancementResponse {
     fallbackReason?: string;
     /** List of providers attempted before success (for observability) */
     attemptedProviders?: string[];
+    /** The provider the user originally requested (set when forcedProvider was specified) */
+    requestedProvider?: string;
   };
 }
 
