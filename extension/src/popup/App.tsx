@@ -108,6 +108,8 @@ const App: React.FC = () => {
         <RefactoredOutput
           result={state.refactoredPrompt}
           source={state.source}
+          model={state.model}
+          requestedProvider={state.requestedProvider}
           processingTime={state.processingTime}
           copied={state.copied}
           onCopy={handleCopy}

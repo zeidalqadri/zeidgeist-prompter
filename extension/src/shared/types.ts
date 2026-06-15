@@ -17,6 +17,7 @@ export interface RefactorResponse {
     originalLength?: number;
     enhancedLength?: number;
     cached?: boolean;
+    requestedProvider?: string;
   };
 }
 
