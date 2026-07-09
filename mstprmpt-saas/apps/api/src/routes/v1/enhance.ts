@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { enhance, EnhanceError } from '../../services/enhance.service';
-import { apiKeyAuth, type AuthContext } from '../../middleware/api-key-auth';
+import { apiKeyAuth, requireScope, type AuthContext } from '../../middleware/api-key-auth';
 import { usageTracking } from '../../middleware/usage-tracking';
 import { rateLimit } from '../../middleware/rate-limit';
 import { eq, and } from 'drizzle-orm';
@@ -20,7 +20,7 @@ const enhanceBody = z.object({
 
 const app = new Hono<{ Variables: { auth: AuthContext } }>();
 
-app.post('/', apiKeyAuth, rateLimit, usageTracking, zValidator('json', enhanceBody), async (c) => {
+app.post('/', apiKeyAuth, requireScope('enhance'), rateLimit, usageTracking, zValidator('json', enhanceBody), async (c) => {
   const body = c.req.valid('json');
   const auth = c.get('auth');
 

@@ -121,11 +121,34 @@ export async function onRequestPost(context: CloudflareContext): Promise<Respons
   // Validate authentication and rate limiting (distributed KV-based)
   const authResult = await validateRequestWithKV(request, env, '/api/engineer', env.CACHE_STORAGE);
   if (!authResult.success) {
-    // Check if this is a rate limit error vs auth error
     if (authResult.rateLimitResult && !authResult.rateLimitResult.allowed) {
       return createRateLimitResponse(authResult.rateLimitResult, corsHeaders);
     }
     return createAuthErrorResponse(authResult.error!, corsHeaders);
+  }
+
+  // Enforce daily quota for anonymous/free users (50 enhancements/day per IP)
+  const FREE_DAILY_QUOTA = 50
+  if (env.CACHE_STORAGE && (!authResult.userId || authResult.userId === 'anonymous')) {
+    const clientIp = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown'
+    const today = new Date().toISOString().slice(0, 10)
+    const quotaKey = `quota:daily:${clientIp}:${today}`
+
+    const currentCount = parseInt(await env.CACHE_STORAGE.get(quotaKey) || '0', 10)
+    if (currentCount >= FREE_DAILY_QUOTA) {
+      return new Response(JSON.stringify({
+        error: 'Daily free limit reached',
+        message: `You've used ${FREE_DAILY_QUOTA} free enhancements today. Sign up for a Pro plan for 1,000/month.`,
+        usage: { used: currentCount, limit: FREE_DAILY_QUOTA, resetsAt: `${today}T23:59:59Z` },
+        upgrade: 'https://mstprmpt.zeidgeist.com/pricing',
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Increment counter (TTL = 24 hours)
+    await env.CACHE_STORAGE.put(quotaKey, String(currentCount + 1), { expirationTtl: 86400 })
   }
   
   try {

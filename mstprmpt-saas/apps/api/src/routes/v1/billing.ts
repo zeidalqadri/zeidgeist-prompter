@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { apiKeyAuth, type AuthContext } from '../../middleware/api-key-auth';
+import { flexibleAuth, type FlexibleAuthContext } from '../../middleware/flexible-auth';
 import { createCheckoutSession, getCustomerPortalUrl } from '../../services/billing.service';
 
 const checkoutBody = z.object({
@@ -12,9 +12,9 @@ const checkoutBody = z.object({
   orgName: z.string(),
 });
 
-const app = new Hono<{ Variables: { auth: AuthContext } }>();
+const app = new Hono<{ Variables: { auth: FlexibleAuthContext } }>();
 
-app.post('/checkout', apiKeyAuth, zValidator('json', checkoutBody), async (c) => {
+app.post('/checkout', flexibleAuth, zValidator('json', checkoutBody), async (c) => {
   const body = c.req.valid('json');
   const auth = c.get('auth');
 
@@ -34,7 +34,7 @@ app.post('/checkout', apiKeyAuth, zValidator('json', checkoutBody), async (c) =>
   return c.json({ success: true, data: { checkoutUrl } });
 });
 
-app.post('/portal', apiKeyAuth, zValidator('json', z.object({ returnUrl: z.string().url() })), async (c) => {
+app.post('/portal', flexibleAuth, zValidator('json', z.object({ returnUrl: z.string().url() })), async (c) => {
   const { returnUrl } = c.req.valid('json');
   const auth = c.get('auth');
 
