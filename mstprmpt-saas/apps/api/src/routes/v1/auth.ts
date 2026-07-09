@@ -2,8 +2,9 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
-import { createHash, randomBytes } from 'node:crypto';
-import { createDb, users, organizations, orgMembers, apiKeys } from '@mstprmpt/db';
+import { randomBytes, createHash } from 'node:crypto';
+import bcrypt from 'bcryptjs';
+import { createDb, users, organizations, orgMembers, apiKeys, userSessions } from '@mstprmpt/db';
 import { generateApiKey } from '../../lib/crypto';
 
 const registerBody = z.object({
@@ -30,9 +31,8 @@ app.post('/register', zValidator('json', registerBody), async (c) => {
     return c.json({ success: false, error: { code: 'EMAIL_EXISTS', message: 'Email already registered' } }, 409);
   }
 
-  const passwordHash = createHash('sha256').update(body.password).digest('hex');
+  const passwordHash = await bcrypt.hash(body.password, 12);
 
-  // Create user
   const [user] = await db.insert(users).values({
     email: body.email,
     name: body.name,
@@ -93,23 +93,28 @@ app.post('/login', zValidator('json', loginBody), async (c) => {
   }
 
   const user = result[0]!;
-  const passwordHash = createHash('sha256').update(body.password).digest('hex');
+  const isValid = await bcrypt.compare(body.password, user.passwordHash);
 
-  if (user.passwordHash !== passwordHash) {
+  if (!isValid) {
     return c.json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' } }, 401);
   }
 
-  // Get user's orgs
   const memberships = await db
     .select({ orgId: orgMembers.orgId, role: orgMembers.role, orgName: organizations.name, planTier: organizations.planTier })
     .from(orgMembers)
     .innerJoin(organizations, eq(orgMembers.orgId, organizations.id))
     .where(eq(orgMembers.userId, user.id));
 
-  // Generate a simple session token (for dashboard — not API key auth)
   const sessionToken = randomBytes(32).toString('base64url');
+  const sessionHash = createHash('sha256').update(sessionToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Update last login
+  await db.insert(userSessions).values({
+    userId: user.id,
+    tokenHash: sessionHash,
+    expiresAt,
+  });
+
   await db.update(users).set({ lastLogin: new Date().toISOString() }).where(eq(users.id, user.id));
 
   return c.json({
@@ -118,6 +123,7 @@ app.post('/login', zValidator('json', loginBody), async (c) => {
       user: { id: user.id, email: user.email, name: user.name },
       organizations: memberships,
       sessionToken,
+      expiresAt,
     },
   });
 });

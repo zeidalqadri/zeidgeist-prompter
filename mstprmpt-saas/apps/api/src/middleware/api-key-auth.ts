@@ -9,6 +9,7 @@ export interface AuthContext {
   apiKeyId: string;
   planTier: string;
   planLimits: PlanLimits;
+  scopes: string[];
 }
 
 export const apiKeyAuth = createMiddleware<{ Variables: { auth: AuthContext } }>(async (c, next) => {
@@ -31,6 +32,7 @@ export const apiKeyAuth = createMiddleware<{ Variables: { auth: AuthContext } }>
       orgId: apiKeys.orgId,
       isActive: apiKeys.isActive,
       expiresAt: apiKeys.expiresAt,
+      scopes: apiKeys.scopes,
       planTier: organizations.planTier,
       planLimits: organizations.planLimits,
     })
@@ -57,12 +59,33 @@ export const apiKeyAuth = createMiddleware<{ Variables: { auth: AuthContext } }>
     ? JSON.parse(key.planLimits)
     : (key.planLimits as PlanLimits) ?? { monthlyEnhancements: 50, ratePerMinute: 5, burstLimit: 10 };
 
+  const scopes: string[] = key.scopes
+    ? (typeof key.scopes === 'string' ? JSON.parse(key.scopes) : key.scopes)
+    : ['enhance'];
+
   c.set('auth', {
     orgId: key.orgId,
     apiKeyId: key.keyId,
     planTier: key.planTier,
     planLimits,
+    scopes,
   });
 
   await next();
 });
+
+export function requireScope(scope: string) {
+  return createMiddleware<{ Variables: { auth: AuthContext } }>(async (c, next) => {
+    const auth = c.get('auth');
+    if (!auth.scopes.includes(scope)) {
+      return c.json({
+        success: false,
+        error: {
+          code: 'INSUFFICIENT_SCOPE',
+          message: `This API key lacks the '${scope}' scope required for this endpoint`,
+        },
+      }, 403);
+    }
+    await next();
+  });
+}
