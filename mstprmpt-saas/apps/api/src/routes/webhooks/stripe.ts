@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import Stripe from 'stripe';
 import { eq } from 'drizzle-orm';
 import { createDb, organizations, billingEvents } from '@mstprmpt/db';
 import { logger } from '../../lib/logger';
@@ -13,32 +14,45 @@ const app = new Hono();
 
 app.post('/', async (c) => {
   const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET'];
-  if (!webhookSecret) {
-    logger.error('STRIPE_WEBHOOK_SECRET not configured');
+  const stripeSecretKey = process.env['STRIPE_SECRET_KEY'];
+
+  if (!webhookSecret || !stripeSecretKey) {
+    logger.error('STRIPE_WEBHOOK_SECRET or STRIPE_SECRET_KEY not configured');
     return c.json({ error: 'Webhook not configured' }, 500);
   }
 
-  // In production, verify the Stripe signature here using stripe.webhooks.constructEvent()
-  // For now, accept the raw body
-  const body = await c.req.json() as { id: string; type: string; data: { object: Record<string, unknown> } };
+  const stripe = new Stripe(stripeSecretKey);
+
+  const signature = c.req.header('stripe-signature');
+  if (!signature) {
+    return c.json({ error: 'Missing stripe-signature header' }, 400);
+  }
+
+  const rawBody = await c.req.text();
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+  } catch (err) {
+    logger.warn({ err }, 'Invalid Stripe webhook signature');
+    return c.json({ error: 'Invalid signature' }, 400);
+  }
 
   const db = createDb();
 
-  // Idempotency check
   const existing = await db
     .select({ id: billingEvents.id })
     .from(billingEvents)
-    .where(eq(billingEvents.stripeEventId, body.id))
+    .where(eq(billingEvents.stripeEventId, event.id))
     .limit(1);
 
   if (existing.length > 0) {
     return c.json({ received: true, duplicate: true });
   }
 
-  const eventObj = body.data.object;
+  const eventObj = event.data.object as Record<string, unknown>;
   const customerId = (eventObj['customer'] as string) || '';
 
-  // Find org by Stripe customer ID
   const orgs = await db
     .select({ id: organizations.id })
     .from(organizations)
@@ -47,21 +61,19 @@ app.post('/', async (c) => {
 
   const orgId = orgs[0]?.id;
   if (!orgId) {
-    logger.warn({ customerId, eventType: body.type }, 'No org found for Stripe customer');
+    logger.warn({ customerId, eventType: event.type }, 'No org found for Stripe customer');
     return c.json({ received: true, warning: 'no_matching_org' });
   }
 
-  // Store event
   await db.insert(billingEvents).values({
     orgId,
-    stripeEventId: body.id,
-    eventType: body.type,
-    payload: body,
+    stripeEventId: event.id,
+    eventType: event.type,
+    payload: event as unknown as Record<string, unknown>,
     processedAt: new Date().toISOString(),
   });
 
-  // Process event
-  switch (body.type) {
+  switch (event.type) {
     case 'checkout.session.completed': {
       const tier = ((eventObj['metadata'] as Record<string, string>)?.['tier'] || 'pro') as string;
       const limits = PLAN_LIMITS[tier] || PLAN_LIMITS['pro']!;
@@ -84,7 +96,7 @@ app.post('/', async (c) => {
       break;
     }
     default:
-      logger.info({ eventType: body.type }, 'Unhandled webhook event');
+      logger.info({ eventType: event.type }, 'Unhandled webhook event');
   }
 
   return c.json({ received: true });
