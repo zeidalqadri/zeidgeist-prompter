@@ -12,7 +12,8 @@ export default defineConfig({
       '**/dist/**',
       '**/cypress/**',
       '**/.{idea,git,cache,output,temp}/**',
-      '**/playwright-tests/**'
+      '**/playwright-tests/**',
+      '**/mstprmpt-saas/**'
     ],
     coverage: {
       provider: 'v8',
