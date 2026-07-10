@@ -50,7 +50,7 @@ app.post('/', async (c) => {
     return c.json({ received: true, duplicate: true });
   }
 
-  const eventObj = event.data.object as Record<string, unknown>;
+  const eventObj = event.data.object as unknown as Record<string, unknown>;
   const customerId = (eventObj['customer'] as string) || '';
 
   const orgs = await db
@@ -75,8 +75,13 @@ app.post('/', async (c) => {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const tier = ((eventObj['metadata'] as Record<string, string>)?.['tier'] || 'pro') as string;
-      const limits = PLAN_LIMITS[tier] || PLAN_LIMITS['pro']!;
+      const session = event.data.object as Stripe.Checkout.Session;
+      const tier = session.metadata?.tier;
+      if (!tier || !(tier in PLAN_LIMITS)) {
+        logger.warn({ orgId, eventId: event.id, tier }, 'checkout.session.completed missing or invalid tier in metadata');
+        break;
+      }
+      const limits = PLAN_LIMITS[tier]!;
       await db.update(organizations)
         .set({ planTier: tier, planLimits: limits, updatedAt: new Date().toISOString() })
         .where(eq(organizations.id, orgId));

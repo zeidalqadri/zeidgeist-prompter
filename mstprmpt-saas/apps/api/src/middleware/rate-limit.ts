@@ -1,12 +1,17 @@
 import { createMiddleware } from 'hono/factory';
 import type { AuthContext } from './api-key-auth';
+import { logger } from '../lib/logger';
 
 interface BucketEntry {
   tokens: number;
   lastRefill: number;
 }
 
+// In-memory token bucket — resets on process restart, not shared across instances.
+// Acceptable for single-process MVP; replace with Redis-backed store before horizontal scaling.
 const buckets = new Map<string, BucketEntry>();
+
+logger.warn('Rate limiter using in-memory store — limits reset on restart and are per-process only');
 
 export const rateLimit = createMiddleware<{ Variables: { auth: AuthContext } }>(async (c, next) => {
   const auth = c.get('auth');
