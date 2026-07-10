@@ -7,6 +7,8 @@ import bcrypt from 'bcryptjs';
 import { createDb, users, organizations, orgMembers, apiKeys, userSessions } from '@mstprmpt/db';
 import { generateApiKey } from '../../lib/crypto';
 import { logger } from '../../lib/logger';
+import { sessionAuth } from '../../middleware/session-auth';
+import { getEmailService } from '../../services/email.service';
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -216,17 +218,10 @@ app.post('/forgot-password', zValidator('json', forgotPasswordBody), async (c) =
 
   logger.info({ userId: user.id, attempt: attempts }, 'Password reset token generated');
 
-  // In production, send this token via email.
-  // For pre-launch, return it in the response so the flow is testable.
-  return c.json({
-    success: true,
-    data: {
-      message: genericMessage,
-      // Pre-launch only — remove before public launch
-      _resetToken: resetToken,
-      _expiresAt: resetTokenExpiresAt,
-    },
-  });
+  const emailService = getEmailService();
+  await emailService.sendPasswordReset(email, resetToken, resetTokenExpiresAt);
+
+  return c.json({ success: true, data: { message: genericMessage } });
 });
 
 // --- Reset Password (execute reset with token) ---
@@ -293,33 +288,11 @@ app.post('/reset-password', zValidator('json', resetPasswordBody), async (c) => 
 
 // --- Change Password (authenticated, for logged-in users) ---
 
-app.post('/change-password', zValidator('json', changePasswordBody), async (c) => {
+app.post('/change-password', sessionAuth, zValidator('json', changePasswordBody), async (c) => {
   const { currentPassword, newPassword } = c.req.valid('json');
-
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ success: false, error: { code: 'AUTH_MISSING', message: 'Session token required' } }, 401);
-  }
-
-  const token = authHeader.slice(7);
-  if (token.startsWith('mst_live_') || token.startsWith('mst_test_')) {
-    return c.json({ success: false, error: { code: 'AUTH_WRONG_TYPE', message: 'Use a session token, not an API key' } }, 401);
-  }
-
+  const { userId } = c.get('session');
   const db = createDb();
-  const tokenHash = createHash('sha256').update(token).digest('hex');
 
-  const sessions = await db
-    .select({ userId: userSessions.userId, expiresAt: userSessions.expiresAt })
-    .from(userSessions)
-    .where(eq(userSessions.tokenHash, tokenHash))
-    .limit(1);
-
-  if (sessions.length === 0 || new Date(sessions[0]!.expiresAt) < new Date()) {
-    return c.json({ success: false, error: { code: 'AUTH_INVALID_SESSION', message: 'Invalid or expired session' } }, 401);
-  }
-
-  const userId = sessions[0]!.userId;
   const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (result.length === 0) {
     return c.json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found' } }, 404);

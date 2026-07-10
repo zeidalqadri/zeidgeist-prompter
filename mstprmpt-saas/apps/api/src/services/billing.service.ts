@@ -4,9 +4,13 @@ import { createDb, organizations } from '@mstprmpt/db';
 
 const STRIPE_SECRET_KEY = process.env['STRIPE_SECRET_KEY'];
 
+let stripeInstance: Stripe | null = null;
+
 function getStripe(): Stripe {
   if (!STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not configured');
-  return new Stripe(STRIPE_SECRET_KEY);
+  if (stripeInstance) return stripeInstance;
+  stripeInstance = new Stripe(STRIPE_SECRET_KEY);
+  return stripeInstance;
 }
 
 const PLAN_CONFIGS: Record<string, { priceEnvKey: string; limits: { monthlyEnhancements: number; ratePerMinute: number; burstLimit: number } }> = {
