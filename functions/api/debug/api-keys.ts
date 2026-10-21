@@ -29,14 +29,13 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
   const appEnv = env.APP_ENV || env.NODE_ENV || 'production';
   const allowedEnvs = ['development', 'staging', 'preview'];
 
+  // Answer 404 and name nothing: in production this route should not confirm it exists
+  // or say which environment it runs in.
   if (!allowedEnvs.includes(appEnv)) {
     return new Response(
-      JSON.stringify({
-        error: 'This diagnostic endpoint is only available in development/staging environments',
-        environment: appEnv
-      }),
+      JSON.stringify({ error: 'Not found' }),
       {
-        status: 403,
+        status: 404,
         headers: { 'Content-Type': 'application/json' }
       }
     );
@@ -56,7 +55,7 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
     );
   }
 
-  if (authHeader !== `Bearer ${debugToken}`) {
+  if (!authHeader || !safeEqual(authHeader, `Bearer ${debugToken}`)) {
     return new Response(
       JSON.stringify({ error: 'Unauthorized - valid debug token required' }),
       {
@@ -145,7 +144,7 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
       'Remove this diagnostic endpoint after fixing the issue'
     ],
     security: {
-      warning: 'This diagnostic endpoint exposes partial API key information',
+      note: 'This endpoint reports whether each key is configured. It returns no key values or previews.',
       recommendation: 'Remove this endpoint from production after debugging'
     }
   };
@@ -157,6 +156,20 @@ export async function onRequestGet(context: { env: Env; request: Request }) {
       'X-Debug-Timestamp': new Date().toISOString()
     }
   });
+}
+
+// Compare without returning early at the first differing byte, so response time
+// does not reveal how much of a guessed token was right.
+function safeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const left = encoder.encode(a);
+  const right = encoder.encode(b);
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let i = 0; i < length; i++) {
+    difference |= (left[i] ?? 0) ^ (right[i] ?? 0);
+  }
+  return difference === 0;
 }
 
 function generateRecommendations(
