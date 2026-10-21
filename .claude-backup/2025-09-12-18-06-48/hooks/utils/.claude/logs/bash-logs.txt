@@ -1,8 +1,0 @@
-2025-09-09T20:18:12.281482 - echo "=== AGENT INFRASTRUCTURE ===" && ls -la .claude/agents/ | grep -E "(specialist|optimizer|engineer)" && echo -e "\n=== PERFORMANCE SYSTEMS ===" && find .claude/hooks/utils -name "*.py" 2>/dev/null | xargs basename -a 2>/dev/null | sort && echo -e "\n=== QUICK PERFORMANCE TEST ===" && cd .claude/hooks/utils && python3 quick_performance_demo.py 2>/dev/null | tail -10 - Check agent infrastructure and performance systems
---------------------------------
-2025-09-09T20:18:56.784901 - git status - Check git status for uncommitted changes
---------------------------------
-2025-09-09T20:18:56.948522 - git diff --cached - Check staged changes
---------------------------------
-2025-09-09T20:18:57.143402 - git diff - Check unstaged changes
---------------------------------
