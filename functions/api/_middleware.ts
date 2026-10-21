@@ -6,6 +6,8 @@
  * and converting them to structured JSON error responses.
  */
 
+import { resolveAllowedOrigin } from '../_shared/privacy-guard';
+
 interface MiddlewareContext {
   request: Request;
   env: Record<string, unknown>;
@@ -13,7 +15,7 @@ interface MiddlewareContext {
 }
 
 function getCorsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get('Origin') || '*';
+  const origin = resolveAllowedOrigin(request.headers.get('Origin') || undefined);
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',

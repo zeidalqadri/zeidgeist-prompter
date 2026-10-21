@@ -5,9 +5,10 @@
 // API endpoint for learning metrics dashboard
 // @ts-ignore - Using deprecated module pending migration
 import { getLearningMetrics } from '../../../app/lib/learning/learning-metrics';
+import { resolveAllowedOrigin } from '../../_shared/privacy-guard';
 
 function getCorsHeaders(request: Request) {
-  const origin = request.headers.get('Origin') || '*'
+  const origin = resolveAllowedOrigin(request.headers.get('Origin') || undefined)
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, OPTIONS',

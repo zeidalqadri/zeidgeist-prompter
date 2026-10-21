@@ -233,7 +233,7 @@ export function getSecurityHeaders(origin?: string): Record<string, string> {
   };
 }
 
-function resolveAllowedOrigin(origin?: string): string {
+export function resolveAllowedOrigin(origin?: string): string {
   if (!origin) return 'https://mstprmpt.zeidgeist.com'
 
   try {
