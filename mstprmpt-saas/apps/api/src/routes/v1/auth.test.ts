@@ -19,9 +19,6 @@ import type { Hono } from 'hono';
 const DB_PATH = path.join(os.tmpdir(), `mstprmpt-auth-test-${randomBytes(8).toString('hex')}.db`);
 
 process.env['DATABASE_PATH'] = DB_PATH;
-// Avoid colliding with a real dev server (or other test files) on the
-// default port — let the OS assign an ephemeral one.
-process.env['PORT'] = '0';
 
 const SCHEMA_SQL = `
 CREATE TABLE organizations (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, stripe_customer_id TEXT UNIQUE, stripe_price_id TEXT, plan_tier TEXT NOT NULL DEFAULT 'free', plan_limits TEXT NOT NULL DEFAULT '{"monthlyEnhancements":50,"ratePerMinute":5,"burstLimit":10}', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
@@ -44,7 +41,7 @@ beforeAll(async () => {
 
   // Import the app *after* DATABASE_PATH is set and the schema exists, so
   // `createDb()`'s first (cached) connection points at our temp DB.
-  const mod = await import('../../index');
+  const mod = await import('../../app');
   app = mod.default;
 });
 

@@ -14,9 +14,6 @@ const TEST_DB_PATH = vi.hoisted(() => {
   process.env['DATABASE_PATH'] = dbPath;
   process.env['STRIPE_SECRET_KEY'] = 'sk_test_mock';
   process.env['STRIPE_WEBHOOK_SECRET'] = 'whsec_test_mock';
-  // Bind the app's incidental `serve()` call (see apps/api/src/index.ts) to an
-  // OS-assigned ephemeral port so it can't collide with a real dev server.
-  process.env['PORT'] = '0';
   return dbPath;
 });
 
@@ -77,7 +74,7 @@ function insertBillingEvent(orgId: string, stripeEventId: string): void {
 
 // Imported after the hoisted env setup above so both pick up the test DB path
 // and test Stripe credentials.
-const { default: app } = await import('../../index');
+const { default: app } = await import('../../app');
 const { logger } = await import('../../lib/logger');
 
 async function postWebhook(body: unknown, headers: Record<string, string> = {}) {
