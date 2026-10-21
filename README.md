@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# zeidgeist-prompter
 
-## Getting Started
+Prompt refactoring web app, Chrome extension and API. It takes a raw prompt and returns a refined one, using a language model provider.
 
-First, run the development server:
+Status: early, one maintainer, no releases. The `*_REPORT.md`, `*_PLAN.md` and `*_GUIDE.md` files in the repository root are working notes written during development. They are not documentation and not guarantees.
+
+## Parts
+
+1. `app/`: Next.js App Router pages (dashboard, pricing, docs, auth).
+2. `functions/`: Cloudflare Pages Functions under `functions/api` (engineer, auth, learning, analytics, health and others).
+3. `extension/`: Chrome extension "mstprmpt - Prompt Refactorer", built with Vite.
+4. `mstprmpt-saas/`: Turborepo with a Hono API, Drizzle over SQLite and the enhancement engine. Its own README describes Stripe billing, scoped API keys and usage tracking.
+5. `tests/`: Vitest unit and integration tests. `playwright-tests/`: end to end tests.
+
+## Providers
+
+The docs name DeepSeek, Mistral, Gemini, Claude, OpenAI and Moonshot as supported providers. You supply your own keys.
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+# copy env.example to .env.local and fill in provider keys
+npm run dev    # http://localhost:3333
 ```
 
-Open [http://localhost:3333](http://localhost:3333) with your browser to see the result.
+Details: `LOCAL-DEPLOYMENT.md`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Checks
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run validate-all   # type check, strict lint, env validation
+npm test               # Vitest
+```
 
-## Learn More
+## Deploy
 
-To learn more about Next.js, take a look at the following resources:
+Cloudflare Pages. See `CLOUDFLARE-DEPLOYMENT.md` and `DEPLOYMENT-GUIDE.md`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Licence
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Cloudflare
-
-This application is optimized for deployment on Cloudflare Pages with Workers. See `DEPLOYMENT-GUIDE.md` for complete deployment instructions.
-
-The application includes comprehensive security fixes, testing infrastructure, and production deployment automation.
+MIT, see [LICENSE](LICENSE).
